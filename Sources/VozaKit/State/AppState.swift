@@ -26,6 +26,8 @@ final class AppState: ObservableObject {
     @Published var recent: [TranscriptEntry] = []
     @Published var downloadProgress: Double?
     @Published var downloadingModelId: String?
+    @Published var downloadETA: String?
+    @Published var perfSuggestion: PerformanceMonitor.Suggestion?
     @Published var showOnboarding = false
     @Published var statusMessage: String?
     @Published var elapsedSeconds: Double = 0
@@ -36,6 +38,8 @@ final class AppState: ObservableObject {
     private let transcriber = Transcriber()
     private var activeModeIsCleanup = false
     private var tickTimer: Timer?
+    private var recordedSeconds: Double = 0
+    private var downloadStartAt: Date?
 
     private init() {}
 
@@ -45,6 +49,12 @@ final class AppState: ObservableObject {
         recent = TranscriptStore.shared.recent
         config.reload()
         showOnboarding = !Permissions.allGranted
+        if !phase.isBusy {
+            perfSuggestion = PerformanceMonitor.shared.suggestion(
+                currentModel: config.resolvedModelId,
+                ramGB: HardwareProfile.totalRAMGB
+            )
+        }
     }
 
     // MARK: - Push to talk
@@ -78,6 +88,7 @@ final class AppState: ObservableObject {
         guard case .recording = phase else { return }
         tickTimer?.invalidate()
         tickTimer = nil
+        recordedSeconds = elapsedSeconds
         guard let wav = recorder.stop() else {
             phase = .idle
             return
@@ -99,12 +110,16 @@ final class AppState: ObservableObject {
 
         // 1. Transcribe (never leaves the Mac)
         let language = cfg.resolvedLanguage
-        let modelPath = ModelManager.shared.resolvedModelPath(preferredId: cfg.resolvedModelId)
+        let modelId = cfg.resolvedModelId
+        let modelPath = ModelManager.shared.resolvedModelPath(preferredId: modelId)
             ?? ModelManager.shared.resolvedModelPath(preferredId: HardwareProfile.recommendedModel())
         var text: String
         do {
             guard let modelPath else { throw TranscriptionError.modelNotFound }
+            let startedAt = Date()
             text = try transcriber.transcribe(wavURL: wavURL, modelPath: modelPath, language: language)
+            let rtf = Date().timeIntervalSince(startedAt) / max(recordedSeconds, 0.5)
+            PerformanceMonitor.shared.record(rtf: rtf, model: modelId)
         } catch {
             try? FileManager.default.removeItem(at: wavURL)
             phase = .failed(error.localizedDescription)
@@ -138,22 +153,74 @@ final class AppState: ObservableObject {
 
     var recommendedModelId: String { HardwareProfile.recommendedModel() }
 
-    func downloadModel(id: String) {
+    func downloadModel(id: String, switchWhenDone: Bool = false) {
         guard downloadingModelId == nil, let model = WhisperCatalog.byId(id) else { return }
+        let free = ReadinessChecker.freeDiskMB()
+        guard free >= Readiness.minimumDownloadMB else {
+            phase = .failed(L.t("Only \(free) MB free — need \(Readiness.minimumDownloadMB) MB. Free up space and retry.",
+                                es: "Solo \(free) MB libres — necesito \(Readiness.minimumDownloadMB) MB. Libera espacio e intenta de nuevo."))
+            return
+        }
         downloadingModelId = id
         downloadProgress = 0
+        downloadETA = nil
+        downloadStartAt = Date()
         Task {
             do {
                 try await ModelManager.shared.download(model) { [weak self] p in
-                    Task { @MainActor in self?.downloadProgress = p }
+                    Task { @MainActor in
+                        self?.downloadProgress = p
+                        if let start = self?.downloadStartAt {
+                            let elapsed = Date().timeIntervalSince(start)
+                            if p > 0.02, elapsed > 1.5 {
+                                let remaining = max(elapsed / p - elapsed, 0)
+                                self?.downloadETA = Self.formatETA(remaining)
+                            }
+                        }
+                    }
                 }
-                statusMessage = L.t("Model \(id) ready", es: "Modelo \(id) listo")
+                if switchWhenDone {
+                    config.setModel(id)
+                    statusMessage = L.t("Switched to \(id)", es: "Cambiado a \(id)")
+                } else {
+                    statusMessage = L.t("Model \(id) ready", es: "Modelo \(id) listo")
+                }
             } catch {
                 phase = .failed(error.localizedDescription)
             }
             downloadingModelId = nil
             downloadProgress = nil
+            downloadETA = nil
+            downloadStartAt = nil
         }
+    }
+
+    /// One-tap model change from a performance suggestion.
+    func applySuggestion() {
+        guard let suggestion = perfSuggestion else { return }
+        perfSuggestion = nil
+        if let model = WhisperCatalog.byId(suggestion.targetModelId),
+           !ModelManager.shared.isDownloaded(model) {
+            downloadModel(id: suggestion.targetModelId, switchWhenDone: true)
+        } else {
+            config.setModel(suggestion.targetModelId)
+            statusMessage = L.t("Switched to \(suggestion.targetModelId)", es: "Cambiado a \(suggestion.targetModelId)")
+            refresh()
+        }
+    }
+
+    func dismissSuggestion() {
+        if let suggestion = perfSuggestion {
+            PerformanceMonitor.shared.dismiss(suggestion)
+        }
+        perfSuggestion = nil
+    }
+
+    nonisolated static func formatETA(_ seconds: TimeInterval) -> String {
+        let s = Int(seconds.rounded())
+        if s < 60 { return "\(s)s" }
+        if s < 3600 { return "\(s / 60)m \(s % 60)s" }
+        return String(format: "%dh %02dm", s / 3600, (s % 3600) / 60)
     }
 
     func copyToClipboard(_ text: String) {

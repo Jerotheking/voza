@@ -95,4 +95,28 @@ if CommandLine.arguments.contains("e2e") {
     sem.wait()
 }
 
+// 7. Performance monitor logic
+PerformanceMonitor.shared._test_clear()
+PerformanceMonitor.shared._test_setSamples([0.2, 0.3, 0.4], model: "small.en-q5_1")
+check("perf median", abs((PerformanceMonitor.shared.medianRTF(model: "small.en-q5_1") ?? 0) - 0.3) < 0.001)
+check("perf speed label", PerformanceMonitor.shared.speedLabel(model: "small.en-q5_1") == "3.3× realtime",
+      PerformanceMonitor.shared.speedLabel(model: "small.en-q5_1") ?? "nil")
+check("perf no suggestion in healthy band",
+      PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
+PerformanceMonitor.shared._test_setSamples([0.9, 1.1, 0.8], model: "small.en-q5_1")
+let sugg = PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 24)
+check("perf suggests lighter when slow", sugg?.direction == .lighter, sugg?.targetModelId ?? "none")
+PerformanceMonitor.shared._test_setSamples([0.05, 0.06, 0.04], model: "small.en-q5_1")
+check("perf no heavier suggestion under 32GB",
+      PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
+check("perf suggests heavier on 32GB+",
+      PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 32)?.direction == .heavier)
+PerformanceMonitor.shared._test_clear()
+check("perf eta format", AppState.formatETA(95) == "1m 35s", AppState.formatETA(95))
+
+// 8. Readiness snapshot
+let readiness = ReadinessChecker.check()
+check("readiness disk sane", readiness.freeDiskMB > 0, "\(readiness.freeDiskMB) MB free")
+check("readiness engine", readiness.engineFound)
+
 print("\nAll smoke checks passed.")
