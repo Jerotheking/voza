@@ -82,6 +82,21 @@ swift run VozaSmoke          # unit + integration checks
 swift run VozaSmoke e2e /tmp/jfk.wav   # full pipeline: download → SHA-256 → transcribe
 ```
 
+### Licensing & buying
+
+Voza's source is **MIT** — build it yourself and it's free, forever. If you'd rather skip the build, the **pre-built, notarized app is $29** ([Gumroad](https://jerotherey.gumroad.com/l/voza)): it includes a 14-day trial, one-time Gumroad activation (cached offline after the first check, 7-day silent re-verify), and no subscription. Your purchase funds development.
+
+### Releasing (maintainers)
+
+```bash
+export VOZA_SIGNING_ID="Developer ID Application: ... (TEAMID)"
+export VOZA_KEYCHAIN_PROFILE="notarytool-profile"
+./scripts/release.sh        # build → sign → notarize → staple → DMG
+# bump packaging/voza.rb (cask) with the new DMG SHA-256
+```
+
+See [docs/market-analysis.md](docs/market-analysis.md) for the full competitive and pricing research.
+
 ---
 
 ## Español

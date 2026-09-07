@@ -28,10 +28,14 @@ final class AppState: ObservableObject {
     @Published var downloadingModelId: String?
     @Published var showOnboarding = false
     @Published var statusMessage: String?
+    @Published var elapsedSeconds: Double = 0
+
+    let license = LicenseManager.shared
 
     private let recorder = AudioRecorder.shared
     private let transcriber = Transcriber()
     private var activeModeIsCleanup = false
+    private var tickTimer: Timer?
 
     private init() {}
 
@@ -56,6 +60,14 @@ final class AppState: ObservableObject {
         activeModeIsCleanup = cleanup
         do {
             try recorder.start()
+            elapsedSeconds = 0
+            tickTimer?.invalidate()
+            tickTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self, case .recording = self.phase else { return }
+                    self.elapsedSeconds = self.recorder.elapsedSeconds
+                }
+            }
             phase = .recording(cleanup: cleanup)
         } catch {
             phase = .failed(error.localizedDescription)
@@ -64,12 +76,14 @@ final class AppState: ObservableObject {
 
     func stopDictation() {
         guard case .recording = phase else { return }
+        tickTimer?.invalidate()
+        tickTimer = nil
         guard let wav = recorder.stop() else {
             phase = .idle
             return
         }
         // Ignore accidental taps shorter than 250 ms.
-        if recorder.elapsedSeconds < 0.25 {
+        if elapsedSeconds < 0.25 {
             recorder.cancel()
             try? FileManager.default.removeItem(at: wav)
             phase = .idle
@@ -113,6 +127,9 @@ final class AppState: ObservableObject {
         }
         Paster.paste(text)
         TranscriptStore.shared.add(text: text, cleaned: cleanupMode)
+        if cfg.playSound {
+            NSSound(named: "Tink")?.play()
+        }
         refresh()
         phase = .idle
     }

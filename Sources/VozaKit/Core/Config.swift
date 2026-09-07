@@ -28,6 +28,7 @@ final class Config {
     var ollamaModel: String
     var language: String         // auto | en | es
     var playSound: Bool
+    var gumroadPermalink: String
 
     private(set) var env: [String: String] = [:]
     private var raw: [String: String] = [:]
@@ -37,6 +38,7 @@ final class Config {
         ollamaModel = "qwen3:8b"
         language = "auto"
         playSound = false
+        gumroadPermalink = "voza"
         load()
     }
 
@@ -96,6 +98,7 @@ final class Config {
     func setOllamaModel(_ v: String)       { ollamaModel = v;    raw["ollama_model"] = v; persist() }
     func setLanguage(_ v: String)          { language = v;       raw["language"] = v; persist() }
     func setPlaySound(_ v: Bool)           { playSound = v;      raw["play_sound"] = v ? "true" : "false"; persist() }
+    func setGumroadPermalink(_ v: String)  { gumroadPermalink = v; raw["gumroad_permalink"] = v; persist() }
 
     private func persist() {
         var lines = ["# Voza configuration — edited from the app or by hand."]
@@ -107,6 +110,7 @@ final class Config {
         lines.append("ollama_model = \"\(ollamaModel)\"")
         lines.append("language = \"\(language)\"")
         lines.append("play_sound = \(playSound ? "true" : "false")")
+        lines.append("gumroad_permalink = \(gumroadPermalink)")
         let text = lines.joined(separator: "\n") + "\n"
         let path = Self.appSupportDirectory + "/config.toml"
         try? text.write(toFile: path, atomically: true, encoding: .utf8)

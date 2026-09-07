@@ -12,6 +12,8 @@ struct SettingsView: View {
                 .tabItem { Label(L.t("Models", es: "Modelos"), systemImage: "square.stack.3d.down.forward") }
             AdvancedSettings().environmentObject(appState)
                 .tabItem { Label(L.t("Advanced", es: "Avanzado"), systemImage: "wrench.and.screwdriver") }
+            LicenseSettings().environmentObject(appState)
+                .tabItem { Label(L.t("License", es: "Licencia"), systemImage: "key") }
             AboutSettings().environmentObject(appState)
                 .tabItem { Label(L.t("About", es: "Acerca de"), systemImage: "info.circle") }
         }
@@ -173,5 +175,72 @@ struct AboutSettings: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+struct LicenseSettings: View {
+    @EnvironmentObject var appState: AppState
+    @State private var key = ""
+    @State private var activating = false
+
+    var body: some View {
+        Form {
+            switch appState.license.state {
+            case .licensed(let email):
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(L.t("Voza is activated — thank you!", es: "Voza está activada — ¡gracias!"))
+                            .font(.headline)
+                        if let email {
+                            Text(email).font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                } icon: {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green)
+                }
+            case .trial(let daysLeft):
+                Label(L.t("Trial: \(daysLeft) day\(daysLeft == 1 ? "" : "s") left", es: "Prueba: \(daysLeft) día\(daysLeft == 1 ? "" : "s") restante\(daysLeft == 1 ? "" : "s")"),
+                      systemImage: "hourglass")
+                    .foregroundStyle(.secondary)
+            case .trialOver:
+                Label(L.t("Trial finished — the nag continues, dictation keeps working.", es: "Prueba terminada — el recordatorio sigue, el dictado sigue funcionando."),
+                      systemImage: "exclamationmark.circle")
+                    .foregroundStyle(Theme.accent)
+            case .invalid(let message):
+                Label(message, systemImage: "xmark.octagon")
+                    .foregroundStyle(.red)
+            case .unlicensed:
+                EmptyView()
+            }
+
+            HStack {
+                SecureField("VOZA-XXXX-XXXX-XXXX", text: $key)
+                    .textFieldStyle(.roundedBorder)
+                Button(activating ? L.t("Activating…", es: "Activando…") : L.t("Activate", es: "Activar")) {
+                    activating = true
+                    Task {
+                        await appState.license.activate(key)
+                        activating = false
+                    }
+                }
+                .disabled(key.isEmpty || activating)
+                .buttonStyle(.borderedProminent)
+            }
+
+            HStack {
+                Text(L.t("No license yet?", es: "¿Aún no tienes licencia?"))
+                    .foregroundStyle(.secondary)
+                Link(L.t("Buy Voza ($29) →", es: "Comprar Voza ($29) →"),
+                     destination: URL(string: "https://jerotherey.gumroad.com/l/\(appState.config.gumroadPermalink)")!)
+                    .foregroundStyle(Theme.accent)
+            }
+            .font(.callout)
+
+            Text(L.t("Licenses are verified once against Gumroad and then cached — Voza keeps working fully offline. The source remains MIT: build it yourself and no license is needed.",
+                     es: "La licencia se verifica una vez contra Gumroad y queda en caché — Voza sigue funcionando 100% offline. El código sigue siendo MIT: compílalo tú mismo y no necesitas licencia."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(20)
     }
 }

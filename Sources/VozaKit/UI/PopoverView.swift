@@ -35,7 +35,7 @@ struct PopoverView: View {
                       systemImage: "mic.fill")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.red)
-                Text(String(format: "%.0f s", AudioRecorder.shared.elapsedSeconds))
+                Text(String(format: "%.0f s", appState.elapsedSeconds))
                     .font(.caption2).foregroundStyle(.secondary)
             case .transcribing:
                 Label(L.t("Transcribing…", es: "Transcribiendo…"), systemImage: "waveform")
@@ -60,6 +60,18 @@ struct PopoverView: View {
             }
             if let msg = appState.statusMessage {
                 Text(msg).font(.caption2).foregroundStyle(.green)
+            }
+            if case .trialOver = appState.license.state {
+                Button {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    NSApp.activate(ignoringOtherApps: true)
+                } label: {
+                    Label(L.t("Trial over — activate Voza", es: "Prueba terminada — activa Voza"),
+                          systemImage: "key")
+                        .font(.caption2)
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.borderless)
             }
         }
         .padding(12)

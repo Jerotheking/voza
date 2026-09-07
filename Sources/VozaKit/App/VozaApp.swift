@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.onPressCleanup = { appState.startDictation(cleanup: true) }
         HotKeyManager.shared.onRelease = { appState.stopDictation() }
         appState.refresh()
+        LicenseManager.shared.refreshIfNeeded()
         if !Permissions.allGranted {
             appState.showOnboarding = true
         }
