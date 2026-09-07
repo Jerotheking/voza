@@ -35,7 +35,6 @@ final class AppState: ObservableObject {
     let license = LicenseManager.shared
 
     private let recorder = AudioRecorder.shared
-    private let transcriber = Transcriber()
     private var activeModeIsCleanup = false
     private var tickTimer: Timer?
     private var recordedSeconds: Double = 0
@@ -110,18 +109,29 @@ final class AppState: ObservableObject {
         let cfg = config
         let cleanupMode = activeModeIsCleanup
 
-        // 1. Transcribe (never leaves the Mac)
+        // 1. Transcribe (never leaves the Mac). The whisper.cpp process is blocking
+        // (it polls with Thread.sleep), so it MUST run off the MainActor — otherwise
+        // the menu bar and hotkeys freeze for the whole transcription (audit v2 §3.4).
         let language = cfg.resolvedLanguage
-        let modelId = cfg.resolvedModelId
-        let modelPath = ModelManager.shared.resolvedModelPath(preferredId: modelId)
-            ?? ModelManager.shared.resolvedModelPath(preferredId: HardwareProfile.recommendedModel())
+        let preferredId = cfg.resolvedModelId
         var text: String
         do {
-            guard let modelPath else { throw TranscriptionError.modelNotFound }
+            // Resolve the model ACTUALLY used (descriptor + path together) so RTF is
+            // attributed to the real model, never a silently-fallen-back one (§3.3).
+            guard let resolved = ModelManager.shared.resolvedModel(preferredId: preferredId)
+                ?? ModelManager.shared.resolvedModel(preferredId: HardwareProfile.recommendedModel(language: language))
+            else { throw TranscriptionError.modelNotFound }
+            if resolved.model.id != preferredId {
+                statusMessage = L.t("Using fallback model \(resolved.model.id)",
+                                    es: "Usando modelo de respaldo \(resolved.model.id)")
+            }
+            let modelPath = resolved.path
             let startedAt = Date()
-            text = try transcriber.transcribe(wavURL: wavURL, modelPath: modelPath, language: language)
+            text = try await Task.detached(priority: .userInitiated) {
+                try Transcriber().transcribe(wavURL: wavURL, modelPath: modelPath, language: language)
+            }.value
             let rtf = Date().timeIntervalSince(startedAt) / max(recordedSeconds, 0.5)
-            PerformanceMonitor.shared.record(rtf: rtf, model: modelId)
+            PerformanceMonitor.shared.record(rtf: rtf, model: resolved.model.id)
         } catch {
             try? FileManager.default.removeItem(at: wavURL)
             phase = .failed(error.localizedDescription)
@@ -129,21 +139,28 @@ final class AppState: ObservableObject {
         }
         try? FileManager.default.removeItem(at: wavURL) // audio deleted right after transcription
 
-        // 2. Optional AI cleanup
+        // 2. Optional AI cleanup — result carries what ACTUALLY happened.
+        var cleanupApplied = false
         if cleanupMode {
             phase = .cleaning
-            text = await Cleaner.clean(text, config: cfg)
+            let outcome = await Cleaner.clean(text, config: cfg)
+            text = outcome.text
+            cleanupApplied = outcome.applied
+            if !outcome.applied {
+                statusMessage = L.t("Cleanup unavailable — pasted raw text",
+                                    es: "Limpieza no disponible — se pegó el texto crudo")
+            }
         }
 
-        // 3. Paste + log
+        // 3. Paste + log (history only marks ✨ when a provider really transformed the text)
         guard Permissions.accessibilityGranted else {
-            TranscriptStore.shared.add(text: text, cleaned: cleanupMode)
+            TranscriptStore.shared.add(text: text, cleaned: cleanupApplied)
             refresh()
             phase = .failed(L.t("Accessibility permission needed for paste", es: "Falta permiso de Accesibilidad para pegar"))
             return
         }
         Paster.paste(text)
-        TranscriptStore.shared.add(text: text, cleaned: cleanupMode)
+        TranscriptStore.shared.add(text: text, cleaned: cleanupApplied)
         if cfg.playSound {
             NSSound(named: "Tink")?.play()
         }
@@ -153,14 +170,15 @@ final class AppState: ObservableObject {
 
     // MARK: - Models
 
-    var recommendedModelId: String { HardwareProfile.recommendedModel() }
+    var recommendedModelId: String { HardwareProfile.recommendedModel(language: config.resolvedLanguage) }
 
     func downloadModel(id: String, switchWhenDone: Bool = false) {
         guard downloadingModelId == nil, let model = WhisperCatalog.byId(id) else { return }
         let free = ReadinessChecker.freeDiskMB()
-        guard free >= Readiness.minimumDownloadMB else {
-            phase = .failed(L.t("Only \(free) MB free — need \(Readiness.minimumDownloadMB) MB. Free up space and retry.",
-                                es: "Solo \(free) MB libres — necesito \(Readiness.minimumDownloadMB) MB. Libera espacio e intenta de nuevo."))
+        let requiredMB = ReadinessChecker.requiredFreeMB(for: model)
+        guard free >= requiredMB else {
+            phase = .failed(L.t("Only \(free) MB free — \(id) needs about \(requiredMB) MB. Free up space and retry.",
+                                es: "Solo \(free) MB libres — \(id) necesita unos \(requiredMB) MB. Libera espacio e intenta de nuevo."))
             return
         }
         downloadingModelId = id

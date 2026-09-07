@@ -20,7 +20,7 @@ echo "==> Building release"
 ./build.sh release
 
 echo "==> Signing with Developer ID (runtime hardened)"
-codesign --force --deep --sign "$VOZA_SIGNING_ID" \
+codesign --force --sign "$VOZA_SIGNING_ID" \
   --entitlements packaging/Voza.entitlements \
   --options runtime \
   --timestamp \

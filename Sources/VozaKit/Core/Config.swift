@@ -118,12 +118,17 @@ final class Config {
 
     // MARK: - Resolved values
 
-    var resolvedModelId: String { modelId ?? HardwareProfile.recommendedModel() }
+    var resolvedModelId: String { modelId ?? HardwareProfile.recommendedModel(language: resolvedLanguage) }
     var resolvedOllamaModel: String { env["OLLAMA_MODEL"] ?? ollamaModel }
     var resolvedCleanupMode: String { cleanupMode }
+    /// "auto" means the SPEECH language is auto-detected by the engine (whisper.cpp -l auto).
+    /// It must never be inferred from the UI language — a Spanish speaker with an English UI
+    /// still gets auto-detection (P0 fix from external audit v2, §3.1).
     var resolvedLanguage: String {
-        guard language == "auto" else { return language }
-        return L.isSpanish ? "es" : "en"
+        switch language {
+        case "en", "es": return language
+        default: return "auto"
+        }
     }
     var resolvedModelsDirectory: String {
         modelsDirectory ?? (Self.appSupportDirectory + "/models")

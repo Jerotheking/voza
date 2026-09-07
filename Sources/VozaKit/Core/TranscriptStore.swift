@@ -43,6 +43,29 @@ final class TranscriptStore {
         }
     }
 
+    /// Pure markdown parser — testable without touching the user's log files.
+    /// FIX (audit v2 §3.9): the ✨ marker is stripped BEFORE parsing the timestamp.
+    /// Previously `DateFormatter.date(from:)` received "…  ✨" and failed, so every
+    /// cleaned entry silently vanished from the history after a relaunch.
+    static func parseEntries(fromMarkdown raw: String) -> [TranscriptEntry] {
+        let tf = DateFormatter()
+        tf.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        var entries: [TranscriptEntry] = []
+        for chunk in raw.components(separatedBy: "\n## ") {
+            let body = chunk.hasPrefix("## ") ? String(chunk.dropFirst(3)) : chunk
+            guard let nl = body.firstIndex(of: "\n") else { continue }
+            let stamp = String(body[..<nl]).trimmingCharacters(in: .whitespaces)
+            let cleaned = stamp.contains("✨")
+            let cleanStamp = stamp
+                .replacingOccurrences(of: "✨", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            let text = body[body.index(after: nl)...].trimmingCharacters(in: .whitespacesAndNewlines)
+            guard let date = tf.date(from: cleanStamp), !text.isEmpty else { continue }
+            entries.append(TranscriptEntry(id: UUID(), date: date, text: text, cleaned: cleaned))
+        }
+        return entries
+    }
+
     private func appendToFile(_ entry: TranscriptEntry) {
         let f = DateFormatter()
         f.dateFormat = "yyyy-MM"
@@ -75,16 +98,7 @@ final class TranscriptStore {
             var entries: [TranscriptEntry] = []
             for url in files {
                 guard let raw = try? String(contentsOf: url, encoding: .utf8) else { continue }
-                let tf = DateFormatter()
-                tf.dateFormat = "yyyy-MM-dd HH:mm:ss"
-                for chunk in raw.components(separatedBy: "\n## ") {
-                    let body = chunk.hasPrefix("## ") ? String(chunk.dropFirst(3)) : chunk
-                    guard let nl = body.firstIndex(of: "\n") else { continue }
-                    let stamp = String(body[..<nl]).trimmingCharacters(in: .whitespaces)
-                    let text = body[body.index(after: nl)...].trimmingCharacters(in: .whitespacesAndNewlines)
-                    guard let date = tf.date(from: stamp), !text.isEmpty else { continue }
-                    entries.append(TranscriptEntry(id: UUID(), date: date, text: text, cleaned: stamp.contains("✨")))
-                }
+                entries.append(contentsOf: Self.parseEntries(fromMarkdown: raw))
             }
             entries.sort { $0.date > $1.date }
             DispatchQueue.main.async {

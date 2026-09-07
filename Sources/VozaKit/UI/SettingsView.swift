@@ -70,16 +70,17 @@ struct StatusView: View {
 
     @ViewBuilder
     private var heroCard: some View {
-        if readiness.freeDiskMB < Readiness.minimumDownloadMB && !readiness.modelAvailable {
+        if readiness.freeDiskMB < ReadinessChecker.requiredFreeMB(for: WhisperCatalog.byId(appState.recommendedModelId) ?? WhisperCatalog.all[0]) && !readiness.modelAvailable {
+            let needed = ReadinessChecker.requiredFreeMB(for: WhisperCatalog.byId(appState.recommendedModelId) ?? WhisperCatalog.all[0])
             hero(icon: "externaldrive.badge.exclamationmark", tint: .orange,
                  title: L.t("Not enough disk space", es: "Poco espacio en disco"),
-                 detail: L.t("A model download needs at least \(Readiness.minimumDownloadMB) MB free. You have \(readiness.freeDiskMB) MB.",
-                             es: "Descargar un modelo requiere al menos \(Readiness.minimumDownloadMB) MB libres. Tienes \(readiness.freeDiskMB) MB."))
+                 detail: L.t("Downloading \(appState.recommendedModelId) needs about \(needed) MB free. You have \(readiness.freeDiskMB) MB.",
+                             es: "Descargar \(appState.recommendedModelId) requiere unos \(needed) MB libres. Tienes \(readiness.freeDiskMB) MB."))
         } else if !readiness.micGranted {
             hero(icon: "mic.badge.xmark", tint: .orange,
                  title: L.t("Microphone needed", es: "Falta el micrófono"),
-                 detail: L.t("Voza records your voice locally. Nothing is uploaded.",
-                             es: "Voza graba tu voz localmente. Nada se sube."),
+                 detail: L.t("Your audio never leaves this Mac.",
+                             es: "Tu audio nunca sale de esta Mac."),
                  buttonTitle: L.t("Grant", es: "Conceder")) {
                 Task {
                     _ = await Permissions.requestMicrophone()
@@ -93,6 +94,18 @@ struct StatusView: View {
                              es: "Accesibilidad permite a Voza pegar el texto en la app que uses."),
                  buttonTitle: L.t("Open Settings", es: "Abrir Ajustes")) {
                 Permissions.openAccessibilitySettings()
+                refreshSoon()
+            }
+        } else if !readiness.inputMonitoringGranted || !readiness.hotkeyTapActive {
+            hero(icon: "keyboard.badge.eye", tint: .orange,
+                 title: L.t("Global hotkey blocked", es: "Hotkey global bloqueado"),
+                 detail: readiness.hotkeyTapActive
+                    ? L.t("Input Monitoring lets Voza detect the push-to-talk key system-wide.",
+                          es: "Input Monitoring permite a Voza detectar la tecla de dictado en todo el sistema.")
+                    : (HotKeyManager.shared.lastTapError ?? L.t("Global hotkey unavailable — grant Input Monitoring",
+                                                                es: "Hotkey global no disponible — otorga Input Monitoring")),
+                 buttonTitle: L.t("Open Settings", es: "Abrir Ajustes")) {
+                Permissions.openInputMonitoringSettings()
                 refreshSoon()
             }
         } else if !readiness.engineFound {
@@ -165,6 +178,7 @@ struct StatusView: View {
         HStack(spacing: 8) {
             chip(L.t("Mic", es: "Mic"), ok: readiness.micGranted)
             chip(L.t("Paste", es: "Pegar"), ok: readiness.accessibilityGranted)
+            chip(L.t("Hotkey", es: "Hotkey"), ok: readiness.inputMonitoringGranted && readiness.hotkeyTapActive)
             chip(L.t("Engine", es: "Motor"), ok: readiness.engineFound)
             chip(L.t("Model", es: "Modelo"), ok: readiness.modelAvailable)
             Spacer()
@@ -286,9 +300,9 @@ struct DictationSettings: View {
                     get: { appState.config.cleanupMode },
                     set: { appState.config.setCleanupMode($0) }
                 )) {
-                    Text(L.t("Automatic (Ollama → cloud)", es: "Automática (Ollama → nube)")).tag("auto")
+                    Text(L.t("Automatic — local only, never cloud", es: "Automática — solo local, nunca nube")).tag("auto")
                     Text("Ollama " + L.t("only", es: "solo")).tag("ollama")
-                    Text(L.t("Cloud API only", es: "Solo API en la nube")).tag("cloud")
+                    Text(L.t("Cloud API only (explicit)", es: "Solo API en la nube (explícito)")).tag("cloud")
                     Text(L.t("Off (plain paste)", es: "Apagada (pegado simple)")).tag("plain")
                 }
                 if appState.config.cleanupMode == "ollama" || appState.config.cleanupMode == "auto" {

@@ -19,6 +19,10 @@ enum WhisperCatalog {
         WhisperModel(id: "tiny.en",   file: "ggml-tiny.en.bin",   bytes: 77_704_715,   sha256: "921e4cf8686fdd993dcd081a5da5b6c365bfde1162e72b08d75ac75289920b1f"),
         WhisperModel(id: "base.en",   file: "ggml-base.en.bin",   bytes: 147_964_211,  sha256: "a03779c86df3323075f5e796cb2ce5029f00ec8869eee3fdfb897afe36c6d002"),
         WhisperModel(id: "small.en-q5_1", file: "ggml-small.en-q5_1.bin", bytes: 190_098_681, sha256: "bfdff4894dcb76bbf647d56263ea2a96645423f1669176f4844a1bf8e478ad30"),
+        // Multilingual twin at ~the same size — the correct default for "es"/"auto"
+        // (P0 fix from external audit v2, §3.2: English-only must never be recommended
+        // for non-English or auto language).
+        WhisperModel(id: "small-q5_1", file: "ggml-small-q5_1.bin", bytes: 190_085_487, sha256: "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb"),
         WhisperModel(id: "small.en",  file: "ggml-small.en.bin",  bytes: 487_614_201,  sha256: "c6138d6d58ecc8322097e0f987c32f1be8bb0a18532a3f88f734d1bbf9c41e5d"),
         WhisperModel(id: "small",     file: "ggml-small.bin",     bytes: 487_601_967,  sha256: "1be3a9b2063867b937e64e2ec7483364a79917e157fa98c5d94b5c1fffea987b"),
         WhisperModel(id: "medium",    file: "ggml-medium.bin",    bytes: 1_533_763_059, sha256: "6c14d5adee5f86394037b4e4e8b59f1673b6cee10e3cf0b11bbdbee79c156208"),
@@ -43,13 +47,16 @@ enum HardwareProfile {
         return String(cString: brand)
     }
 
-    static func recommendedModel() -> String {
-        // ≥30 GB: large-v3-turbo runs comfortably and gives the best accuracy.
-        // <30 GB: small.en-q5_1 — the quantized 190 MB build keeps memory low
-        // on 8–16 GB Macs while staying near real time on M-series GPUs.
+    /// - Parameter language: resolved speech language ("auto", "en", "es", ...).
+    ///   "en" may get the English-only build (slightly better on English);
+    ///   everything else — including "auto" — must get a multilingual model.
+    static func recommendedModel(language: String) -> String {
+        // ≥30 GB: large-v3-turbo runs comfortably, gives the best accuracy and is multilingual.
+        // <30 GB: the quantized 190 MB build keeps memory low on 8–16 GB Macs while
+        // staying near real time on M-series GPUs.
         switch totalRAMGB {
         case 30...: return "large-v3-turbo"
-        default:    return "small.en-q5_1"
+        default:    return language == "en" ? "small.en-q5_1" : "small-q5_1"
         }
     }
 }
@@ -90,11 +97,18 @@ final class ModelManager: Sendable {
         WhisperCatalog.all.filter { isDownloaded($0) }
     }
 
-    func resolvedModelPath(preferredId: String) -> String? {
+    /// Resolves the model actually used for a run — descriptor + path together, so
+    /// callers can attribute RTF/metrics to the REAL model, not the configured one
+    /// (P0 fix from external audit v2, §3.3: silent fallback must not poison auto-tuning).
+    func resolvedModel(preferredId: String) -> (model: WhisperModel, path: String)? {
         if let m = WhisperCatalog.byId(preferredId), isDownloaded(m) {
-            return localPath(for: m).path
+            return (m, localPath(for: m).path)
         }
-        return downloadedModels().first.map { localPath(for: $0).path }
+        return downloadedModels().first.map { ($0, localPath(for: $0).path) }
+    }
+
+    func resolvedModelPath(preferredId: String) -> String? {
+        resolvedModel(preferredId: preferredId)?.path
     }
 
     /// Async download with progress callback (0...1). Verifies size + SHA-256 before success.
@@ -123,8 +137,13 @@ final class ModelManager: Sendable {
         case 206:
             break // appending to existing partial
         case 416:
-            // Range beyond EOF → partial may already be complete; fall through to verification.
-            break
+            // Range beyond EOF: the partial is complete → fall through to verification.
+            // If it is NOT complete, the partial is corrupt/invalid → delete and restart clean.
+            if fileSize(at: partial) != model.bytes {
+                try? fm.removeItem(at: partial)
+                resumeFrom = 0
+                fm.createFile(atPath: partial.path, contents: nil)
+            }
         default:
             throw TranscriptionError.transcriptionFailed("HTTP \(http.statusCode)")
         }
@@ -157,12 +176,18 @@ final class ModelManager: Sendable {
                 buffer.removeAll(keepingCapacity: true)
             }
         } catch {
-            try? fm.removeItem(at: partial)
+            // FIX (audit v2 §3.10): a network drop must NOT destroy download progress.
+            // Keep the .part file on recoverable network errors so the next attempt
+            // resumes; delete only for non-recoverable errors (disk write failure).
+            if !(error is URLError) {
+                try? fm.removeItem(at: partial)
+            }
             throw error
         }
 
         guard received == total, fileSize(at: partial) == model.bytes else {
-            try? fm.removeItem(at: partial)
+            // Truncated stream (often a silent network drop): keep the partial so
+            // the next attempt resumes from here instead of starting over.
             throw TranscriptionError.transcriptionFailed("size mismatch: got \(received), expected \(model.bytes)")
         }
         progress(1.0)

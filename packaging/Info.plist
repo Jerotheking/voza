@@ -13,7 +13,7 @@
     <key>LSMinimumSystemVersion</key>          <string>14.0</string>
     <key>LSUIElement</key>                     <true/>
     <key>NSHumanReadableCopyright</key>        <string>© 2026 Jerónimo Rey — MIT</string>
-    <key>NSMicrophoneUsageDescription</key>    <string>Voza records your voice locally to turn it into text. Nothing is uploaded. / Voza graba tu voz localmente para convertirla en texto. Nada se sube.</string>
+    <key>NSMicrophoneUsageDescription</key>    <string>Your audio never leaves this Mac. Voza records only while you hold the push-to-talk key. / Tu audio nunca sale de esta Mac. Voza graba solo mientras mantienes la tecla de dictado.</string>
     <key>NSAppleEventsUsageDescription</key>   <string>Voza pastes dictated text into the active app. / Voza pega el texto dictado en la app activa.</string>
 </dict>
 </plist>

@@ -37,8 +37,21 @@ final class LicenseManager: ObservableObject {
     private struct VerifyResponse: Decodable {
         let success: Bool?
         let message: String?
-        struct Purchase: Decodable { let email: String? }
+        struct Purchase: Decodable {
+            let email: String?
+            let refunded: Bool?
+            let disputed: Bool?
+            let chargebacked: Bool?
+        }
         let purchase: Purchase?
+
+        /// A response is only acceptable when Gumroad says success AND the purchase
+        /// has not been refunded/disputed/charged back (audit v2 §3.7).
+        var purchaseUsable: Bool {
+            guard success == true else { return false }
+            let p = purchase
+            return !(p?.refunded == true || p?.disputed == true || p?.chargebacked == true)
+        }
     }
 
     private init() {}
@@ -65,8 +78,9 @@ final class LicenseManager: ObservableObject {
             return
         }
         do {
-            let response = try await Self.verifyRequest(key: key)
-            if response.success == true {
+            // Activating a NEW installation counts a use; see verifyRequest.
+            let response = try await Self.verifyRequest(key: key, purpose: .activation)
+            if response.purchaseUsable {
                 let cache = LicenseCache(key: key, email: response.purchase?.email, lastVerified: Date())
                 writeCache(cache)
                 state = .licensed(email: cache.email)
@@ -97,12 +111,19 @@ final class LicenseManager: ObservableObject {
 
     // MARK: - Network
 
-    private static func verifyRequest(key: String) async throws -> VerifyResponse {
+    /// - Parameter purpose: activation increments the license's use counter (new
+    ///   installation/seat); silent revalidation must NOT (Gumroad docs — audit v2 §3.7).
+    private enum VerificationPurpose {
+        case activation
+        case revalidation
+    }
+
+    private static func verifyRequest(key: String, purpose: VerificationPurpose) async throws -> VerifyResponse {
         var components = URLComponents(string: "https://api.gumroad.com/v2/licenses/verify")!
         components.queryItems = [
             URLQueryItem(name: "product_permalink", value: Config.shared.gumroadPermalink),
             URLQueryItem(name: "license_key", value: key),
-            URLQueryItem(name: "increment_uses_count", value: "true"),
+            URLQueryItem(name: "increment_uses_count", value: purpose == .activation ? "true" : "false"),
         ]
         var request = URLRequest(url: components.url!, timeoutInterval: 10)
         request.httpMethod = "POST"
@@ -120,11 +141,12 @@ final class LicenseManager: ObservableObject {
 
     private func reverify(_ cache: LicenseCache) async {
         do {
-            let response = try await Self.verifyRequest(key: cache.key)
-            if response.success == true {
+            // Silent recheck: never bump the use counter.
+            let response = try await Self.verifyRequest(key: cache.key, purpose: .revalidation)
+            if response.purchaseUsable {
                 writeCache(LicenseCache(key: cache.key, email: response.purchase?.email ?? cache.email, lastVerified: Date()))
             } else {
-                // Key revoked/refunded → clear and fall back to trial state.
+                // Key revoked/refunded/disputed → clear and fall back to trial state.
                 clearCache()
                 computeTrialState()
             }

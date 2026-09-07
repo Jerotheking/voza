@@ -37,13 +37,26 @@ final class HotKeyManager {
             },
             userInfo: nil
         ) else {
+            // Tap creation failed (usually missing Input Monitoring). Expose it
+            // instead of failing silently — "ready" must never be a lie (audit v2 §3.6).
+            tapActive = false
+            lastTapError = L.t("Global hotkey unavailable — grant Input Monitoring",
+                               es: "Hotkey global no disponible — otorga Input Monitoring")
             return
         }
         self.tap = tap
         let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
         CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        tapActive = true
+        lastTapError = nil
     }
+
+    /// True when the event tap was created and enabled. The watchdog retries
+    /// periodically, so this can flip back to true without relaunching.
+    private(set) var tapActive = false
+    /// Human-readable reason the tap is not active, for the Status home.
+    private(set) var lastTapError: String?
 
     private func ensureTapAlive() {
         guard let tap else {

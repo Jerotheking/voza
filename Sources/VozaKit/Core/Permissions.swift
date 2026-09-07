@@ -12,8 +12,15 @@ enum Permissions {
         AXIsProcessTrusted()
     }
 
+    /// The global push-to-talk hotkey needs Input Monitoring. Without it the
+    /// event tap silently fails — the app would look "ready" while the hotkey
+    /// does nothing (P0 fix from external audit v2, §3.6).
+    static var inputMonitoringGranted: Bool {
+        CGPreflightListenEventAccess()
+    }
+
     static var allGranted: Bool {
-        microphoneGranted && accessibilityGranted
+        microphoneGranted && accessibilityGranted && inputMonitoringGranted
     }
 
     static func requestMicrophone() async -> Bool {
@@ -33,6 +40,11 @@ enum Permissions {
 
     static func openMicrophoneSettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!
+        NSWorkspace.shared.open(url)
+    }
+
+    static func openInputMonitoringSettings() {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent")!
         NSWorkspace.shared.open(url)
     }
 }

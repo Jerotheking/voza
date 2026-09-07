@@ -60,8 +60,22 @@ final class Transcriber {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .filter { !$0.isEmpty }
             .joined(separator: " ")
+        // whisper emits non-speech markers ([BLANK_AUDIO], (wind blowing), …) for
+        // silence/noise. Dictating silence must not paste a hallucinated marker:
+        // treat an output that is ONLY a marker as empty (caught during smoke:
+        // a 0.6 s silent recording transcribed as "[BLANK_AUDIO]").
+        if Self.isNonSpeechMarker(text) { throw TranscriptionError.emptyResult }
         guard !text.isEmpty else { throw TranscriptionError.emptyResult }
         return text
+    }
+
+    static func isNonSpeechMarker(_ text: String) -> Bool {
+        let t = text.trimmingCharacters(in: .whitespaces)
+        guard t.count <= 40 else { return false } // real dictation is never this short with brackets
+        let lowered = t.lowercased()
+        if lowered.hasPrefix("[") && lowered.hasSuffix("]") { return true }
+        if lowered.hasPrefix("(") && lowered.hasSuffix(")") { return true }
+        return false
     }
 
     private func runProcess(launchPath: String, arguments: [String], timeout: TimeInterval) throws -> (stdout: String, stderr: String, exitCode: Int32) {

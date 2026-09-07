@@ -145,27 +145,36 @@ final class AudioRecorder {
     }
 
     private func finalizeWAVHeader(at url: URL, pcmBytes: UInt64) {
-        let sampleRate = UInt32(Config.targetSampleRate)
-        let dataBytes = UInt32(pcmBytes)
-        var header = Data()
-        func append(_ value: some FixedWidthInteger) {
-            var v = value.littleEndian
-            withUnsafeBytes(of: &v) { header.append(contentsOf: $0) }
+        let header = Self.wavHeader(dataBytes: UInt32(pcmBytes))
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            try? handle.seek(toOffset: 0)
+            try? handle.write(contentsOf: header)
         }
+    }
+
+    /// Canonical 44-byte WAV header for 16 kHz mono Float32.
+    /// FIX (audit v2 §3.5 + deeper): (1) the format code must be 3
+    /// (WAVE_FORMAT_IEEE_FLOAT), not 1 — the payload IS Float32; (2) every field
+    /// must carry an EXPLICIT integer type — bare literals infer Int and write
+    /// 8 bytes each, producing a 64-byte malformed header (caught by the new
+    /// smoke check; whisper-cli never consumed our own WAVs before, only
+    /// external files, so it went unnoticed).
+    static func wavHeader(dataBytes: UInt32, sampleRate: UInt32 = UInt32(Config.targetSampleRate)) -> Data {
+        var header = Data(capacity: 44)
         func appendStr(_ s: String) { header.append(Data(s.utf8)) }
+        func appendU32(_ v: UInt32) { var le = v.littleEndian; withUnsafeBytes(of: &le) { header.append(contentsOf: $0) } }
+        func appendU16(_ v: UInt16) { var le = v.littleEndian; withUnsafeBytes(of: &le) { header.append(contentsOf: $0) } }
 
-        appendStr("RIFF"); append(36 + dataBytes); appendStr("WAVE")
-        appendStr("fmt "); append(16); append(1) // PCM
-        append(1)                                 // mono
-        append(sampleRate)
-        append(sampleRate * 4)                    // byte rate = rate * channels * 2 (float32 = 4)
-        append(4)                                 // block align
-        append(32)                                // bits per sample
-        appendStr("data"); append(dataBytes)
-
-        guard let handle = try? FileHandle(forWritingTo: url) else { return }
-        defer { try? handle.close() }
-        try? handle.seek(toOffset: 0)
-        try? handle.write(contentsOf: header)
+        appendStr("RIFF"); appendU32(36 + dataBytes); appendStr("WAVE")
+        appendStr("fmt "); appendU32(16)          // fmt chunk size
+        appendU16(3)                              // WAVE_FORMAT_IEEE_FLOAT (payload is Float32)
+        appendU16(1)                              // mono
+        appendU32(sampleRate)
+        appendU32(sampleRate * 4)                 // byte rate = rate × 1 ch × 4 bytes/sample
+        appendU16(4)                              // block align
+        appendU16(32)                             // bits per sample
+        appendStr("data"); appendU32(dataBytes)
+        return header
     }
 }

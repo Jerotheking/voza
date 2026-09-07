@@ -27,17 +27,17 @@ Dictado local, offline y con IA para macOS — reemplazo de Superwhisper: más r
 | **History** | Click the menu bar mic → last 10 transcripts with copy buttons |
 | **Log** | Every transcript is appended to `~/Dictation/YYYY-MM.md` with a timestamp |
 
-- Transcription runs **100% locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (Metal-accelerated). Your voice never leaves the Mac.
+- Transcription runs **100% locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (Metal-accelerated). Your audio never leaves the Mac. Text cleanup is local-first: cloud providers run only if you explicitly select a cloud mode.
 - Audio files are **deleted immediately** after transcription. No accounts, no telemetry, no cloud STT.
-- AI cleanup uses your **local Ollama** by default (e.g. `qwen3:8b`) — free and offline. Optional cloud cleanup via your own key in `~/.config/voza/.env` (see `.env.example`).
-- **Automatic hardware preset**: Voza picks the model for your Mac (RAM-based) and verifies downloads with SHA-256. Override in Settings → Models.
+- AI cleanup uses your **local Ollama** by default (e.g. `qwen3:8b`) — free and offline, and the automatic mode never sends your text to the cloud. Optional explicit cloud cleanup via your own key in `~/.config/voza/.env` (see `.env.example`).
+- **Automatic preset for your Mac and language**: Voza picks a multilingual model by default and only selects an English-optimized one when your speech language is English. Downloads are verified with SHA-256. Override in Settings → Models.
 - Bilingual UI: English / Español (auto-detected, override in Settings).
 
 ### Requirements
 
 - macOS 14+ (Apple Silicon)
 - [Homebrew](https://brew.sh) with `whisper-cpp`: `brew install whisper-cpp`
-- One model download (~190 MB, done from the app, verified automatically)
+- One model download (done from the app, verified automatically — typically ~190 MB; on Macs with 32 GB+ Voza recommends large-v3-turbo, ~1.6 GB)
 
 ### Permissions macOS will ask for (first run)
 
@@ -110,10 +110,10 @@ See [docs/market-analysis.md](docs/market-analysis.md) for the full competitive 
 | **Historial** | Clic en el micrófono de la barra de menú → últimos 10 dictados con botón de copiar |
 | **Log** | Cada dictado se agrega a `~/Dictation/YYYY-MM.md` con fecha y hora |
 
-- La transcripción corre **100% local** con whisper.cpp (acelerado por Metal). Tu voz nunca sale de la Mac.
+- La transcripción corre **100% local** con whisper.cpp (acelerado por Metal). Tu audio nunca sale de la Mac. La limpieza de texto es local-first: los proveedores cloud corren solo si eliges un modo cloud explícitamente.
 - Los audios se **borran inmediatamente** después de transcribir. Sin cuentas, sin telemetría, sin STT en la nube.
-- La limpieza usa tu **Ollama local** por defecto (gratis y offline). Opcional: llave cloud en `~/.config/voza/.env`.
-- **Preset automático por hardware**: Voza elige el modelo según tu Mac y verifica la descarga con SHA-256.
+- La limpieza usa tu **Ollama local** por defecto (gratis y offline) — el modo automático nunca envía tu texto a la nube. Opcional: modo cloud explícito con tu llave en `~/.config/voza/.env`.
+- **Preset automático para tu Mac y tu idioma**: Voza elige un modelo multilingüe por defecto y solo usa uno optimizado para inglés cuando tu idioma de dictado es inglés. Descargas verificadas con SHA-256.
 - UI bilingüe EN/ES.
 
 ### Permisos que macOS pedirá (primera vez)

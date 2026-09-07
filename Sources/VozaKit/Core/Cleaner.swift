@@ -1,31 +1,55 @@
 import Foundation
 
 /// AI cleanup of transcripts: punctuation, capitalization, filler removal.
-/// Priority: local Ollama (free, offline) → OpenAI-compatible cloud → Anthropic → plain passthrough.
-/// STT never leaves the Mac; only the already-transcribed text goes to the cloud when configured.
+///
+/// PRIVACY POLICY (hardened per external audit v2, §3.8):
+/// - "auto"  → local only (Ollama). If Ollama is unavailable the raw transcript is
+///   used — text NEVER silently crosses to the cloud.
+/// - "cloud" → explicit user choice: OpenAI-compatible → Anthropic.
+/// - "ollama" → local only. "plain" → no processing at all.
+/// STT never leaves the Mac; only already-transcribed text goes to the cloud when
+/// the user explicitly picks a cloud mode.
 enum Cleaner {
 
-    static func clean(_ text: String, config: Config) async -> String {
-        guard config.resolvedCleanupMode != "plain" else { return text }
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return text }
+    /// What actually happened during cleanup. `applied` is true only when a
+    /// provider really transformed the text — history/UI must never claim a
+    /// cleaning that did not occur (audit v2 §1.2-5, §3.9).
+    struct CleaningOutcome: Sendable {
+        let text: String
+        let applied: Bool
+        let provider: String?   // "ollama" | "openai" | "anthropic" | nil
+    }
 
-        switch config.resolvedCleanupMode {
-        case "ollama":
-            return await ollamaClean(text, model: config.resolvedOllamaModel) ?? text
-        case "cloud":
-            if let key = config.env["OPENAI_API_KEY"], !key.isEmpty,
-               let out = await openAIClean(text, config: config) { return out }
-            if let key = config.env["ANTHROPIC_API_KEY"], !key.isEmpty,
-               let out = await anthropicClean(text, config: config) { return out }
-            return text
-        default: // "auto"
-            if let out = await ollamaClean(text, model: config.resolvedOllamaModel) { return out }
-            if let key = config.env["OPENAI_API_KEY"], !key.isEmpty,
-               let out = await openAIClean(text, config: config) { return out }
-            if let key = config.env["ANTHROPIC_API_KEY"], !key.isEmpty,
-               let out = await anthropicClean(text, config: config) { return out }
-            return text
+    /// The exact provider chain for a mode — pure, so tests can prove the
+    /// privacy boundary: mode "auto" must never contain a cloud provider.
+    static func providerChain(for mode: String) -> [String] {
+        switch mode {
+        case "cloud":   return ["openai", "anthropic"]
+        case "ollama":  return ["ollama"]
+        case "auto":    return ["ollama"]          // local-first; cloud is opt-in only
+        default:        return []                  // "plain" — passthrough
         }
+    }
+
+    static func clean(_ text: String, config: Config) async -> CleaningOutcome {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard config.resolvedCleanupMode != "plain",
+              !trimmed.isEmpty else { return CleaningOutcome(text: text, applied: false, provider: nil) }
+
+        for provider in providerChain(for: config.resolvedCleanupMode) {
+            let result: String?
+            switch provider {
+            case "ollama":    result = await ollamaClean(trimmed, model: config.resolvedOllamaModel)
+            case "openai":    result = await openAIClean(trimmed, config: config)
+            case "anthropic": result = await anthropicClean(trimmed, config: config)
+            default:          result = nil
+            }
+            if let cleanedText = result {
+                return CleaningOutcome(text: cleanedText, applied: true, provider: provider)
+            }
+        }
+        // Every provider in the chain failed → raw transcript, honestly reported.
+        return CleaningOutcome(text: text, applied: false, provider: nil)
     }
 
     // MARK: - Prompt

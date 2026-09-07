@@ -1,5 +1,24 @@
 # Voza — Documento Maestro de Especificaciones para Auditoría Externa
 
+> **ADDENDUM (2026-09-06, auditoría externa v2 — Sprint 0 ejecutado).** La segunda
+> pasada de auditoría externa (Voza_Auditoria_Integral_Roadmap_v2) levantó 14
+> hallazgos P0. Los 14 fueron verificados contra el código (14/14 confirmados) y
+> corregidos en el mismo ciclo. Resumen para el auditor:
+> 1. **Idioma**: `resolvedLanguage` ya no deriva el idioma del habla del idioma de la UI — `auto` llega a whisper.cpp como `-l auto` (§3.1).
+> 2. **Modelo default**: `small-q5_1` multilingüe (190,085,487 B, SHA-256 `ae85e4a9…`) agregado; `recommendedModel(language:)` nunca recomienda English-only para auto/es (§3.2).
+> 3. **Atribución RTF**: `resolvedModel()` devuelve descriptor+path; PerformanceMonitor registra el modelo REALMENTE usado; el fallback se muestra en UI (§3.3).
+> 4. **MainActor**: la transcripción corre en `Task.detached`; propiedad muerta `transcriber` eliminada (§3.4).
+> 5. **Header WAV**: format code 3 (IEEE float) — y un bug más profundo que la auditoría no vio: literales `Int` sin tipo escribían campos de 8 bytes (header de 64). Ahora con tipos explícitos, exactamente 44 bytes; el smoke verifica que whisper-cli consume un WAV grabado por Voza (§3.5 y más allá).
+> 6. **Permisos**: `inputMonitoringGranted` (CGPreflightListenEventAccess) agregado a Permissions/allGranted/Readiness/Status UI; el fallo del event tap se reporta, nunca es silencioso (§3.6).
+> 7. **Licencia**: activación vs revalidación separadas (`increment_uses_count` false en reverify); refunded/disputed/chargebacked validados (§3.7).
+> 8. **Frontera de privacidad**: cleanup `auto` = solo local, sin local→cloud implícito; la cadena de proveedores es pura y testeada; la UI ya no promete "Ollama → cloud" (§3.8).
+> 9. **Historial**: marcador ✨ parseado correctamente (las entradas cleaned sobreviven al reload); el historial registra el estado real `applied`, no la intención (§3.9).
+> 10. **Descargas**: `.part` se conserva en errores de red (resume real); 416 validado contra tamaño esperado; disk guard por modelo + margen (§3.10).
+> 11. **Firma**: `--deep` eliminado de build.sh y release.sh (§3.11).
+> 12. **Copy**: README/landing/prompt de mic actualizados — "el audio nunca sale de esta Mac", tamaños de modelo dinámicos, sin sobre-promesa de "100% local" (§3.14).
+> 13. **Robustez**: marcadores no-speech de whisper (`[BLANK_AUDIO]`…) ya no se pegan como dictado.
+> 14. **Verificación**: suite completa de smoke (57 checks, incluidos los nuevos de idioma/modelo/historial/privacidad/disco/WAV) en verde; E2E re-corrido con el modelo multilingüe + auto language → sample JFK transcrito perfecto.
+
 **Versión del documento:** 1.0 · **Código auditado:** commit `0d55dc5` (rama `main`)
 **Fecha:** 6 de septiembre de 2026 · **Contacto del proyecto:** vía GitHub (ver README)
 
