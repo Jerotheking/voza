@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Voza — UI Wireframes (Fase 0)</title>
+<style>
+  :root {
+    --bg:#0d0f14; --surface:#141822; --surface-2:#1b2130; --border:#262d40;
+    --text:#e8ecf4; --muted:#9aa3b5; --accent:#f4552b; --accent-soft:#ff8a5c;
+    --green:#34c77b; --red:#ff4d4f;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,BlinkMacSystemFont,sans-serif; background:var(--bg); color:var(--text); padding:40px; }
+  h1 { font-size:24px; margin-bottom:6px; }
+  .sub { color:var(--muted); font-size:14px; margin-bottom:36px; }
+  .row { display:flex; gap:32px; flex-wrap:wrap; align-items:flex-start; }
+  .frame-label { font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin-bottom:10px; }
+  /* menubar popover mock */
+  .popover { width:320px; background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,.5); }
+  .pop-header { padding:16px 14px; text-align:center; border-bottom:1px solid var(--border); }
+  .pop-header .state { font-size:13px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:8px; }
+  .pop-header .hint { font-size:11px; color:var(--muted); margin-top:4px; }
+  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+  .dot.idle { background:var(--muted); } .dot.rec { background:var(--red); animation:pulse 1.2s infinite; } .dot.busy { background:var(--accent-soft); animation:pulse .8s infinite; }
+  @keyframes pulse { 50% { opacity:.3; } }
+  .pop-section { padding:10px 14px 4px; font-size:11px; font-weight:600; color:var(--muted); }
+  .t-row { display:flex; gap:8px; padding:8px 14px; border-bottom:1px solid var(--border); font-size:12px; }
+  .t-row:last-child { border-bottom:none; }
+  .t-row .txt { flex:1; color:var(--text); }
+  .t-row .meta { color:var(--muted); font-size:10px; margin-top:2px; }
+  .t-row .copy { color:var(--muted); cursor:pointer; font-size:11px; }
+  .t-row .copy:hover { color:var(--accent-soft); }
+  .pop-footer { display:flex; gap:14px; padding:10px 14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted); }
+  .pop-footer .spacer { flex:1; }
+  /* settings mock */
+  .settings { width:480px; background:var(--surface); border:1px solid var(--border); border-radius:14px; overflow:hidden; }
+  .tabs { display:flex; border-bottom:1px solid var(--border); background:var(--surface-2); }
+  .tab { padding:10px 18px; font-size:12px; color:var(--muted); }
+  .tab.active { color:var(--text); border-bottom:2px solid var(--accent); }
+  .set-body { padding:18px; display:grid; gap:14px; font-size:13px; }
+  .field { display:grid; grid-template-columns:150px 1fr; align-items:center; gap:10px; }
+  .field label { color:var(--muted); }
+  .select, .input { background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:7px 10px; font-size:12px; color:var(--text); }
+  .model-row { display:flex; align-items:center; gap:10px; padding:9px 12px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px; }
+  .model-row .name { font-weight:600; font-size:12px; }
+  .model-row .size { color:var(--muted); font-size:11px; }
+  .model-row .right { margin-left:auto; font-size:11px; color:var(--green); }
+  .model-row .dl { margin-left:auto; font-size:11px; color:var(--accent-soft); border:1px solid var(--border); padding:3px 10px; border-radius:6px; }
+  .model-row.active { border-color:rgba(244,85,43,.5); }
+  .banner { background:rgba(244,85,43,.1); border:1px solid rgba(244,85,43,.35); color:var(--accent-soft); font-size:11px; padding:8px 12px; border-radius:8px; }
+  /* onboarding mock */
+  .onboard { width:300px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:20px; text-align:center; }
+  .onboard .mic { font-size:34px; margin-bottom:8px; }
+  .onboard h3 { font-size:15px; margin-bottom:6px; }
+  .onboard p { font-size:11px; color:var(--muted); margin-bottom:14px; }
+  .step { display:flex; gap:10px; text-align:left; padding:9px 0; border-top:1px solid var(--border); font-size:12px; }
+  .step .check { color:var(--green); } .step .pending { color:var(--muted); }
+  .step .t { font-weight:600; } .step .d { color:var(--muted); font-size:10px; }
+  .cta { margin-top:14px; background:linear-gradient(135deg,var(--accent-soft),var(--accent)); color:#fff; font-size:12px; font-weight:600; padding:9px 16px; border-radius:9px; display:inline-block; }
+  .cta.disabled { background:var(--surface-2); color:var(--muted); border:1px solid var(--border); }
+</style>
+</head>
+<body>
+<h1>Voza — UI Wireframes</h1>
+<p class="sub">Fase 0 · tres superficies · tokens: acento #f4552b · SF Pro · dark-first · EN/ES</p>
+
+<div class="row">
+  <div>
+    <div class="frame-label">1 · Menubar Popover — recording</div>
+    <div class="popover">
+      <div class="pop-header">
+        <div class="state"><span class="dot rec"></span> Recording…</div>
+        <div class="hint">Right Control = AI cleanup · 4 s</div>
+      </div>
+      <div class="pop-section">LAST 10 TRANSCRIPTS</div>
+      <div class="t-row"><div class="txt">And so my fellow Americans, ask not…<div class="meta">2026-09-06 19:58 ✨</div></div><div class="copy">⧉</div></div>
+      <div class="t-row"><div class="txt">Reunión con Tiago mañana a las diez…<div class="meta">2026-09-06 19:41</div></div><div class="copy">⧉</div></div>
+      <div class="t-row"><div class="txt">The deploy pipeline needs a retry with…<div class="meta">2026-09-06 18:22</div></div><div class="copy">⧉</div></div>
+      <div class="pop-footer">📁 ⚙️ <span class="spacer"></span> ⏻</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="frame-label">2 · Settings — Models tab (auto preset)</div>
+    <div class="settings">
+      <div class="tabs">
+        <div class="tab">General</div><div class="tab active">Models</div><div class="tab">Advanced</div><div class="tab">About</div>
+      </div>
+      <div class="set-body">
+        <div class="banner">Auto preset for this Mac: <b>small.en-q5_1</b> — detected 24 GB RAM · Metal available</div>
+        <div class="model-row active"><div><div class="name">small.en-q5_1</div><div class="size">190 MB · EN · quantized</div></div><div class="right">✓ active</div></div>
+        <div class="model-row"><div><div class="name">large-v3-turbo</div><div class="size">1.6 GB · multilingual</div></div><div class="dl">Download</div></div>
+        <div class="model-row"><div><div class="name">small.en</div><div class="size">488 MB · EN</div></div><div class="dl">Download</div></div>
+        <div class="model-row"><div><div class="name">base.en</div><div class="size">148 MB · EN</div></div><div class="right">✓</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="frame-label">3 · Onboarding (inside popover, first run)</div>
+    <div class="onboard">
+      <div class="mic">🎙️</div>
+      <h3>Bienvenido a Voza</h3>
+      <p>Tres pasos rápidos y dictas. Todo corre en tu Mac — nada se sube, jamás.</p>
+      <div class="step"><span class="check">✔</span><div><div class="t">Micrófono</div><div class="d">Para grabar tu voz.</div></div></div>
+      <div class="step"><span class="pending">○</span><div><div class="t">Accesibilidad</div><div class="d">Para pegar el texto por ti.</div></div><span class="cta disabled" style="margin:0;padding:4px 10px;">Abrir Ajustes</span></div>
+      <div class="step"><span class="check">✔</span><div><div class="t">Motor whisper.cpp</div><div class="d">Encontrado ✓ (brew)</div></div></div>
+      <div class="step"><span class="pending">○</span><div><div class="t">Modelo de voz</div><div class="d">small.en-q5_1 (190 MB)</div></div><span class="cta disabled" style="margin:0;padding:4px 10px;">Descargar</span></div>
+      <div class="cta disabled">Concede ambos permisos para continuar</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

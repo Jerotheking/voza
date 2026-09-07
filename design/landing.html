@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voza — Dictate. It pastes itself. Pay once.</title>
+<meta name="description" content="Local, offline, AI-powered dictation for macOS. Your voice never leaves your Mac. One-time payment. / Dictado local y offline para macOS. Pago único.">
+<style>
+  :root {
+    --bg: #0d0f14;
+    --surface: #141822;
+    --surface-2: #1b2130;
+    --border: #262d40;
+    --text: #e8ecf4;
+    --muted: #9aa3b5;
+    --accent: #f4552b;
+    --accent-soft: #ff8a5c;
+    --green: #34c77b;
+    --red: #ff4d4f;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+
+  /* ---------- Nav ---------- */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    backdrop-filter: blur(16px);
+    background: rgba(13, 15, 20, 0.8);
+    border-bottom: 1px solid var(--border);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 32px; padding: 16px 0; }
+  .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+  .logo svg { width: 28px; height: 28px; }
+  .nav-links { display: flex; gap: 24px; margin-left: auto; }
+  .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color .2s; }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--accent); color: #fff !important;
+    padding: 8px 18px; border-radius: 99px; font-weight: 600;
+  }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 96px 0 72px; text-align: center; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ""; position: absolute; inset: -40% -20% auto;
+    height: 70%; width: 140%; left: -20%;
+    background: radial-gradient(ellipse at center, rgba(244, 85, 43, 0.16), transparent 60%);
+    pointer-events: none;
+  }
+  .badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--border);
+    padding: 6px 16px; border-radius: 99px;
+    font-size: 13px; color: var(--muted); margin-bottom: 28px;
+  }
+  .badge .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .4; } }
+  h1 {
+    font-size: clamp(42px, 7vw, 76px);
+    line-height: 1.05; letter-spacing: -0.03em; font-weight: 800;
+    margin-bottom: 20px;
+  }
+  h1 .accent { color: var(--accent); }
+  .hero p.sub {
+    font-size: 20px; color: var(--muted); max-width: 620px; margin: 0 auto 36px;
+  }
+  .hero-es { color: var(--muted); font-size: 15px; margin-top: -24px; margin-bottom: 36px; }
+  .cta-row { display: flex; gap: 16px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 32px; border-radius: 12px;
+    font-size: 16px; font-weight: 600; text-decoration: none;
+    transition: transform .15s, box-shadow .15s;
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent-soft), var(--accent));
+    color: #fff; box-shadow: 0 8px 24px rgba(244, 85, 43, 0.35);
+  }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(244, 85, 43, 0.45); }
+  .btn-ghost { color: var(--text); border: 1px solid var(--border); background: var(--surface); }
+  .btn-ghost:hover { border-color: var(--accent); }
+  .price-tag { font-size: 13px; color: var(--muted); margin-top: 14px; }
+  .price-tag s { opacity: .5; }
+  .price-tag b { color: var(--accent-soft); }
+
+  /* ---------- Demo strip ---------- */
+  .demo { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; margin: 24px auto 0; max-width: 760px; padding: 24px; text-align: left; }
+  .demo-row { display: flex; align-items: center; gap: 12px; padding: 12px 8px; }
+  .demo-key {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 12px;
+    background: var(--surface-2); border: 1px solid var(--border); border-bottom-width: 3px;
+    padding: 6px 14px; border-radius: 8px; white-space: nowrap;
+  }
+  .demo-key.rec { color: var(--red); border-color: rgba(255, 77, 79, .4); animation: pulse 1.2s infinite; }
+  .demo-text { color: var(--muted); font-size: 14px; }
+  .demo-text b { color: var(--text); }
+  .cursor { display: inline-block; width: 2px; height: 16px; background: var(--accent); vertical-align: middle; animation: blink 1s step-end infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ---------- Sections ---------- */
+  section { padding: 88px 0; }
+  .section-title { text-align: center; font-size: 36px; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .section-sub { text-align: center; color: var(--muted); max-width: 560px; margin: 0 auto 56px; font-size: 16px; }
+
+  /* ---------- Comparison table ---------- */
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 680px; }
+  th, td { padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--border); }
+  thead th { background: var(--surface-2); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.voza-row { background: rgba(244, 85, 43, 0.07); }
+  tbody tr.voza-row td:first-child { font-weight: 700; color: var(--accent-soft); }
+  td .yes { color: var(--green); font-weight: 600; }
+  td .no { color: var(--muted); opacity: .6; }
+  td .meh { color: #e2b93b; }
+
+  /* ---------- Features ---------- */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 28px;
+    transition: transform .2s, border-color .2s;
+  }
+  .card:hover { transform: translateY(-3px); border-color: rgba(244, 85, 43, .45); }
+  .card .icon {
+    width: 44px; height: 44px; border-radius: 12px;
+    background: rgba(244, 85, 43, .12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; margin-bottom: 16px;
+  }
+  .card h3 { font-size: 17px; margin-bottom: 8px; }
+  .card p { color: var(--muted); font-size: 14px; }
+
+  /* ---------- FAQ ---------- */
+  .faq { max-width: 720px; margin: 0 auto; }
+  details {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px 24px; margin-bottom: 12px;
+  }
+  details summary { cursor: pointer; font-weight: 600; font-size: 15px; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  details summary::after { content: "+"; color: var(--accent); font-size: 20px; }
+  details[open] summary::after { content: "−"; }
+  details p { color: var(--muted); font-size: 14px; margin-top: 12px; }
+
+  /* ---------- Final CTA ---------- */
+  .final { text-align: center; padding: 96px 0; position: relative; overflow: hidden; }
+  .final::before {
+    content: ""; position: absolute; inset: auto -20% -60%;
+    height: 80%; width: 140%; left: -20%;
+    background: radial-gradient(ellipse at center, rgba(244, 85, 43, 0.14), transparent 60%);
+    pointer-events: none;
+  }
+  .final h2 { font-size: clamp(30px, 5vw, 48px); letter-spacing: -0.02em; margin-bottom: 16px; }
+  .final p { color: var(--muted); margin-bottom: 36px; }
+
+  footer { border-top: 1px solid var(--border); padding: 32px 0; text-align: center; color: var(--muted); font-size: 13px; }
+  footer a { color: var(--muted); }
+
+  @media (max-width: 640px) {
+    .nav-links a:not(.nav-cta) { display: none; }
+    .hero { padding: 64px 0 48px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="container nav-inner">
+    <div class="logo">
+      <svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><rect x="64" y="64" width="896" height="896" rx="200" fill="#f4552b"/><rect x="432" y="240" width="160" height="300" rx="80" fill="#fff"/><path d="M 340 470 C 340 580 420 640 512 640 C 604 640 684 580 684 470" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round"/><line x1="512" y1="640" x2="512" y2="730" stroke="#fff" stroke-width="44" stroke-linecap="round"/><line x1="412" y1="780" x2="612" y2="780" stroke="#fff" stroke-width="44" stroke-linecap="round"/></svg>
+      Voza
+    </div>
+    <div class="nav-links">
+      <a href="#compare">Compare</a>
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="#buy" class="nav-cta">Get Voza — $29</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <div class="badge"><span class="dot"></span> 100% local · offline · no subscription</div>
+    <h1>Dictate.<br>It <span class="accent">pastes itself.</span></h1>
+    <p class="sub">Hold Right&nbsp;Option, speak, release. Your words appear wherever your cursor is — cleaned up by AI, transcribed 100% on your Mac.</p>
+    <p class="hero-es"><em>Mantén Option derecha, habla, suelta. Tus palabras aparecen donde esté tu cursor — con limpieza IA, transcrito 100% en tu Mac.</em></p>
+    <div class="cta-row">
+      <a href="#buy" class="btn btn-primary">Get Voza for $29 <span style="opacity:.7">→</span></a>
+      <a href="#compare" class="btn btn-ghost">Compare with the rest</a>
+    </div>
+    <p class="price-tag"><s>$249</s> Superwhisper lifetime · <s>$15/mo</s> Wispr Flow · <b>$29 once</b> Voza</p>
+
+    <div class="demo">
+      <div class="demo-row">
+        <span class="demo-key rec">⌥ Right Option (held)</span>
+        <span class="demo-text"><b>Recording…</b> "and so my fellow americans ask not what your country"</span>
+      </div>
+      <div class="demo-row">
+        <span class="demo-key">Release</span>
+        <span class="demo-text"><b style="color:var(--green)">✓ Pasted:</b> "And so my fellow Americans, ask not what your country can do for you…<span class="cursor"></span>"</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<section id="compare">
+  <div class="container">
+    <h2 class="section-title">The dictation tax, compared</h2>
+    <p class="section-sub">Same core engine (Whisper), radically different price. Everything Voza does runs on your machine.</p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>App</th><th>Price</th><th>5-year cost</th><th>STT offline</th><th>AI cleanup</th><th>Telemetry-free</th></tr>
+        </thead>
+        <tbody>
+          <tr class="voza-row">
+            <td>Voza</td><td><b>$29 once</b></td><td>$29</td><td><span class="yes">✓ local</span></td><td><span class="yes">✓ local (Ollama) or cloud</span></td><td><span class="yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Superwhisper</td><td>$8.49/mo · $249.99 lifetime</td><td class="meh">$509–$849</td><td><span class="yes">✓</span></td><td><span class="yes">✓</span></td><td><span class="meh">account required</span></td>
+          </tr>
+          <tr>
+            <td>Wispr Flow</td><td>$15/mo</td><td class="meh">$900</td><td><span class="no">✗ cloud</span></td><td><span class="yes">✓</span></td><td><span class="no">✗</span></td>
+          </tr>
+          <tr>
+            <td>MacWhisper</td><td>€59–64 once</td><td>$74</td><td><span class="yes">✓</span></td><td><span class="meh">paid models</span></td><td><span class="yes">✓</span></td>
+          </tr>
+          <tr>
+            <td>Apple Dictation</td><td>Free</td><td>$0</td><td><span class="yes">✓</span></td><td><span class="no">✗</span></td><td><span class="yes">✓</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="features" style="background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <div class="container">
+    <h2 class="section-title">Everything you need. Nothing you don't.</h2>
+    <p class="section-sub">No per-app presets to configure, no vocabulary gymnastics. One great general mode that just works.</p>
+    <div class="grid">
+      <div class="card"><div class="icon">🎙️</div><h3>Push-to-talk, everywhere</h3><p>Hold Right Option in any app — Terminal, Slack, Figma, your browser. Release and the text lands exactly where your cursor is. Right Control runs the same dictation with AI cleanup.</p></div>
+      <div class="card"><div class="icon">🔒</div><h3>Your voice never leaves the Mac</h3><p>Transcription runs locally with whisper.cpp on Apple Silicon (Metal-accelerated). Audio files are deleted the instant transcription finishes. No accounts, no telemetry, ever.</p></div>
+      <div class="card"><div class="icon">✨</div><h3>AI cleanup, your choice of brain</h3><p>Filler words gone, punctuation fixed, capitalization restored. Runs through your local Ollama by default — or your own OpenAI/Anthropic key if you prefer. Fully optional.</p></div>
+      <div class="card"><div class="icon">⚡</div><h3>Smart model preset</h3><p>Voza detects your chip and RAM and picks the right model automatically — quantized small for 8 GB Macs, large-v3-turbo for 32 GB+. Override anytime in Settings.</p></div>
+      <div class="card"><div class="icon">📓</div><h3>Automatic history</h3><p>Every dictation is timestamped into ~/Dictation/YYYY-MM.md — one markdown file per month, greppable forever. The last 10 are always one click away in the menu bar.</p></div>
+      <div class="card"><div class="icon">🌍</div><h3>Bilingual by design</h3><p>English and Spanish UI out of the box, auto-detects your dictation language. Built by a bilingual founder who dictates in both.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="container">
+    <h2 class="section-title">Questions, answered</h2>
+    <div class="faq">
+      <details><summary>What permissions does macOS ask for, and why?</summary><p>Three: <b>Microphone</b> (to record your voice), <b>Accessibility</b> (to paste text into the focused app), and <b>Input Monitoring</b> (to detect the Right Option hotkey globally). Voza explains each one on first launch. Nothing is sent anywhere — these are local capabilities macOS gates for your protection.</p></details>
+      <details><summary>How do I get the speech model?</summary><p>You don't have to. Voza detects your hardware and downloads the right one (with SHA-256 verification) from the official whisper.cpp releases the first time you open Settings → Models. It's a one-time 190 MB download for most Macs.</p></details>
+      <details><summary>Does the AI cleanup need an API key?</summary><p>No. If you have Ollama installed, cleanup runs on your Mac for free (qwen3:8b by default). If you don't, you can drop a key into ~/.config/voza/.env — or leave cleanup off and get plain transcriptions.</p></details>
+      <details><summary>Why Right Option instead of a keyboard shortcut?</summary><p>Right Option is almost never used by macOS or other apps, sits right under your thumb's resting arc, and is semantically perfect for "hold to talk" — the same muscle memory as a walkie-talkie. Both hotkeys are remappable in config.</p></details>
+      <details><summary>What happens to my audio?</summary><p>It's written to a temporary WAV, transcribed, and deleted immediately — in the same breath. The transcript goes to your clipboard and your local ~/Dictation log. That's the entire lifecycle.</p></details>
+      <details><summary>Is this open source?</summary><p>Yes — MIT licensed. Audit every line, build it yourself with ./build.sh, or buy the pre-built, signed copy to skip the hassle. Same code, your choice.</p></details>
+    </div>
+  </div>
+</section>
+
+<section id="buy" class="final">
+  <div class="container">
+    <h2>Pay once. Dictate forever.</h2>
+    <p>Founder pricing — first 200 licenses, then $39. Updates included for life.</p>
+    <div class="cta-row">
+      <a href="https://jerotherey.gumroad.com/l/voza" class="btn btn-primary">Get Voza — $29 <span style="opacity:.7">→</span></a>
+    </div>
+    <p class="price-tag" style="margin-top:20px">14-day "it doesn't paste, you don't pay" guarantee · macOS 14+ · Apple Silicon</p>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <p>Voza — hecho con ♥ en CDMX por <a href="https://github.com/jerotherey">Jerónimo Rey</a> · <a href="https://github.com/jerotherey/voza">GitHub (MIT)</a></p>
+    <p style="opacity:.6">Voza is not affiliated with OpenAI or Apple. Whisper models are used under the MIT license.</p>
+  </div>
+</footer>
+
+</body>
+</html>
