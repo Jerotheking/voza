@@ -101,11 +101,7 @@ struct StatusView: View {
                  detail: L.t("Voza needs whisper.cpp (free, runs on your Mac). Install it with Homebrew in one click.",
                              es: "Voza necesita whisper.cpp (gratis, corre en tu Mac). Instálalo con Homebrew en un clic."),
                  buttonTitle: L.t("Install for me", es: "Instalar por mí")) {
-                if brew.isInstalling {
-                    // Button becomes a progress label while installing.
-                } else {
-                    brew.installEngine()
-                }
+                brew.installEngine() // no-ops while a previous install is running
             }
         } else if !readiness.modelAvailable {
             hero(icon: "arrow.down.circle", tint: Theme.accent,
@@ -430,7 +426,8 @@ struct ModelSettings: View {
 
 struct AdvancedSettings: View {
     @EnvironmentObject var appState: AppState
-    @State private var launchAtLogin = false
+    // Reflect the OS's actual registration instead of a guessed default.
+    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
 
     var body: some View {
         Form {
@@ -464,8 +461,6 @@ struct AdvancedSettings: View {
                 get: { appState.config.playSound },
                 set: { appState.config.setPlaySound($0) }
             ))
-            Toggle(L.t("Run cleanup AI on every dictation (Right Control always asks for it)", es: "Limpieza IA en cada dictado (Control derecha siempre la pide)"), isOn: .constant(false))
-                .disabled(true)
         }
         .padding(20)
     }

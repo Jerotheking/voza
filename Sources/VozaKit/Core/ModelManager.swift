@@ -44,9 +44,11 @@ enum HardwareProfile {
     }
 
     static func recommendedModel() -> String {
+        // ≥30 GB: large-v3-turbo runs comfortably and gives the best accuracy.
+        // <30 GB: small.en-q5_1 — the quantized 190 MB build keeps memory low
+        // on 8–16 GB Macs while staying near real time on M-series GPUs.
         switch totalRAMGB {
         case 30...: return "large-v3-turbo"
-        case 14...: return "small.en-q5_1"
         default:    return "small.en-q5_1"
         }
     }

@@ -11,7 +11,7 @@ final class BrewInstaller: ObservableObject {
     @Published var installSucceeded = false
 
     nonisolated static func brewPath() -> String? {
-        ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"].first {
+        knownBrewPaths.first {
             FileManager.default.isExecutableFile(atPath: $0)
         }
     }

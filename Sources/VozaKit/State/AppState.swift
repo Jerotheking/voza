@@ -60,7 +60,9 @@ final class AppState: ObservableObject {
     // MARK: - Push to talk
 
     func startDictation(cleanup: Bool) {
-        guard case .idle = phase, !phase.isBusy else { return }
+        // Allow (re)starting from both .idle and .failed — a failed attempt
+        // must never require quitting to retry. Busy phases block new starts.
+        guard !phase.isBusy else { return }
         guard !AudioRecorder.shared.isRecording else { return }
         guard Permissions.microphoneGranted else {
             phase = .failed(L.t("Microphone permission needed", es: "Falta permiso de micrófono"))

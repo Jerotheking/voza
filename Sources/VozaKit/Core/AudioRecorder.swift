@@ -19,7 +19,6 @@ final class AudioRecorder {
     static let shared = AudioRecorder()
 
     private var engine: AVAudioEngine?
-    private var inputFormat: AVAudioFormat?
     private var targetFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
     private var fileHandle: FileHandle?
@@ -67,7 +66,6 @@ final class AudioRecorder {
         handle.write(Data(repeating: 0, count: 44)) // WAV header placeholder
 
         self.engine = engine
-        inputFormat = hardwareFormat
         targetFormat = target
         self.converter = converter
         outputURL = url

@@ -30,6 +30,9 @@ struct OnboardingView: View {
                 ) {
                     Task {
                         micGranted = await Permissions.requestMicrophone()
+                        // If the user denied earlier, the system won't re-prompt;
+                        // the deep link is the only way back to the toggle.
+                        if !micGranted { Permissions.openMicrophoneSettings() }
                         refresh()
                     }
                 }
@@ -70,7 +73,6 @@ struct OnboardingView: View {
             if micGranted && axGranted {
                 Button(L.t("Start dictating", es: "Empezar a dictar")) {
                     appState.showOnboarding = false
-                    closeWindow()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -90,11 +92,6 @@ struct OnboardingView: View {
         axGranted = Permissions.accessibilityGranted
         whisperFound = Transcriber.locateBinary() != nil
         anyModel = !ModelManager.shared.downloadedModels().isEmpty
-    }
-
-    private func closeWindow() {
-        NSApp.windows.first { $0.identifier?.rawValue.contains("onboarding") == true || $0.title == "Onboarding" }?
-            .close()
     }
 
     @ViewBuilder

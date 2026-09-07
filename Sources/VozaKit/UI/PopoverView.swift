@@ -17,7 +17,7 @@ struct PopoverView: View {
                 }
             }
         }
-        .frame(width: 320)
+        .frame(width: Theme.popoverWidth)
         .onAppear { appState.refresh() }
     }
 

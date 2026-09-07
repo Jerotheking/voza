@@ -29,7 +29,7 @@ if [[ -f "design/assets/voza-icon.svg" ]] && command -v qlmanage >/dev/null 2>&1
 fi
 [[ -f "build/AppIcon.icns" ]] && cp "build/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
- codesign --force --deep --sign - "$APP" 2>/dev/null || true
+codesign --force --deep --sign - "$APP" 2>/dev/null || true
 
 echo "Built $APP"
 echo "Run:  open $APP   (first launch will trigger macOS permission prompts)"

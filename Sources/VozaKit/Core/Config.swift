@@ -110,7 +110,7 @@ final class Config {
         lines.append("ollama_model = \"\(ollamaModel)\"")
         lines.append("language = \"\(language)\"")
         lines.append("play_sound = \(playSound ? "true" : "false")")
-        lines.append("gumroad_permalink = \(gumroadPermalink)")
+        lines.append("gumroad_permalink = \"\(gumroadPermalink)\"")
         let text = lines.joined(separator: "\n") + "\n"
         let path = Self.appSupportDirectory + "/config.toml"
         try? text.write(toFile: path, atomically: true, encoding: .utf8)

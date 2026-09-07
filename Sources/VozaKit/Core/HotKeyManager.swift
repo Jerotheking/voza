@@ -56,7 +56,9 @@ final class HotKeyManager {
     }
 
     private static func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        guard type == .flagsChanged else { return Unmanaged.passRetained(event) }
+        // Listen-only tap: we never modify or swallow events, so hand them back
+        // unretained. passRetained here would leak one CGEvent per keystroke.
+        guard type == .flagsChanged else { return Unmanaged.passUnretained(event) }
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let alt = event.flags.contains(.maskAlternate)
         let ctrl = event.flags.contains(.maskControl)
@@ -66,7 +68,7 @@ final class HotKeyManager {
                 shared.handleFlagsChanged(keyCode: keyCode, alt: alt, ctrl: ctrl)
             }
         }
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
 
     @MainActor private func handleFlagsChanged(keyCode: Int64, alt: Bool, ctrl: Bool) {
