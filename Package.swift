@@ -21,7 +21,7 @@ let package = Package(
         ),
         .testTarget(
             name: "VozaTests",
-            dependencies: ["Voza"],
+            dependencies: ["VozaKit"],
             path: "Tests/VozaTests"
         ),
     ]

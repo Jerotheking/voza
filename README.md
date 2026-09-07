@@ -52,7 +52,7 @@ Voza triggers up to three system prompts on first use — this is normal, and ea
 ### Build & run
 
 ```bash
-git clone https://github.com/jerotherey/voza && cd voza
+git clone https://github.com/Jerotheking/voza && cd voza
 swift build            # verify
 ./build.sh             # produces build/Voza.app (signed ad-hoc)
 open build/Voza.app
@@ -136,6 +136,6 @@ swift build && ./build.sh && open build/Voza.app
 
 **Why $29 and not $249?** Because transcription is a commodity — the value is the polish. Voza is the affordable, private, one-time option. / **¿Por qué $29 y no $249?** Porque la transcripción es commodity; el valor está en el pulido.
 
-MIT © 2026 [Jerónimo Rey](https://github.com/jerotherey) · [Gumroad](https://jerotherey.gumroad.com/l/voza)
+MIT © 2026 [Jerónimo Rey](https://github.com/Jerotheking) · [Gumroad](https://jerotherey.gumroad.com/l/voza)
 
 </div>
