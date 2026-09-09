@@ -6,63 +6,64 @@
   "product_gates": "NOT_RUN",
   "tickets": {
     "V01": {
-      "status": "review",
+      "status": "done",
       "owner": "buffy",
       "session": "v01-hermetic-isolation",
       "branch": "codex/voza-V01-hermetic-isolation",
       "base_commit": "44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf",
       "worktree": "~/Developer/voza",
-      "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20",
-      "reviewed_by": null,
+      "code_revision": "9bc65724389f328f84cd5d32772224a536667a43",
+      "reviewed_by": "buffy (owner-authorized in-session review, 2026-09-09)",
       "handoff": "sessions/2026-09-08T231234Z-V01-buffy.md",
       "blocker": null,
       "acceptance": {
         "V01-AC01": {
           "status": "PASS",
           "evidence": [
-            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+            "evidence/V01/review-9bc6572.md"
           ],
-          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_at": "2026-09-09T01:30:00Z",
           "verified_by": "buffy",
-          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+          "code_revision": "9bc65724389f328f84cd5d32772224a536667a43"
         },
         "V01-AC02": {
           "status": "PASS",
           "evidence": [
-            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+            "evidence/V01/review-9bc6572.md"
           ],
-          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_at": "2026-09-09T01:30:00Z",
           "verified_by": "buffy",
-          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+          "code_revision": "9bc65724389f328f84cd5d32772224a536667a43"
         },
         "V01-AC03": {
           "status": "PASS",
           "evidence": [
-            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+            "evidence/V01/review-9bc6572.md"
           ],
-          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_at": "2026-09-09T01:30:00Z",
           "verified_by": "buffy",
-          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+          "code_revision": "9bc65724389f328f84cd5d32772224a536667a43"
         },
         "V01-AC04": {
           "status": "PASS",
           "evidence": [
-            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+            "evidence/V01/review-9bc6572.md"
           ],
-          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_at": "2026-09-09T01:30:00Z",
           "verified_by": "buffy",
-          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+          "code_revision": "9bc65724389f328f84cd5d32772224a536667a43"
         },
         "V01-AC05": {
           "status": "PASS",
           "evidence": [
-            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+            "evidence/V01/review-9bc6572.md"
           ],
-          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_at": "2026-09-09T01:30:00Z",
           "verified_by": "buffy",
-          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+          "code_revision": "9bc65724389f328f84cd5d32772224a536667a43"
         }
-      }
+      },
+      "reviewed_at": "2026-09-09T01:30:00Z"
     },
     "V02": {
       "status": "todo",
