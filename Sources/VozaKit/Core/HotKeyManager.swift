@@ -2,8 +2,23 @@ import AppKit
 import CoreGraphics
 
 /// Global push-to-talk hotkeys via CGEventTap.
-/// Default: hold Right Option (keycode 58) → normal dictation,
-/// hold Right Control (keycode 54) → dictation with AI cleanup.
+/// Hold Option (either side) → normal dictation; hold Right ⌘ → cleanup.
+///
+/// KEYCODE GROUND TRUTH (verified against Apple's HIToolbox Events.h, SDK 15.2):
+/// kVK_Option=0x3A(58, LEFT), kVK_RightOption=0x3D(61), kVK_Control=0x3B(59, LEFT),
+/// kVK_RightCommand=0x36(54), kVK_RightControl=0x3E(62).
+/// HARDWARE CONSTRAINT (owner QA 2026-09-08, MacBook Pro M4): laptops have NO
+/// right Control — the bottom row is fn ⌃ ⌥ ⌘ [space] ⌘ ⌥. Cleanup therefore
+/// binds to Right ⌘ (0x36), which exists on every Mac and has no system function
+/// when held alone. Left ⌘/⌃/⌥ remain untouched for real shortcuts.
+enum VozaKeyCodes {
+    /// Right Option only (owner decision 2026-09-08): ONE dedicated physical
+    /// key for dictation — no ambiguity, no ergonomic split. Left Option
+    /// remains free for real Option shortcuts.
+    static let dictation: Set<Int64> = [0x3D] // kVK_RightOption
+    /// Right ⌘ only — exists on 100% of Macs (laptops lack right Control).
+    static let cleanup: Int64 = 0x36 // kVK_RightCommand
+}
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
@@ -14,8 +29,6 @@ final class HotKeyManager {
     private var tap: CFMachPort?
     private var normalDown = false
     private var cleanupDown = false
-    private let normalKeyCode: Int64 = 58  // Right Option
-    private let cleanupKeyCode: Int64 = 54 // Right Control
 
     func start() {
         installTap()
@@ -75,33 +88,46 @@ final class HotKeyManager {
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let alt = event.flags.contains(.maskAlternate)
         let ctrl = event.flags.contains(.maskControl)
+        let cmd = event.flags.contains(.maskCommand)
+        let shift = event.flags.contains(.maskShift)
 
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                shared.handleFlagsChanged(keyCode: keyCode, alt: alt, ctrl: ctrl)
+                shared.handleFlagsChanged(keyCode: keyCode, alt: alt, ctrl: ctrl, cmd: cmd, shift: shift)
             }
         }
         return Unmanaged.passUnretained(event)
     }
 
-    @MainActor private func handleFlagsChanged(keyCode: Int64, alt: Bool, ctrl: Bool) {
-        if keyCode == normalKeyCode {
-            if alt && !normalDown {
+    @MainActor private func handleFlagsChanged(keyCode: Int64, alt: Bool, ctrl: Bool, cmd: Bool, shift: Bool) {
+        let isDictationKey = VozaKeyCodes.dictation.contains(keyCode)
+        let isCleanupKey = keyCode == VozaKeyCodes.cleanup
+
+        if isDictationKey {
+            // Fire only as a BARE modifier: if ⌃/⌘/⇧ is already held, this is
+            // a real shortcut (⌥⇧…, ⌥⌘…) — never hijack it for dictation.
+            if alt && !ctrl && !cmd && !shift && !normalDown {
                 normalDown = true
                 onPressNormal?()
-            } else if !alt && normalDown {
+            } else if !alt {
                 normalDown = false
-                onRelease?()
             }
         }
-        if keyCode == cleanupKeyCode {
-            if ctrl && !cleanupDown {
+        if isCleanupKey {
+            // Right ⌘ raises .maskCommand (not .maskControl) — the flag must
+            // match the physical key we bound, or the press never fires.
+            // Same bare-modifier rule: ⌃/⌥/⇧ already held → it's a shortcut.
+            if cmd && !ctrl && !alt && !shift && !cleanupDown {
                 cleanupDown = true
                 onPressCleanup?()
-            } else if !ctrl && cleanupDown {
+            } else if !cmd {
                 cleanupDown = false
-                onRelease?()
             }
+        }
+        // Stop only when NO hotkey is held anymore: pressing the other hotkey
+        // mid-recording must not cut the current dictation short.
+        if (isDictationKey || isCleanupKey) && !normalDown && !cleanupDown {
+            onRelease?()
         }
     }
 

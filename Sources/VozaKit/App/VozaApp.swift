@@ -18,7 +18,35 @@ public struct VozaApp: App {
             SettingsView()
                 .environmentObject(appState)
         }
+    }
+}
 
+/// Floating setup window: unlike the MenuBarExtra panel, it does NOT dismiss
+/// when the user clicks System Settings to grant a permission — it stays on
+/// screen until setup completes or the user closes it explicitly.
+@MainActor
+final class OnboardingWindowController {
+    static let shared = OnboardingWindowController()
+    private var window: NSWindow?
+
+    func show(appState: AppState) {
+        if window == nil {
+            let win = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 420, height: 470),
+                               styleMask: [.titled, .closable],
+                               backing: .buffered, defer: false)
+            win.title = "Voza — Setup"
+            win.contentView = NSHostingView(rootView: OnboardingView().environmentObject(appState))
+            win.isReleasedWhenClosed = false
+            win.center()
+            window = win
+        }
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    /// Close without destroying the controller — `show` can bring it back.
+    func closeIfVisible() {
+        window?.performClose(nil)
     }
 }
 
@@ -55,6 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         LicenseManager.shared.refreshIfNeeded()
         if !Permissions.allGranted {
             appState.showOnboarding = true
+            OnboardingWindowController.shared.show(appState: appState)
         }
     }
 }

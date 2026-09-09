@@ -1,0 +1,105 @@
+# VOZA — entrada para GLM 5.3 Flash
+
+Versión del paquete: 1.0 · 2026-09-07 · Baseline: `44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf`.
+
+## 1. Qué es este paquete
+
+Un handoff de producto, ingeniería, QA y lanzamiento. Está diseñado para retomarse en sesiones independientes. El contenido documental está preparado; **ninguna corrección de la app se implementó al crear este paquete**. Todos los tickets empiezan sin ejecutar. No conviertas el tamaño de este documento, un ticket bien redactado o un check estructural en evidencia de producto listo.
+
+El propietario decidió dos modos: **Literal**, rápido y sin reescritura posterior al STT; **Pulido**, con procesamiento adicional para eliminar muletillas, resolver autocorrecciones claras y mejorar redacción conservando intención. Voza debe seleccionar y adaptar la implementación al hardware, sin exigir al usuario elegir modelos, cuantizaciones o proveedores.
+
+Este paquete se dirige a GLM 5.3 Flash por petición del propietario. No presupone un tamaño de contexto, herramientas, comportamiento de razonamiento ni capacidad de programación particular de ese modelo. Usa el protocolo de sesión aunque el agente cambie de modelo.
+
+## 2. Orden de autoridad
+
+1. Instrucciones vigentes del propietario y AGENTS.md aplicable.
+2. Código, configuración y evidencia actual: establecen qué existe; no qué debería existir.
+3. Decisiones aceptadas de [DECISIONS.md](DECISIONS.md): establecen intención de producto.
+4. Contratos de [PRODUCT.md](PRODUCT.md), [ARCHITECTURE.md](ARCHITECTURE.md) y [UX.md](UX.md): diseño propuesto para implementar; revisar su estado en decisiones.
+5. Ticket activo y sus criterios de aceptación.
+6. [STATE.json](STATE.json), cierres de sesión y evidencias: estado operativo, sujeto a comprobación.
+7. [AUDITORIA-ORIGINAL.md](AUDITORIA-ORIGINAL.md): informe histórico completo, no estado actual. [ADDENDUM.md](ADDENDUM.md) aclara límites.
+
+Una propuesta no se convierte en decisión aceptada porque un agente la copie. Cuando el propietario autorice implementar un ticket de este plan, sus elecciones locales reversibles pueden resolverse dentro de ese alcance sin pedir confirmación de cada detalle; decisiones pendientes de precio, nombre, cobro o ampliación de privacidad requieren la decisión específica indicada. Si código e intención divergen, explica la divergencia; no elimines silenciosamente una de las dos.
+
+## 3. Primeros diez minutos de una nueva sesión
+
+Desde el checkout autorizado:
+
+```bash
+pwd
+git status --short
+git log -5 --oneline
+python3 -B docs/plan-glm/tools/plan.py validate
+python3 -B docs/plan-glm/tools/plan.py status
+```
+
+Después:
+
+1. Lee este archivo, [STATE.json](STATE.json), [DECISIONS.md](DECISIONS.md) y [SESSIONS.md](SESSIONS.md).
+2. Lee el último cierre real en `sessions/`, si existe. `TEMPLATE.md` no cuenta como sesión ejecutada.
+3. Elige **un** ticket disponible: dependencias `done`, no `review`, sin otra persona trabajando sobre él. El primero será V01.
+4. Lee el ticket entero, los contratos que menciona y los archivos indicados en su sección Lecturas.
+5. Verifica símbolos con `rg`; las líneas son del baseline y pueden desplazarse.
+6. Declara checkout, branch, HEAD, ticket y alcance. No inicies una implementación porque alguien solo pidió revisar el plan.
+7. Registra `in_progress`, owner y session en el estado canónico cuando esté autorizado implementar.
+
+No leas el documento maestro completo al principio de cada sesión. Sus más de cien páginas equivalentes no son un requisito de contexto para arreglar una función. Usa el índice y la selección de archivos del ticket.
+
+## 4. Política de cambios y coordinación
+
+- La tarea que generó este paquete autorizó **documentación**, no implementación, instalación, publicación ni compra.
+- Una futura instrucción de implementar un ticket habilita sus cambios locales y pruebas seguras; no implica enviar mensajes comerciales, comprar servicios, publicar, notarizar con una cuenta ajena ni cambiar políticas de venta.
+- No ejecutar el `VozaSmoke` original sobre el perfil real: modifica métricas y preferencias. V01/V02 preparan aislamiento.
+- No crear agentes adicionales salvo autorización. Este plan funciona con un agente por sesión.
+- No trabajar sobre `main` para implementar. Usar una rama `codex/voza-<ticket>-<tema>` o el prefijo pedido por el propietario, desde el HEAD/base verificado. No asumir que `origin/main` contiene el baseline local: el brief indicó cambios locales sin push.
+- No hacer fetch/pull/rebase/reset/stash ni crear worktrees como reflejo. Verificar necesidad y preservar cambios existentes. Un worktree nuevo debe partir del commit que realmente contiene dependencias integradas.
+- No revertir cambios de otros agentes. Staging de rutas explícitas; ningún `git add -A` en un checkout compartido.
+- Commit y push: seguir autorización de la sesión vigente; documentar diferencias sin commit cuando no estén autorizados.
+
+### Estado canónico cuando hay varios checkouts
+
+Por defecto, un solo integrador escribe el `STATE.json` del checkout canónico. El path local inicial es `~/Developer/voza/docs/plan-glm/STATE.json`; en otra máquina se resuelve contra el checkout canónico designado al abrir la sesión.
+
+No tratar las copias de STATE de worktrees distintos como un sistema distribuido de locks. Los workers producen cierres y evidencia de su rama; el integrador verifica, integra y actualiza estado. Un owner antiguo no se libera automáticamente por tiempo: primero comprobar proceso/tarea/HEAD y registrar el relevo. Si hay duda, elige otro ticket con archivos disjuntos o informa el bloqueo.
+
+## 5. Cierre obligatorio
+
+Usa [sessions/TEMPLATE.md](sessions/TEMPLATE.md). Incluye:
+
+- ticket, actor, checkout, branch, base/head;
+- cambios por archivo y contratos afectados;
+- comando exacto, exit code, resultado y ruta de evidencia de cada prueba;
+- criterios AC satisfechos y pendientes por ID;
+- datos de usuario tocados: esperado ninguno en pruebas herméticas;
+- riesgos, decisiones nuevas y siguiente paso preciso.
+
+Estado permitido: `todo → in_progress → review → done`; `blocked` puede salir a `in_progress` al resolver el bloqueo; `deferred` no es trabajo comprometido. `review` significa implementado pendiente de revisar/validar, no integrado ni aprobado. `done` exige dependencias hechas, todos los AC con evidencia y revisión registrada. Sin entorno manual, el criterio manual queda pendiente y el ticket no pasa a done.
+
+Después de modificar PLAN/contratos o crear rutas de implementación previstas, ejecutar `python3 -B docs/plan-glm/tools/plan.py build` para refrescar derivados, y después `validate`. El generador solo escribe documentos del handoff.
+
+No reclamar pruebas antiguas para un HEAD nuevo sin explicar que siguen cubriendo el cambio. Un resultado sintético no puede satisfacer un criterio que exige hardware o app real.
+
+## 6. Entradas del paquete
+
+- [DOCUMENTO-MAESTRO.md](DOCUMENTO-MAESTRO.md): lectura íntegra/exportable, derivada; no editar directamente.
+- [AUDITORIA-ORIGINAL.md](AUDITORIA-ORIGINAL.md): informe anterior completo, con mercado, 18 funciones, tarifas y fuentes.
+- [CODE-MAP.md](CODE-MAP.md): símbolo actual → destino → ticket → prueba.
+- [PRODUCT.md](PRODUCT.md): contrato Literal/Pulido y política automática.
+- [ARCHITECTURE.md](ARCHITECTURE.md): interfaces, actores, propiedad, errores y migraciones.
+- [UX.md](UX.md): pantallas, textos EN/ES, estados y accesibilidad.
+- [QA.md](QA.md): hermeticidad, corpus y gates.
+- [ROADMAP.md](ROADMAP.md): DAG y orden ejecutable.
+- [BUSINESS.md](BUSINESS.md): decisiones comerciales y checkpoints del plan de 90 días.
+- [DECISIONS.md](DECISIONS.md): aceptado/propuesto/pendiente.
+- [STATE.json](STATE.json): único estado mutable de tickets; tickets no llevan checkboxes de ejecución.
+- [SESSIONS.md](SESSIONS.md): índice de cierres, inicialmente vacío.
+- [evidence/baseline.json](evidence/baseline.json): hashes del código auditado y procedencia del informe.
+
+## 7. Prompt para pegar en GLM al iniciar una implementación autorizada
+
+> Trabaja en Voza. Lee `docs/plan-glm/START-HERE.md` y sigue el protocolo. La autoridad del estado es el checkout canónico acordado. Ejecuta `python3 -B docs/plan-glm/tools/plan.py status`, revisa el último cierre y toma un único ticket disponible. No confundas el informe histórico con funcionalidades implementadas. Conserva Literal/Pulido y adaptación automática. Antes de cambiar código lee sus callers y pruebas; no ejecutes el Smoke original sobre mi perfil. Completa el ticket, verifica sus AC y deja un cierre reproducible aunque no puedas terminarlo. No amplíes a otros tickets por iniciativa propia. Declara límites reales de verificación. Si la base cambió, comprueba las dependencias antes de continuar.
+
+## 8. Prompt para continuar una sesión interrumpida
+
+> Retoma el ticket indicado en `STATE.json`, contrastándolo con el último cierre en `sessions/` y el Git actual. No reinicies desde el informe completo. Enumera qué AC tienen evidencia válida para este HEAD y cuál es el próximo paso pendiente. Si hay cambios sin registrar, inspecciónalos antes de editar; no los borres. Al cerrar actualiza el registro con la verdad, no con el plan.

@@ -1,0 +1,2393 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-09-07",
+  "baseline_commit": "44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf",
+  "metadata_authority": "PLAN.json",
+  "execution_authority": "STATE.json",
+  "tickets": [
+    {
+      "id": "V01",
+      "title": "Aislar rutas, preferencias y reloj antes de ejecutar pruebas",
+      "depends_on": [],
+      "files": [
+        "Sources/VozaKit/Core/AppPaths.swift",
+        "Sources/VozaKit/Core/Clock.swift",
+        "Sources/VozaKit/Core/Config.swift",
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Sources/VozaKit/Core/TranscriptStore.swift",
+        "Sources/VozaKit/Core/LicenseManager.swift",
+        "Tests/VozaTests/Support/TestEnvironment.swift",
+        "Tests/VozaTests/AppPathsTests.swift",
+        "Tests/VozaTests/TestEnvironmentTests.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Config.swift",
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Sources/VozaKit/Core/TranscriptStore.swift",
+        "Sources/VozaSmoke/main.swift",
+        "Tests/VozaTests/ConfigTests.swift"
+      ],
+      "findings": [
+        "F10"
+      ],
+      "steps": [
+        "Localizar todos los getters que crean directorios y todas las referencias shared/UserDefaults.standard/homeDirectoryForCurrentUser. Registrar sus callers; no ejecutar Smoke todavía.",
+        "Crear AppPaths como valor con rutas de config, modelos, logs y temporales; crear Clock inyectable para wall time y elapsed time. Mantener la composición productiva con rutas existentes.",
+        "Agregar inicializadores con dependencias para Config, PerformanceMonitor, TranscriptStore y LicenseManager. Mover createDirectory desde getters a métodos de escritura/preparación. No borrar ni migrar archivos todavía.",
+        "Preparar TestEnvironment con directorio y suite de defaults únicos por test, limpieza solo de recursos propios y clock fijo. No cambiar HOME o CODEX_HOME.",
+        "Comprobar que inicializar/leer cada componente no crea archivos; incluir prueba que rechace la escritura accidental a rutas reales. Dejar lista la conversión de pruebas en V02."
+      ],
+      "acceptance": [
+        {
+          "id": "V01-AC01",
+          "kind": "automated",
+          "criterion": "Construir e inspeccionar Config/PerformanceMonitor/TranscriptStore inyectados no crea directorios ni escribe fuera del entorno QA."
+        },
+        {
+          "id": "V01-AC02",
+          "kind": "automated",
+          "criterion": "El reloj simulado determina fechas y elapsed time sin Thread.sleep en pruebas puras."
+        },
+        {
+          "id": "V01-AC03",
+          "kind": "automated",
+          "criterion": "TestEnvironment elimina solo su directorio/suite; un archivo hermano permanece intacto."
+        },
+        {
+          "id": "V01-AC04",
+          "kind": "inspection",
+          "criterion": "Los defaults productivos conservan las rutas baseline; no se introdujo migración ni cambio de política de usuario."
+        },
+        {
+          "id": "V01-AC05",
+          "kind": "inspection",
+          "criterion": "No se ejecutó el Smoke original ni se modificó contenido del perfil real."
+        }
+      ],
+      "tests": [
+        "Crear AppPathsTests/TestEnvironmentTests con filesystem espía y archivo hermano centinela.",
+        "Compilar el target VozaKit en la futura sesión autorizada; registrar warnings y limitaciones del toolchain.",
+        "No declarar toda XCTest pasada antes de V02."
+      ],
+      "stop_conditions": [
+        "Si un componente requiere modificar datos reales para inicializarse, corregir esa dependencia antes de ejecutar su test."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V02",
+      "title": "Reparar XCTest, hacer Smoke hermético y establecer CI",
+      "depends_on": [
+        "V01"
+      ],
+      "files": [
+        "Package.swift",
+        "Sources/VozaSmoke/main.swift",
+        "Tests/VozaTests/ConfigTests.swift",
+        "Tests/VozaTests/SmokeIsolationTests.swift",
+        ".github/workflows/ci.yml",
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/App/Localizer.swift"
+      ],
+      "reads": [
+        "Package.swift",
+        "Sources/VozaSmoke/main.swift",
+        "Tests/VozaTests/ConfigTests.swift"
+      ],
+      "findings": [
+        "F10"
+      ],
+      "steps": [
+        "Reparar recommendedModel(language:) y reemplazar assertions dependientes de RAM real por casos parametrizados. La función productiva debe admitir un perfil inyectado antes de probar RAMs ficticias. Cambio mínimo en HardwareProfile: parámetro de RAM/perfil para la función pura, conservando wrapper productivo; política lingüística completa queda V14.",
+        "Reescribir ConfigTests para usar TestEnvironment. El test de historial no escribe ~/Dictation. Localizer no cambia defaults globales; probar resolución mediante dependencia o función pura. Actualizar Localizer para permitir resolución pura/inyección; no falsear tests cambiando preferencias globales.",
+        "Smoke por defecto debe usar fixtures y no exigir engine/modelo/mic reales. Separar integración opt-in con flags claros y paths explícitos; eliminar _test_clear sobre PerformanceMonitor.shared.",
+        "El modo integración reutiliza modelos existentes y no descarga por defecto; descarga requiere opción y destino QA explícitos. Documentar que no es E2E de pegado si no recorre inserción.",
+        "Agregar CI macOS con Xcode/Swift identificados: build y swift test; ningún micrófono, pago, permiso, red a proveedores o release. Pins/revisiones de acciones según política vigente."
+      ],
+      "acceptance": [
+        {
+          "id": "V02-AC01",
+          "kind": "automated",
+          "criterion": "swift test compila y ejecuta fixtures aislados; no queda llamada sin language a recommendedModel."
+        },
+        {
+          "id": "V02-AC02",
+          "kind": "automated",
+          "criterion": "Smoke por defecto termina de forma determinista sin modelos/whisper-cli instalados y sin grabar audio."
+        },
+        {
+          "id": "V02-AC03",
+          "kind": "automated",
+          "criterion": "Repetir la suite no cambia hashes de config/perf/logs reales ni preferencias productivas."
+        },
+        {
+          "id": "V02-AC04",
+          "kind": "inspection",
+          "criterion": "CI ejecuta build/test y no scripts release, descarga de modelos o transmisión de datos."
+        },
+        {
+          "id": "V02-AC05",
+          "kind": "inspection",
+          "criterion": "Cada SKIP de integración está identificado; ningún SKIP se cuenta como prueba nativa aprobada."
+        }
+      ],
+      "tests": [
+        "swift build",
+        "swift test",
+        "swift run VozaSmoke después de verificar que esta nueva versión ya es hermética.",
+        "Probar modo integración sin flags: debe rechazar efectos no autorizados."
+      ],
+      "stop_conditions": [
+        "Si XCTest no está disponible, registrar toolchain y dejar los AC de ejecución pendientes; no instalar Xcode automáticamente."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V03",
+      "title": "Corregir atajos y modelar la tecla dueña de la sesión",
+      "depends_on": [
+        "V02"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/HotKeyManager.swift",
+        "Sources/VozaKit/Core/HotkeyBinding.swift",
+        "Tests/VozaTests/HotKeyManagerTests.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/HotKeyManager.swift",
+        "Sources/VozaKit/App/VozaApp.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F01"
+      ],
+      "steps": [
+        "Comparar códigos con SDK: Right Option 0x3D y Right Control 0x3E. Añadir prueba explícita para evitar que comentarios falsos protejan números incorrectos.",
+        "Extraer reducer de eventos con identidad de tecla, transición down/up y owner de activación. No usar flags agregados como única prueba de liberación de un lado.",
+        "Una segunda tecla no inicia otra captura ni finaliza la sesión de la primera. Definir ignoredBusy y cancelación/reset del latch al perder tap.",
+        "Gestionar disable/timeout del tap y stop idempotente; retener timer/source propios, invalidarlos al parar y reportar capacidad efectiva. No cambiar a listen-and-modify.",
+        "Preparar HotkeyBinding/hold-toggle para V18 sin agregar UI aún. Mantener compatibilidad de callbacks hasta integración V07."
+      ],
+      "acceptance": [
+        {
+          "id": "V03-AC01",
+          "kind": "automated",
+          "criterion": "0x3D activa dictado esperado; 0x3E activa modo legacy de limpieza; 0x3A/0x36 no se anuncian como teclas derechas correspondientes."
+        },
+        {
+          "id": "V03-AC02",
+          "kind": "automated",
+          "criterion": "Secuencias de ambos lados del mismo modificador liberan únicamente la sesión de la tecla dueña."
+        },
+        {
+          "id": "V03-AC03",
+          "kind": "automated",
+          "criterion": "Repetidos start/stop y tap disabled no duplican timers/callbacks ni dejan teclas latched."
+        },
+        {
+          "id": "V03-AC04",
+          "kind": "manual",
+          "criterion": "Teclado físico de QA reproduce ambas teclas y cancelación por pérdida de permiso; equipo/OS registrados."
+        },
+        {
+          "id": "V03-AC05",
+          "kind": "inspection",
+          "criterion": "El tap sigue escuchando solo lo necesario, sin registrar texto de teclas."
+        }
+      ],
+      "tests": [
+        "swift test --filter HotKeyManagerTests",
+        "Secuencias sintéticas pressA/pressB/releaseB/releaseA; pressA/disable/releaseA; press/repeat/stop.",
+        "Prueba física en perfil QA, sin registrar pulsaciones personales."
+      ],
+      "stop_conditions": [
+        "No asumir que Fn de teclados externos funciona igual que Apple; si API de estado lateral es incierta, documentar y verificar SDK."
+      ],
+      "estimated_engineering_days": 1,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V04",
+      "title": "Crear ProcessRunner cancelable sin deadlock de pipes",
+      "depends_on": [
+        "V02"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/ProcessRunner.swift",
+        "Sources/VozaKit/Core/Transcriber.swift",
+        "Tests/VozaTests/ProcessRunnerTests.swift",
+        "Tests/VozaTests/Support/ProcessFixtures.swift",
+        "Package.swift",
+        "Sources/VozaProcessFixture/main.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Transcriber.swift",
+        "Sources/VozaKit/Core/BrewInstaller.swift"
+      ],
+      "findings": [
+        "F05"
+      ],
+      "steps": [
+        "Extraer ejecución sin shell de Transcriber.runProcess a ProcessRunner; entradas/resultado según ARCHITECTURE. Resolver URL/env antes de ejecutar, no leer Config.shared dentro del runner. Si hace falta un proceso fixture portable para CI, usar el target auxiliar VozaProcessFixture listado en ownership, no scripts instalados globalmente; no empaquetarlo en Voza.app.",
+        "Drenar stdout/stderr desde run; procesar stdin concurrentemente cuando se necesite. Límites independientes y fallo explícito por exceso de salida.",
+        "Usar deadline monotónico y cancelación con una única ruta de finalización. Cubrir cancel antes de run, durante I/O y al finalizar.",
+        "Terminar proceso, esperar margen acotado, escalar sobre PID que pertenece a esta instancia y reap. No dejar hijo vivo ni cerrar pipe mientras otro callback lo utiliza.",
+        "Integrar Transcriber con runner; conservar flags/normalización baseline salvo filtro que corresponde a V14. Registrar stdout de usuario solo como resultado, nunca como diagnóstico."
+      ],
+      "acceptance": [
+        {
+          "id": "V04-AC01",
+          "kind": "automated",
+          "criterion": "Productores finitos de 1 MB en stdout, stderr y ambos terminan sin deadlock ni pérdida de bytes dentro del límite."
+        },
+        {
+          "id": "V04-AC02",
+          "kind": "automated",
+          "criterion": "Timeout y cancel dejan el proceso terminado/recolectado y completan exactamente una vez."
+        },
+        {
+          "id": "V04-AC03",
+          "kind": "automated",
+          "criterion": "Proceso que ignora SIGTERM se termina mediante escalamiento acotado y no sobrevive al test."
+        },
+        {
+          "id": "V04-AC04",
+          "kind": "automated",
+          "criterion": "Exit no cero, UTF-8 inválido y output excesivo producen errores distinguibles; ningún texto truncado se acepta."
+        },
+        {
+          "id": "V04-AC05",
+          "kind": "inspection",
+          "criterion": "Argumentos/env/logs no incluyen secretos ni transcripciones de Pulido; no hay shell interpolation."
+        }
+      ],
+      "tests": [
+        "swift test --filter ProcessRunnerTests",
+        "Fixture finito, no yes infinito; comprobar PID después de cancelar.",
+        "Ejecutar suite repetida bajo concurrencia controlada para doble completion."
+      ],
+      "stop_conditions": [
+        "Si el helper de tests requiere compilar/instalar otra herramienta, usar target/fixture Swift propio o herramientas ya presentes; no añadir dependencia sin necesidad."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V05",
+      "title": "Asegurar captura, escritura WAV y cleanup de recursos",
+      "depends_on": [
+        "V04"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/AudioRecorder.swift",
+        "Sources/VozaKit/Core/AudioAsset.swift",
+        "Tests/VozaTests/AudioRecorderTests.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaSmoke/main.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/AudioRecorder.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F06"
+      ],
+      "steps": [
+        "Revisar garantías de callback/removal de AVAudioEngine en documentación vigente y separar lifecycle, conversión y escritor. No afirmar thread-safe por el comentario actual.",
+        "Usar buffers propios y cola de escritor acotada; detectar backpressure/error en lugar de acumular memoria sin límite o perder frames silenciosamente.",
+        "Crear temporal con UUID y permisos privados bajo AppPaths. Rollback cierra handle/tap/engine si start falla en cualquier punto.",
+        "Stop idempotente espera escrituras, valida frames/header/tamaño y devuelve AudioAsset con ownership. Duración por frames; mantener formato Float32 code 3 correcto.",
+        "Cancel y cambio de dispositivo invalidan captura sin reanudar automáticamente. Borrar solo temporales propios; importaciones readOnly no se borran. Adaptar callers AppState y Smoke al nuevo retorno antes de cerrar; el pipeline nuevo aún no existe en este punto."
+      ],
+      "acceptance": [
+        {
+          "id": "V05-AC01",
+          "kind": "automated",
+          "criterion": "WAV conserva header 44 bytes code 3, mono 16 kHz/32 bits y duración consistente con payload."
+        },
+        {
+          "id": "V05-AC02",
+          "kind": "automated",
+          "criterion": "Fallo inyectado de engine.start o write cierra todos los recursos y elimina solo temporal propio."
+        },
+        {
+          "id": "V05-AC03",
+          "kind": "automated",
+          "criterion": "Stop/cancel repetidos no duplican finalize/callback ni escriben después del cierre."
+        },
+        {
+          "id": "V05-AC04",
+          "kind": "manual",
+          "criterion": "Micrófonos QA a 44,1/48 kHz y desconexión producen audio válido o error explícito; no truncamiento silencioso."
+        },
+        {
+          "id": "V05-AC05",
+          "kind": "manual",
+          "criterion": "Grabación larga y sleep/wake en QA no dejan captura inesperada ni crecimiento no acotado."
+        }
+      ],
+      "tests": [
+        "swift test --filter AudioRecorderTests",
+        "Inspección WAV con lector independiente y consumo por whisper-cli existente en modo integración QA.",
+        "Registrar hardware, sample rate, frames y memoria; nunca contenido personal."
+      ],
+      "stop_conditions": [
+        "Si no hay hardware Bluetooth/USB, sus AC siguen pendientes y se documenta cobertura disponible."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V06",
+      "title": "Definir contratos de sesión y composición inyectable",
+      "depends_on": [
+        "V02",
+        "V05"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/SessionTypes.swift",
+        "Sources/VozaKit/Core/SpeechEngine.swift",
+        "Sources/VozaKit/Core/TextProcessor.swift",
+        "Sources/VozaKit/App/Dependencies.swift",
+        "Tests/VozaTests/SessionTypesTests.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Sources/VozaKit/Core/Transcriber.swift",
+        "Sources/VozaKit/App/VozaApp.swift"
+      ],
+      "findings": [
+        "F04",
+        "F09",
+        "F13"
+      ],
+      "steps": [
+        "Implementar los value types especificados en ARCHITECTURE con Codable/Sendable donde corresponda; no empaquetar referencias AX o Config mutable como unchecked Sendable. AudioAsset ya pertenece a V05: referenciar ese tipo, no redeclararlo en SessionTypes.",
+        "Definir SpeechEngine con transcribe/cancel y capabilities; TextProcessor con proceso y outcome. No construir un plugin SDK ni registro dinámico.",
+        "Crear AppDependencies como único composition root de instancias productivas; permitir fakes en pruebas. Conservar entrypoint de Voza sin side effects de test.",
+        "Distinguir requestedMode/appliedMode/status/didRewrite y attempted/confirmed. Validar estados inválidos mediante inicializadores/constructores.",
+        "Documentar compatibilidad temporal con callbacks legacy, ticket V07 que la elimina, y snapshot de settings que usará V11."
+      ],
+      "acceptance": [
+        {
+          "id": "V06-AC01",
+          "kind": "automated",
+          "criterion": "Codificación/decodificación conserva modos y versiones; rawValue no depende de idioma UI."
+        },
+        {
+          "id": "V06-AC02",
+          "kind": "automated",
+          "criterion": "ProcessingOutcome permite éxito sin cambios y distingue unavailable/rejected/cancelled."
+        },
+        {
+          "id": "V06-AC03",
+          "kind": "automated",
+          "criterion": "Un snapshot no cambia al editar configuración externa después de construirlo."
+        },
+        {
+          "id": "V06-AC04",
+          "kind": "inspection",
+          "criterion": "No aparece un segundo pipeline funcional ni framework de plugins; contratos mínimos tienen callers previstos."
+        },
+        {
+          "id": "V06-AC05",
+          "kind": "inspection",
+          "criterion": "Aislamiento explícito para AX/audio/Process sin unchecked Sendable usado para silenciar el compilador."
+        }
+      ],
+      "tests": [
+        "swift test --filter SessionTypesTests",
+        "swift build registrando warnings de concurrencia nuevos."
+      ],
+      "stop_conditions": [
+        "Una divergencia entre tipos del contrato y necesidades reales se registra antes de cambiar callers; no inventar confidence de motor."
+      ],
+      "estimated_engineering_days": 1,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V07",
+      "title": "Integrar pipeline con sesión única y descarga independiente",
+      "depends_on": [
+        "V03",
+        "V04",
+        "V05",
+        "V06"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/DictationPipeline.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/VozaApp.swift",
+        "Tests/VozaTests/DictationPipelineTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/VozaApp.swift"
+      ],
+      "findings": [
+        "F04",
+        "F09"
+      ],
+      "steps": [
+        "Crear actor dueño de sesión/ID/config/task y conectar dependencies. AppState publica proyección, no controla procesos/handles directamente.",
+        "Separar DownloadState de DictationState en todos los caminos, incluidos guard de disco y catch de download. Evitar .failed compartido.",
+        "Hacer stop/cancel idempotentes e invalidar ID antes de cancelar recursos. Resultado obsoleto no puede pegar, sonar ni guardar.",
+        "Pasar config resuelta al motor/procesador para quitar lecturas de Config.shared fuera de MainActor. Tomar lease de modelo durante uso.",
+        "Actualizar UI mediante eventos de sesión con ID; tick viejo no afecta sesión nueva. Integrar lectura de historial al completion en vez de refresh adelantado."
+      ],
+      "acceptance": [
+        {
+          "id": "V07-AC01",
+          "kind": "automated",
+          "criterion": "downloadFailed durante listening no impide stop ni modifica DictationState."
+        },
+        {
+          "id": "V07-AC02",
+          "kind": "automated",
+          "criterion": "Cancel seguido de respuesta STT/cleanup tardía no pega, guarda, suena ni cambia nueva sesión."
+        },
+        {
+          "id": "V07-AC03",
+          "kind": "automated",
+          "criterion": "Start adicional durante busy no crea otro recorder/proceso."
+        },
+        {
+          "id": "V07-AC04",
+          "kind": "automated",
+          "criterion": "Cambiar settings durante await no altera language/model/provider/mode de esa sesión."
+        },
+        {
+          "id": "V07-AC05",
+          "kind": "automated",
+          "criterion": "Timers/eventos del ID anterior se ignoran; la nueva sesión termina normalmente."
+        }
+      ],
+      "tests": [
+        "swift test --filter DictationPipelineTests",
+        "Fakes controlados con continuaciones para intercalar downloadFailed, stop, cancel y completion."
+      ],
+      "stop_conditions": [
+        "No introducir un actor que llama a AppState.shared para resolver dependencias; eso vuelve a crear acoplamiento y ciclos."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G0",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V08",
+      "title": "Proteger campos seguros, bloqueo y cambios de foco",
+      "depends_on": [
+        "V07"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/TargetInspector.swift",
+        "Sources/VozaKit/Core/SessionPrivacyGuard.swift",
+        "Sources/VozaKit/Core/Permissions.swift",
+        "Sources/VozaKit/Core/DictationPipeline.swift",
+        "Tests/VozaTests/SessionPrivacyGuardTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Permissions.swift",
+        "Sources/VozaKit/Core/Paster.swift",
+        "Sources/VozaKit/App/VozaApp.swift"
+      ],
+      "findings": [
+        "F02"
+      ],
+      "steps": [
+        "Implementar inspección mínima de AX en MainActor: PID/bundle/element/subrole y allowed/secure/unknown. No leer documento completo ni screenshot.",
+        "Antes de grabar bloquear secureField/sessionInactive. Unknown permite ruta recoveryOnly comunicada, sin pegado automático.",
+        "Integrar señales soportadas de actividad/bloqueo de sesión verificadas contra documentación y runtime QA; session resign no sustituye probar lock real.",
+        "Revalidar antes de procesamiento externo explícito y antes de entrega; cambiar destino produce recoveryOnly, bloqueo cancela y descarta resultado.",
+        "Pruebas de degradación AX, apps no accesibles y carreras de lock; no persistir identidad sensible en diagnóstico."
+      ],
+      "acceptance": [
+        {
+          "id": "V08-AC01",
+          "kind": "automated",
+          "criterion": "Destino secure detectado no inicia recorder ni genera archivo/historial/procesamiento."
+        },
+        {
+          "id": "V08-AC02",
+          "kind": "automated",
+          "criterion": "Unknown no se clasifica allowed; entrega queda recoveryOnly con razón."
+        },
+        {
+          "id": "V08-AC03",
+          "kind": "automated",
+          "criterion": "Cambio de destino durante STT nunca inserta automáticamente en el nuevo elemento."
+        },
+        {
+          "id": "V08-AC04",
+          "kind": "manual",
+          "criterion": "Bloquear pantalla durante captura y procesamiento impide cualquier pegado/guardado tardío al desbloquear."
+        },
+        {
+          "id": "V08-AC05",
+          "kind": "inspection",
+          "criterion": "Se documentan API/OS y límites reales de detección; no se usan private APIs sin decisión explícita."
+        }
+      ],
+      "tests": [
+        "swift test --filter SessionPrivacyGuardTests",
+        "Protocolo manual lock/sleep/session switch y secure fields en perfil QA; registrar cada variante."
+      ],
+      "stop_conditions": [
+        "Sin señal fiable de sesión/target, mantener inserción bloqueada o recoveryOnly; no fingir protección completa."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V09",
+      "title": "Hacer inserción y clipboard recuperables y no bloqueantes",
+      "depends_on": [
+        "V08",
+        "V04"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/Paster.swift",
+        "Sources/VozaKit/Core/InsertionReceipt.swift",
+        "Sources/VozaKit/Core/InsertionEngine.swift",
+        "Tests/VozaTests/PasterTests.swift",
+        "Sources/VozaKit/Core/DictationPipeline.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Paster.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F15",
+        "F02"
+      ],
+      "steps": [
+        "Definir adapter de pasteboard inyectable y guardar todos los ítems/tipos materializables con orden. Explicar límites de tipos prometidos/lazy.",
+        "Capturar changeCount real después de la escritura propia; restaurar solo si sigue siendo ese contador. No asumir +1 por comentario.",
+        "Reemplazar usleep por espera asíncrona que preserve MainActor para APIs UI; no retener main bloqueado 350 ms.",
+        "Comprobar destino/sesión justo antes de enviar eventos. Devolver receipt attempted; promover a confirmed solo con verificación de resultado compatible.",
+        "Preservar copia ajena concurrente; en fallo conservar resultado en RAM, no volver a pegar automáticamente. No prometer borrar copias de gestores clipboard."
+      ],
+      "acceptance": [
+        {
+          "id": "V09-AC01",
+          "kind": "automated",
+          "criterion": "Snapshot/restauración conserva múltiples ítems, tipos admitidos y orden; vacío sigue vacío."
+        },
+        {
+          "id": "V09-AC02",
+          "kind": "automated",
+          "criterion": "Una copia externa tras la escritura de Voza no es sobrescrita por restauración."
+        },
+        {
+          "id": "V09-AC03",
+          "kind": "automated",
+          "criterion": "No se ejecuta Cmd+V si session/target se invalidan durante la espera."
+        },
+        {
+          "id": "V09-AC04",
+          "kind": "automated",
+          "criterion": "CGEvent enviado sin confirmación genera attempted, nunca confirmed."
+        },
+        {
+          "id": "V09-AC05",
+          "kind": "manual",
+          "criterion": "Apps QA reciben texto correcto y la UI sigue respondiendo durante entrega; clipboard manager probado con datos sintéticos."
+        }
+      ],
+      "tests": [
+        "swift test --filter PasterTests",
+        "Matriz clipboard string/RTF/HTML/image/fileURLs/múltiples y copia en dos momentos distintos."
+      ],
+      "stop_conditions": [
+        "Si no es posible preservar un tipo lazy, documentar comportamiento antes de afirmar fidelidad total."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V10",
+      "title": "Implementar privacidad del historial y recuperación RAM",
+      "depends_on": [
+        "V09",
+        "V01",
+        "V06"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/TranscriptStore.swift",
+        "Sources/VozaKit/Core/RetentionPolicy.swift",
+        "Sources/VozaKit/Core/RecoveryBuffer.swift",
+        "Tests/VozaTests/TranscriptStoreTests.swift",
+        "Tests/VozaTests/RecoveryBufferTests.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/TranscriptStore.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F19",
+        "F02",
+        "F09"
+      ],
+      "steps": [
+        "Separar buffer RAM de historial duradero. Off/session/7days/30days/forever; nuevos defaults propuestos off, legacy no se borra ni cambia sin migración explícita.",
+        "Persistencia estructurada con UUID, ISO8601 UTC y original/processed según política; Markdown pasa a exportación. Elegir JSONL inicialmente si evita nueva dependencia y permite límites claros.",
+        "Publicar snapshot tras completar; exponer historyWriteFailed sin anular resultado de inserción. Lectura acotada por entradas/bytes.",
+        "Recovery TTL por Clock, expira al lock/quit/nueva entrada; no archivo de respaldo invisible. Guardar receipt mínimo para V25.",
+        "Importación Markdown opt-in valida timestamps/markers/headers de contenido; conserva archivos originales. Retención solo borra entradas del store propio, nunca logs legacy por sorpresa."
+      ],
+      "acceptance": [
+        {
+          "id": "V10-AC01",
+          "kind": "automated",
+          "criterion": "Con historial off no se escriben transcriptos; buffer RAM sigue disponible hasta TTL sin persistencia."
+        },
+        {
+          "id": "V10-AC02",
+          "kind": "automated",
+          "criterion": "TTL, lock y salida invalidan recuperación; reloj fijo permite comprobarlo sin sleeps."
+        },
+        {
+          "id": "V10-AC03",
+          "kind": "automated",
+          "criterion": "Contenido con newline ##, ✨, Unicode y cambios de zona roundtrip sin pérdida en store nuevo."
+        },
+        {
+          "id": "V10-AC04",
+          "kind": "automated",
+          "criterion": "Fallos de append/read/retención no aparecen como guardado exitoso ni borran original legacy."
+        },
+        {
+          "id": "V10-AC05",
+          "kind": "inspection",
+          "criterion": "Existe límite de bytes/entradas en hidratación y se documenta qué se conserva en cada política."
+        }
+      ],
+      "tests": [
+        "swift test --filter TranscriptStoreTests",
+        "swift test --filter RecoveryBufferTests",
+        "Fixtures de DST/calendario/mes y archivos grandes sintéticos."
+      ],
+      "stop_conditions": [
+        "No migrar automáticamente datos reales durante desarrollo; usar fixtures. Resolver decisión de defaults legacy si existe uso."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V11",
+      "title": "Migrar configuración a un esquema tipado observable",
+      "depends_on": [
+        "V01",
+        "V06"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/Config.swift",
+        "Sources/VozaKit/Core/SettingsRepository.swift",
+        "Sources/VozaKit/Core/SettingsSnapshot.swift",
+        "Tests/VozaTests/SettingsRepositoryTests.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Config.swift",
+        "Sources/VozaKit/UI/SettingsView.swift",
+        "README.md"
+      ],
+      "findings": [
+        "F11",
+        "F09"
+      ],
+      "steps": [
+        "Crear schema v1 y defaults puros de PRODUCT/ARCHITECTURE. Separar UI language, speech language, mode y performance policy.",
+        "Implementar lectura/escritura atómica JSON y publicación observable; mantener facade Config temporal con callers migrados progresivamente, no dos stores escribiendo.",
+        "Importar TOML legacy correctamente o rechazar ambigüedad con diagnóstico; cubrir comentarios inline, escapes, BOM y claves inválidas. Conservar original intacto.",
+        "Cargar gumroad_permalink legacy y validar proveedor/rutas. Presencia de env/key no habilita cloud. Hacer normalización de rutas coherente sin crear directorios al leer.",
+        "Dejar registro de migración y rollback; setters null eliminan valor canónico y persistencia lo refleja. No perder claves desconocidas del archivo original."
+      ],
+      "acceptance": [
+        {
+          "id": "V11-AC01",
+          "kind": "automated",
+          "criterion": "Ejemplo del README con comentarios inline se importa con model/language correctos o error explícito, nunca valor contaminado silencioso."
+        },
+        {
+          "id": "V11-AC02",
+          "kind": "automated",
+          "criterion": "Comillas/backslash/Unicode roundtrip y nil override vuelve al valor automático tras recargar."
+        },
+        {
+          "id": "V11-AC03",
+          "kind": "automated",
+          "criterion": "Escritura fallida conserva archivo anterior y publica error; migración repetida es idempotente."
+        },
+        {
+          "id": "V11-AC04",
+          "kind": "automated",
+          "criterion": "Cambios de settings actualizan observadores pero no snapshot de sesión activa."
+        },
+        {
+          "id": "V11-AC05",
+          "kind": "automated",
+          "criterion": "Config legacy cloud requiere revisión consentida antes de primer envío; key presente no cambia modo/proveedor."
+        }
+      ],
+      "tests": [
+        "swift test --filter SettingsRepositoryTests",
+        "Fixtures de JSON versión futura, TOML inválido, ruta inexistente y archivo sin permisos."
+      ],
+      "stop_conditions": [
+        "No añadir parser grande o dependencia nueva sin justificar compatibilidad real; no inventar soporte TOML completo con regex."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V12",
+      "title": "Guardar credenciales en Keychain y fijar frontera de proveedores",
+      "depends_on": [
+        "V11"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/KeychainStore.swift",
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Sources/VozaKit/Core/Config.swift",
+        "Tests/VozaTests/ProviderPrivacyTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Sources/VozaKit/Core/Config.swift"
+      ],
+      "findings": [
+        "F16"
+      ],
+      "steps": [
+        "Crear KeychainStore con interface inyectable y claves separadas por proveedor/endpoint. Nunca registrar valores.",
+        "Migración .env lee con permiso de la sesión; comprobar escritura/lectura Keychain antes de ofrecer retirar solo claves migradas. No borrar archivo entero.",
+        "Validar esquemas/endpoints: HTTPS remoto; loopback HTTP solo explícito. Definir política de redirects para no enviar texto/credencial a destino distinto sin autorización.",
+        "Eliminar fallback local→cloud y fallback entre proveedores cloud no seleccionados. Selección explícita de proveedor y modelo; fallo vuelve a texto literal según policy.",
+        "Probar red mediante transport espía que registra host/método/tipo de payload, nunca texto real; cloud no puede recibir audio."
+      ],
+      "acceptance": [
+        {
+          "id": "V12-AC01",
+          "kind": "automated",
+          "criterion": "Literal/local/auto generan cero requests cloud incluso si existen keys de varios proveedores."
+        },
+        {
+          "id": "V12-AC02",
+          "kind": "automated",
+          "criterion": "Endpoint HTTP remoto/redirect a proveedor no autorizado se rechaza sin enviar credencial."
+        },
+        {
+          "id": "V12-AC03",
+          "kind": "automated",
+          "criterion": "Fallo de Keychain no elimina env/key anterior ni informa migración exitosa."
+        },
+        {
+          "id": "V12-AC04",
+          "kind": "automated",
+          "criterion": "Requests cloud autorizados llevan texto solamente y proveedor del snapshot de sesión."
+        },
+        {
+          "id": "V12-AC05",
+          "kind": "inspection",
+          "criterion": "No hay secretos en argumentos de proceso, query strings ni logs de diagnóstico."
+        }
+      ],
+      "tests": [
+        "swift test --filter ProviderPrivacyTests",
+        "Fakes Keychain success/locked/denied y transport con redirects."
+      ],
+      "stop_conditions": [
+        "No utilizar claves reales ni realizar llamada facturable para aprobar los tests."
+      ],
+      "estimated_engineering_days": 1,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V13",
+      "title": "Endurecer licencia offline-first con fixtures de respuesta",
+      "depends_on": [
+        "V11",
+        "V12"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/LicenseManager.swift",
+        "Sources/VozaKit/Core/LicenseTransport.swift",
+        "Tests/VozaTests/LicenseManagerTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/LicenseManager.swift",
+        "Sources/VozaKit/UI/SettingsView.swift"
+      ],
+      "findings": [
+        "F07",
+        "F16"
+      ],
+      "steps": [
+        "Separar entitlement cacheado y estado de operación activate/reverify; establecer verdict valid/revoked/indeterminate.",
+        "Verificar semántica API actual del proveedor existente; 429/5xx/timeout/JSON incompleto son indeterminate. Solo revocación definitiva documentada elimina cache.",
+        "Mover parámetros sensibles a cuerpo POST; validar forma de compra y flags refunded/disputed/chargebacked. No considerar success:true sin payload suficiente como compra aprobada.",
+        "Distinguir activation increments y revalidation sin increment. Cancel/requests concurrentes no permiten que una respuesta vieja invalide licencia nueva.",
+        "Usar Clock para 7 días/trial y evitar cronologías negativas absurdas en UI; no construir DRM/fingerprinting. Mantener Gumroad hasta D011 resuelta."
+      ],
+      "acceptance": [
+        {
+          "id": "V13-AC01",
+          "kind": "automated",
+          "criterion": "Cache válido sobrevive 429, 5xx, timeout, {}, malformed y respuesta no concluyente."
+        },
+        {
+          "id": "V13-AC02",
+          "kind": "automated",
+          "criterion": "Refund/dispute/revocación definitiva producen el cambio de entitlement esperado y no bloquean dictado por error de red."
+        },
+        {
+          "id": "V13-AC03",
+          "kind": "automated",
+          "criterion": "Reverify no incrementa usos; activación vieja no sobrescribe una activación nueva."
+        },
+        {
+          "id": "V13-AC04",
+          "kind": "automated",
+          "criterion": "Clave nueva inválida no elimina estado de una licencia previa válida; corrupt cache tiene recuperación explícita."
+        },
+        {
+          "id": "V13-AC05",
+          "kind": "inspection",
+          "criterion": "Tarifas/migración de proveedor no se implementaron sin D011; no se hicieron compras reales."
+        }
+      ],
+      "tests": [
+        "swift test --filter LicenseManagerTests",
+        "Fixtures de HTTP status × JSON shape × cached/new activation; reloj atrasado/adelantado."
+      ],
+      "stop_conditions": [
+        "API externa ambigua requiere fuente oficial o sandbox; nunca usar clearCache como default de un error desconocido."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V14",
+      "title": "Unificar catálogo, capacidad de idiomas y salida no lingüística",
+      "depends_on": [
+        "V11",
+        "V06"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/Core/EnginePolicy.swift",
+        "Sources/VozaKit/Core/Transcriber.swift",
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Tests/VozaTests/EnginePolicyTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Sources/VozaKit/Core/Transcriber.swift"
+      ],
+      "findings": [
+        "F03",
+        "F17"
+      ],
+      "steps": [
+        "Definir capability languages/auto y metadata de cada modelo; corregir small.en-q5_1 sin deducir semántica de suffix.",
+        "Unificar recomendación, fallback y performance candidates por EnginePolicy; primero filtrar idioma/arquitectura, luego seleccionar entre instalados aprobados.",
+        "Resolver descriptor/path/hash status juntos; ningún presentUnverified se presenta verificado solo por size.",
+        "Cambiar filtro genérico brackets por marcadores conocidos y noSpeech real; preservar texto válido corto entre paréntesis/corchetes.",
+        "Permitir profile inyectado para probar 8/16/32 GB sin depender de hardware local. No seleccionar más calidad solo por RTF bajo."
+      ],
+      "acceptance": [
+        {
+          "id": "V14-AC01",
+          "kind": "automated",
+          "criterion": "Auto/ES nunca eligen tiny.en/base.en/small.en/small.en-q5_1 en preset, fallback ni sugerencia."
+        },
+        {
+          "id": "V14-AC02",
+          "kind": "automated",
+          "criterion": "Preferido ausente con solo EN instalado produce modelUnavailable o candidato compatible, no fallback EN oculto."
+        },
+        {
+          "id": "V14-AC03",
+          "kind": "automated",
+          "criterion": "[API_KEY] y (no enviar) permanecen como texto; marcadores noSpeech conocidos no se pegan."
+        },
+        {
+          "id": "V14-AC04",
+          "kind": "automated",
+          "criterion": "Tamaño correcto sin hash verificado no satisface estado verified."
+        },
+        {
+          "id": "V14-AC05",
+          "kind": "automated",
+          "criterion": "Preset para perfiles simulados es determinista e independiente del idioma de interfaz."
+        }
+      ],
+      "tests": [
+        "swift test --filter EnginePolicyTests",
+        "Tests parametrizados de todos los modelos × auto/en/es × instalado/ausente/corrupto."
+      ],
+      "stop_conditions": [
+        "No recomendar un modelo que no tiene metadata lingüística verificable; unknown no equivale multilingual."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V15",
+      "title": "Descargas verificadas, resume correcto y disco del destino",
+      "depends_on": [
+        "V14",
+        "V04"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/Core/ReadinessChecker.swift",
+        "Tests/VozaTests/ModelDownloadTests.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/Core/ReadinessChecker.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F12",
+        "F04"
+      ],
+      "steps": [
+        "Inyectar transporte, filesystem/capacity y scheduler. Usar DownloadState independiente y no escribir DictationState desde error de red/disco.",
+        "Validar 206 Content-Range contra offset; 200 reinicia parcial propio de forma coherente; 416 completo verifica sin consumir cuerpo, inválido emite solicitud nueva.",
+        "Conservar parcial en interrupción recuperable; hash/tamaño son necesarios antes de promocionar. Detectar exceso de bytes, error disk y cancelar.",
+        "Comprobar capacidad del volumen de modelsDirectory, no home; accounting por restantes con margen y estado unknown explícito.",
+        "Promover sin eliminar antes un modelo válido existente; model lease evita mutación durante STT. Progress verification separado de 100% download."
+      ],
+      "acceptance": [
+        {
+          "id": "V15-AC01",
+          "kind": "automated",
+          "criterion": "416 con cuerpo HTML no añade HTML al parcial; completo hash correcto se promueve e inválido se reinicia con request nuevo."
+        },
+        {
+          "id": "V15-AC02",
+          "kind": "automated",
+          "criterion": "206 de offset equivocado y streams truncados/excesivos se rechazan conservando recuperación apropiada."
+        },
+        {
+          "id": "V15-AC03",
+          "kind": "automated",
+          "criterion": "Fallo de red al 90% preserva parcial y siguiente request pide rango correcto."
+        },
+        {
+          "id": "V15-AC04",
+          "kind": "automated",
+          "criterion": "Volumen distinto/unknown/insufficient se evalúa en destino; Int.max no representa unknown."
+        },
+        {
+          "id": "V15-AC05",
+          "kind": "automated",
+          "criterion": "Fallo de promoción o cancel no destruye modelo válido previo ni el archivo de una sesión con lease."
+        }
+      ],
+      "tests": [
+        "swift test --filter ModelDownloadTests",
+        "Servidor/URLProtocol fixture local en memoria; cero descargas reales requeridas."
+      ],
+      "stop_conditions": [
+        "No descargar GB ni cortar red del equipo real por iniciativa propia."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G1",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V16",
+      "title": "Empaquetar motor y dependencias sin requerir Homebrew",
+      "depends_on": [
+        "V14",
+        "V04"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/Transcriber.swift",
+        "Sources/VozaKit/Core/BrewInstaller.swift",
+        "Sources/VozaKit/Core/EngineAssets.swift",
+        "build.sh",
+        "scripts/release.sh",
+        "packaging/Info.plist",
+        "Tests/VozaTests/EngineAssetsTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Transcriber.swift",
+        "Sources/VozaKit/Core/BrewInstaller.swift",
+        "build.sh",
+        "scripts/release.sh",
+        "packaging/Info.plist"
+      ],
+      "findings": [
+        "F08",
+        "F14"
+      ],
+      "steps": [
+        "Inventariar whisper-cli y sus dependencias reales con otool/file en entorno autorizado. Elegir versión/licencia/origen reproducible, no latest implícito.",
+        "Definir layout bundle y rpaths sin /opt/homebrew ni /usr/local requeridos en producción. Documentar recursos y licencias de terceros.",
+        "EngineAssets resuelve primero binario del bundle, luego override avanzado explícito; no shell ni detección brew como ruta estándar.",
+        "build.sh empaqueta assets y valida existencia/arquitectura; firma de distribución y notarización quedan en V28 con autorización específica. BrewInstaller deja de ser onboarding estándar; eliminarlo si no tiene callers al terminar integración.",
+        "Preparar import de paquete offline/modelos y manifest; no afirmar first-run offline si solo se incluye binario."
+      ],
+      "acceptance": [
+        {
+          "id": "V16-AC01",
+          "kind": "automated",
+          "criterion": "Resolver binario funciona sin paths Homebrew y respeta override explícito validado."
+        },
+        {
+          "id": "V16-AC02",
+          "kind": "inspection",
+          "criterion": "Manifest fija versión/hash/licencia y las dylibs/rpaths no requieren una instalación de desarrollo."
+        },
+        {
+          "id": "V16-AC03",
+          "kind": "manual",
+          "criterion": "Bundle QA ejecuta STT en Mac limpio sin brew con modelo descargado/importado; evidencia con OS/arch."
+        },
+        {
+          "id": "V16-AC04",
+          "kind": "inspection",
+          "criterion": "No se elevó mínimo macOS ni se descargaron modelos automáticamente sin política definida."
+        },
+        {
+          "id": "V16-AC05",
+          "kind": "inspection",
+          "criterion": "Scripts distinguen build local y release; este ticket no publica ni usa notarización real sin autorización."
+        }
+      ],
+      "tests": [
+        "swift test --filter EngineAssetsTests",
+        "otool -L y file sobre ejecutable/librerías empaquetadas; registrar salida completa.",
+        "Instalación manual de QA desde artefacto propio; no usar equipo de desarrollo como único clean-room."
+      ],
+      "stop_conditions": [
+        "Si binario/weights tienen licencia no resuelta o dylib no redistribuible, bloquear empaquetado de ese artefacto y documentar alternativa."
+      ],
+      "estimated_engineering_days": 2.5,
+      "gate": "G2",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V17",
+      "title": "Unificar readiness y publicación observable de resultados",
+      "depends_on": [
+        "V07",
+        "V08",
+        "V09",
+        "V15",
+        "V16"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/ReadinessChecker.swift",
+        "Sources/VozaKit/Core/ReadinessReport.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/UI/SettingsView.swift",
+        "Tests/VozaTests/ReadinessTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/ReadinessChecker.swift",
+        "Sources/VozaKit/UI/SettingsView.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F08",
+        "F09"
+      ],
+      "steps": [
+        "ReadinessReport representa ready/blocked/unknown por capacidad y por modo; no usar booleano allReady basado en cualquier modelo instalado.",
+        "Unificar fuentes de permiso/tap/modelo/espacio; getters puros. Los recursos de Pulido pendientes no deben ocultar Literal disponible.",
+        "Actualizar snapshots ante permiso al volver al foreground, fin de download/verificación, cambio de settings y resultado de sesión; no depender solo de timers.",
+        "AppState observa store/config/entitlement o recibe sus snapshots explícitos; historial nuevo aparece después de completion real.",
+        "Mensajes llevan operación/session ID, tipo y lifetime; éxito anterior no permanece bajo fallo nuevo. Cada bloqueo tiene acción viable."
+      ],
+      "acceptance": [
+        {
+          "id": "V17-AC01",
+          "kind": "automated",
+          "criterion": "Readiness distingue Literal listo/Pulido pendiente y no considera hash pendiente como modelo listo."
+        },
+        {
+          "id": "V17-AC02",
+          "kind": "automated",
+          "criterion": "Grant/revoke, download completion y settings change refrescan UI state sin reabrir ventana."
+        },
+        {
+          "id": "V17-AC03",
+          "kind": "automated",
+          "criterion": "Primer dictado aparece en snapshot reciente después del append y no con retraso de una sesión."
+        },
+        {
+          "id": "V17-AC04",
+          "kind": "automated",
+          "criterion": "Unknown de capacidad/permiso no se convierte en ready por default."
+        },
+        {
+          "id": "V17-AC05",
+          "kind": "inspection",
+          "criterion": "No quedan getters de readiness con creación de directorios o side effects de instalación."
+        }
+      ],
+      "tests": [
+        "swift test --filter ReadinessTests",
+        "Fakes de permisos y observadores con transiciones dirigidas; no sleeps como prueba de sincronización."
+      ],
+      "stop_conditions": [
+        "Si la API no confirma una capacidad, reportar unknown y acción de diagnóstico; no poner check verde por existencia de binario."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G2",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V18",
+      "title": "Introducir UI Literal/Pulido y ajustes por intención",
+      "depends_on": [
+        "V17",
+        "V11",
+        "V06",
+        "V03"
+      ],
+      "files": [
+        "Sources/VozaKit/UI/ModePicker.swift",
+        "Sources/VozaKit/UI/SettingsView.swift",
+        "Sources/VozaKit/UI/PopoverView.swift",
+        "Sources/VozaKit/UI/Settings/StatusView.swift",
+        "Sources/VozaKit/UI/Settings/DictationSettings.swift",
+        "Sources/VozaKit/UI/Settings/PrivacySettings.swift",
+        "Sources/VozaKit/UI/Settings/AdvancedSettings.swift",
+        "Sources/VozaKit/UI/Settings/LicenseSettings.swift",
+        "Sources/VozaKit/UI/Settings/AboutSettings.swift",
+        "Sources/VozaKit/App/Localizer.swift",
+        "Tests/VozaTests/ModeSelectionTests.swift",
+        "Sources/VozaKit/Core/HotKeyManager.swift",
+        "Sources/VozaKit/App/VozaApp.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/UI/SettingsView.swift",
+        "Sources/VozaKit/UI/PopoverView.swift",
+        "Sources/VozaKit/App/Localizer.swift"
+      ],
+      "findings": [
+        "F09",
+        "F18"
+      ],
+      "steps": [
+        "Extraer vistas de SettingsView en archivos asignados conservando las que siguen en uso; contenedor solo compone Inicio/Dictado/Privacidad/Avanzado y enlaces secundarios.",
+        "Crear ModePicker compartido con Literal/Pulido y copy UX. Una única binding a settings.mode; no booleans de limpieza duplicados.",
+        "Mostrar disponibilidad real: Pulido pendiente hasta V25, nunca demo que se anuncia funcionando. Cambiar modo busy aplica al siguiente dictado.",
+        "Presentar atajo único/hold-toggle; opción avanzada de override sin obligar al usuario. Hotkey de modo legacy se migra explícitamente y copy deja de mentir.",
+        "Licencia se observa directamente y accesos usan APIs actuales de Settings verificadas; no depender de selector legacy showSettingsWindow sin prueba. Etiquetar iconos y acciones."
+      ],
+      "acceptance": [
+        {
+          "id": "V18-AC01",
+          "kind": "automated",
+          "criterion": "Selector persiste una sola preferencia y ambos lugares de UI se actualizan coherentemente."
+        },
+        {
+          "id": "V18-AC02",
+          "kind": "automated",
+          "criterion": "Cambiar durante busy no modifica snapshot actual y muestra que aplica al siguiente."
+        },
+        {
+          "id": "V18-AC03",
+          "kind": "automated",
+          "criterion": "Pulido sin runtime listo no aparece como aplicado ni invoca provider cloud implícito."
+        },
+        {
+          "id": "V18-AC04",
+          "kind": "manual",
+          "criterion": "Ajustes se abren desde popover en OS soportado; navegación y labels ES/EN comprobados."
+        },
+        {
+          "id": "V18-AC05",
+          "kind": "inspection",
+          "criterion": "Catálogo/modelos/RTF se encuentran en avanzado, no como decisión necesaria del flujo principal."
+        }
+      ],
+      "tests": [
+        "swift test --filter ModeSelectionTests",
+        "Inspección runtime de switch, persistencia, acceso Settings y estado de licencia asíncrono."
+      ],
+      "stop_conditions": [
+        "No cambiar logo/nombre por preferencia de diseño; D012 sigue pendiente."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G2",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V19",
+      "title": "Construir onboarding de cinco pasos con primera dictación",
+      "depends_on": [
+        "V18",
+        "V17",
+        "V16"
+      ],
+      "files": [
+        "Sources/VozaKit/UI/OnboardingView.swift",
+        "Sources/VozaKit/State/OnboardingState.swift",
+        "Sources/VozaKit/App/VozaApp.swift",
+        "Tests/VozaTests/OnboardingTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/UI/OnboardingView.swift",
+        "Sources/VozaKit/UI/PopoverView.swift",
+        "Sources/VozaKit/App/VozaApp.swift"
+      ],
+      "findings": [
+        "F08"
+      ],
+      "steps": [
+        "Implementar O01–O05 de UX sobre OnboardingState y el readiness único. Atrás/cerrar/ajustes siempre disponibles.",
+        "Distinguir notDetermined/denied/authorized al pedir mic; AX y atajo se reparan con acción comprobada. Refrescar al volver al foreground.",
+        "Preparar modelos con tamaño/espacio/consentimiento y reanudación; permitir Literal temporal sin cambiar preferencia Pulido.",
+        "Prueba interna consume pipeline real pero nunca pega en otra app; mostrar requested/applied mode y original recuperable cuando disponible.",
+        "Pantalla final especifica si está listo para dictar dentro de Voza o insertar externamente. Medir pasos y tiempo con usuarios QA, no números inventados."
+      ],
+      "acceptance": [
+        {
+          "id": "V19-AC01",
+          "kind": "automated",
+          "criterion": "Todos los pasos admiten volver/cerrar y no pierden elecciones previas."
+        },
+        {
+          "id": "V19-AC02",
+          "kind": "automated",
+          "criterion": "Permiso denegado repetido ofrece ajustes, no solicitud inútil infinita."
+        },
+        {
+          "id": "V19-AC03",
+          "kind": "automated",
+          "criterion": "Interrupción de preparación conserva estado reanudable; no listo antes del hash."
+        },
+        {
+          "id": "V19-AC04",
+          "kind": "manual",
+          "criterion": "Usuario QA completa desde instalación sin brew y entiende Literal/Pulido sin conocer motores."
+        },
+        {
+          "id": "V19-AC05",
+          "kind": "manual",
+          "criterion": "Prueba interna y externa tienen evidencia separada; no se cuenta una como la otra."
+        }
+      ],
+      "tests": [
+        "swift test --filter OnboardingTests",
+        "Recorrido fresh/denied/offline/poco disco/modelo corrupto y vuelta desde System Settings."
+      ],
+      "stop_conditions": [
+        "Sin preparación Pulido completa mostrarlo pendiente; no bloquear Literal funcional ni habilitar una feature falsa."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G2",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V20",
+      "title": "Panel visible de grabación y accesibilidad completa",
+      "depends_on": [
+        "V18",
+        "V19"
+      ],
+      "files": [
+        "Sources/VozaKit/UI/RecordingPanel.swift",
+        "Sources/VozaKit/UI/PopoverView.swift",
+        "Sources/VozaKit/UI/Theme.swift",
+        "Sources/VozaKit/App/VozaApp.swift",
+        "Sources/VozaKit/Core/AudioRecorder.swift",
+        "Tests/VozaTests/RecordingPanelTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/UI/PopoverView.swift",
+        "Sources/VozaKit/UI/Theme.swift",
+        "Sources/VozaKit/App/VozaApp.swift"
+      ],
+      "findings": [
+        "F08",
+        "F09"
+      ],
+      "steps": [
+        "Agregar NSPanel no activante controlado por phase/session ID. No mover foco al aparecer ni al actualizarse.",
+        "Mostrar modo, listening/transcribing/polishing y stop/cancel. Onda RMS opcional con muestras agregadas, no otro stream persistente.",
+        "Añadir labels accesibles a todas las acciones icon-only y anuncios de fase sin anunciar cada timer tick. Hold/toggle usable con teclado.",
+        "Estado de error legible y permanente en popover; no depender de color. Respetar Reduce Motion y soportar light/dark.",
+        "Probar ventanas pequeñas, texto ES largo, monitores, fullscreen y VoiceOver. No certificar por revisar código."
+      ],
+      "acceptance": [
+        {
+          "id": "V20-AC01",
+          "kind": "automated",
+          "criterion": "Eventos obsoletos no muestran panel de sesión anterior y cancel llega una sola vez."
+        },
+        {
+          "id": "V20-AC02",
+          "kind": "manual",
+          "criterion": "Panel no roba foco durante start/stop/transcription y desaparece sin insertar en otro destino."
+        },
+        {
+          "id": "V20-AC03",
+          "kind": "manual",
+          "criterion": "VoiceOver recorre modo, acción, estado, recuperación y ajustes; controles tienen nombres claros."
+        },
+        {
+          "id": "V20-AC04",
+          "kind": "manual",
+          "criterion": "Teclado/toggle funcionan sin mantener presionada una tecla y sin mouse."
+        },
+        {
+          "id": "V20-AC05",
+          "kind": "manual",
+          "criterion": "ES/EN, light/dark, Reduce Motion y ventanas pequeñas no cortan controles esenciales."
+        }
+      ],
+      "tests": [
+        "swift test --filter RecordingPanelTests",
+        "Checklist manual UX con capturas sintéticas autorizadas y versión OS."
+      ],
+      "stop_conditions": [
+        "No capturar screenshots con transcripciones personales; preparar fixtures visuales."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G2",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V21",
+      "title": "Construir corpus bilingüe independiente para Pulido",
+      "depends_on": [
+        "V06"
+      ],
+      "files": [
+        "Tests/VozaTests/Fixtures/Polished/development.json",
+        "Tests/VozaTests/Fixtures/Polished/holdout-manifest.json",
+        "Tests/VozaTests/PolishedContractTests.swift",
+        "docs/plan-glm/evidence/V21/corpus-protocol.md"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "docs/plan-glm/fixtures/polished-seed.json"
+      ],
+      "findings": [
+        "F13",
+        "F17"
+      ],
+      "steps": [
+        "Tomar seed como especificación sintética, no benchmark. Definir categorías, esquema, origen/licencia y etiquetas de riesgo.",
+        "Crear 200 casos propuestos: 80 ES, 80 EN, 40 mixtos; distinguir raw transcript controlado de audio real consentido.",
+        "Revisión humana marca outputs permitidos, spans que deben conservarse y reparaciones admisibles. No sustituirla por autoevaluación del mismo LLM.",
+        "Separar development y holdout antes de ajustar prompt; mantener manifest/hash del holdout y controlar acceso durante tuning.",
+        "Crear evaluador de invariantes estructurales y reporte por idioma/categoría, abstención y error crítico. Documentar qué criterio no puede evaluar automáticamente."
+      ],
+      "acceptance": [
+        {
+          "id": "V21-AC01",
+          "kind": "automated",
+          "criterion": "Cada caso tiene ID único, locale, categoría, input, constraints, source, split y review status válido."
+        },
+        {
+          "id": "V21-AC02",
+          "kind": "inspection",
+          "criterion": "Development/holdout no se solapan por ID ni contenido y se registra hash antes del tuning."
+        },
+        {
+          "id": "V21-AC03",
+          "kind": "manual",
+          "criterion": "Se alcanzan 200 casos con revisión humana documentada o el ticket permanece incompleto."
+        },
+        {
+          "id": "V21-AC04",
+          "kind": "automated",
+          "criterion": "Reglas incluyen negación, cifras, nombres, citas, disculpas, muletillas, code-switching, injection y vacío legítimo."
+        },
+        {
+          "id": "V21-AC05",
+          "kind": "inspection",
+          "criterion": "No hay transcripciones personales reutilizadas sin consentimiento ni métricas de calidad atribuidas a casos sintéticos sin ejecutar."
+        }
+      ],
+      "tests": [
+        "swift test --filter PolishedContractTests",
+        "Revisor humano firma conjunto y criterios de aceptación; registrar discrepancias sin sobrescribir historia."
+      ],
+      "stop_conditions": [
+        "Falta de revisor humano bloquea evaluación semántica, no habilita inventar humanValidated=true."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G3",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V22",
+      "title": "Seleccionar motores por benchmark y licencia, no intuición",
+      "depends_on": [
+        "V21",
+        "V04",
+        "V14",
+        "V16"
+      ],
+      "files": [
+        "docs/plan-glm/evidence/V22/engine-decision.md",
+        "docs/plan-glm/evidence/V22/benchmark-results.json",
+        "Sources/VozaKit/Core/EnginePolicy.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Sources/VozaKit/Core/PerformanceMonitor.swift"
+      ],
+      "findings": [
+        "F03",
+        "F13"
+      ],
+      "steps": [
+        "Confirmar fuentes oficiales actuales de candidatos: STT baseline whisper, Apple Speech/Parakeet como candidatos acotados; Pulido Qwen pequeño/mayor y S1-mini como control inglés.",
+        "Diseñar benchmark reproducible con mismo input/split; separar cold/warm, STT/processing/total, memoria y hardware. No sumar diez motores por curiosidad.",
+        "Descargas/ejecuciones costosas requieren alcance autorizado; fijar URL/revision/sha/license/size de cada artefacto realmente utilizado.",
+        "Comparar modelos de Pulido en development y ejecutar holdout solo tras fijar prompt/parámetros. Reportar ES/EN/mixed por separado y tasa de abstención.",
+        "Registrar D009 con selección o NO_GO. Si ninguno cumple, reducir promesa o escalar decisión; no instalar cloud como solución invisible."
+      ],
+      "acceptance": [
+        {
+          "id": "V22-AC01",
+          "kind": "inspection",
+          "criterion": "Cada candidato evaluado tiene origen oficial, licencia, revisión, hash y compatibilidad documentados."
+        },
+        {
+          "id": "V22-AC02",
+          "kind": "manual",
+          "criterion": "Resultados incluyen equipo mínimo disponible, latencia/memoria y limitaciones por equipos no probados."
+        },
+        {
+          "id": "V22-AC03",
+          "kind": "manual",
+          "criterion": "Modelo Pulido elegido pasa evaluación semántica humana ES/EN/mixed, no solo promedio agregado."
+        },
+        {
+          "id": "V22-AC04",
+          "kind": "inspection",
+          "criterion": "S1-mini inglés no se trata como solución española sin evidencia propia."
+        },
+        {
+          "id": "V22-AC05",
+          "kind": "inspection",
+          "criterion": "Decisión D009 especifica motor/modelo/config/policy y alternativas rechazadas; no queda un default arbitrario."
+        }
+      ],
+      "tests": [
+        "Benchmark local con inputs consentidos y comandos exactos registrados en engine-decision.",
+        "Validar JSON de resultados; no usar números del vendor como medición propia."
+      ],
+      "stop_conditions": [
+        "Si el benchmark no cumple, outcome NO_GO; no cerrar como done solo porque se ejecutó una comparación. Reformular criterio/alcance con decisión registrada."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G3",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V23",
+      "title": "Integrar runtime de Pulido local administrado por Voza",
+      "depends_on": [
+        "V22",
+        "V15",
+        "V16"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/LocalTextProcessor.swift",
+        "Sources/VozaKit/Core/TextProcessor.swift",
+        "Sources/VozaKit/Core/EngineAssets.swift",
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Tests/VozaTests/LocalTextProcessorTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Sources/VozaKit/Core/Transcriber.swift"
+      ],
+      "findings": [
+        "F13",
+        "F08"
+      ],
+      "steps": [
+        "Implementar TextProcessor con el artefacto/config elegido en D009. No descargar otro modelo ni cambiar parámetros sin registrar comparación.",
+        "Usar runner local con stdin y modelo de app, sin exigir Ollama/terminal/API key. No servidor HTTP nuevo por defecto.",
+        "Exponer preparación/disponibilidad, límites de input/output y finish/cancel. Prohibir aceptación de salida recortada; token budget basado en entrada.",
+        "Política de residencia/carga secuencial según hardware; liberar recursos ante presión, cancel y salida. Medir cold latency real.",
+        "Mantener adapter Cleaner para cloud avanzado explícito con D005; ruta normal no consulta red salvo preparación consentida."
+      ],
+      "acceptance": [
+        {
+          "id": "V23-AC01",
+          "kind": "automated",
+          "criterion": "Pulido local puede ejecutarse sin Ollama ni keys usando runtime/modelo administrado y snapshot."
+        },
+        {
+          "id": "V23-AC02",
+          "kind": "automated",
+          "criterion": "Texto entra por stdin/memoria y no aparece en argv/env/logs."
+        },
+        {
+          "id": "V23-AC03",
+          "kind": "automated",
+          "criterion": "Cancel/timeout libera proceso/recursos y devuelve status correcto sin resultado tardío."
+        },
+        {
+          "id": "V23-AC04",
+          "kind": "automated",
+          "criterion": "Finish incompleto, output excesivo o inválido se rechazan sin pasar a succeeded."
+        },
+        {
+          "id": "V23-AC05",
+          "kind": "manual",
+          "criterion": "El runtime empaquetado procesa casos ES/EN seleccionados en hardware QA con métricas reales."
+        }
+      ],
+      "tests": [
+        "swift test --filter LocalTextProcessorTests",
+        "Integración con artefacto D009 y fixtures públicos, sin llamadas cloud."
+      ],
+      "stop_conditions": [
+        "Si interfaz del runtime no entrega finish reason suficiente, definir comprobación conservadora antes de aceptar output; no suponer completitud."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G3",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V24",
+      "title": "Validar reescritura, autocorrecciones y abstención",
+      "depends_on": [
+        "V23",
+        "V21"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/RewriteValidator.swift",
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Tests/VozaTests/RewriteValidatorTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "docs/plan-glm/PRODUCT.md"
+      ],
+      "findings": [
+        "F13",
+        "F17"
+      ],
+      "steps": [
+        "Aplicar reglas S01–S10: transformaciones contextuales y rechazo de salidas con hechos/negaciones/cifras injustificadas. No global replace.",
+        "Distinguir original correcto, reparaciones explícitas y ambigüedad; salidas idénticas válidas siguen siendo processing succeeded.",
+        "Capturar razones estables de abstención/rechazo y fallback; proteger citas e instrucciones dictadas. No exponer prompt del sistema como texto final.",
+        "Integrar evaluación estructural y humana del corpus sin entrenar contra holdout. Output vacío solo válido para categorías aprobadas.",
+        "Documentar límites del validador: heurísticas no son prueba universal de sentido. Añadir regresión por cada fallo encontrado."
+      ],
+      "acceptance": [
+        {
+          "id": "V24-AC01",
+          "kind": "automated",
+          "criterion": "Negación, incertidumbre y disculpa literal sobreviven a casos semilla; no borrar no/perdón globalmente."
+        },
+        {
+          "id": "V24-AC02",
+          "kind": "automated",
+          "criterion": "Reparación explícita se aplica cuando aprobada; contraste numérico conserva ambos valores."
+        },
+        {
+          "id": "V24-AC03",
+          "kind": "automated",
+          "criterion": "Citas, términos técnicos y prompt injection se tratan como contenido, sin obedecer instrucciones."
+        },
+        {
+          "id": "V24-AC04",
+          "kind": "automated",
+          "criterion": "Texto sin cambio y vacío legítimo aprobado se distinguen de salida truncada/error."
+        },
+        {
+          "id": "V24-AC05",
+          "kind": "manual",
+          "criterion": "Holdout mantiene cero fallos críticos y aceptación humana requerida por QA, con resultado por idioma."
+        }
+      ],
+      "tests": [
+        "swift test --filter RewriteValidatorTests",
+        "Ejecutar evaluación del corpus versionado con firma humana y conservar fallos."
+      ],
+      "stop_conditions": [
+        "Si no puede justificar cambio sensible, conservar original y reason; no inventar un confidence score semántico."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G3",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V25",
+      "title": "Completar Literal/Pulido, fallback honesto y reversión segura",
+      "depends_on": [
+        "V24",
+        "V18",
+        "V09",
+        "V10",
+        "V12"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/DictationPipeline.swift",
+        "Sources/VozaKit/Core/RecoveryBuffer.swift",
+        "Sources/VozaKit/UI/RecoveryView.swift",
+        "Sources/VozaKit/UI/PopoverView.swift",
+        "Tests/VozaTests/ModePipelineTests.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/Core/Cleaner.swift",
+        "Sources/VozaKit/Core/Paster.swift"
+      ],
+      "findings": [
+        "F13",
+        "F02",
+        "F09"
+      ],
+      "steps": [
+        "Conectar LocalTextProcessor/RewriteValidator al modo polished y saltarlos completamente en literal. Retirar activeModeIsCleanup como segunda fuente de verdad.",
+        "Aplicar fallback D016 si procesamiento falla/rechaza: modo aplicado literal con reason, sin cambiar preferencia persistida y sin cloud fallback.",
+        "Guardar original/procesado en RAM TTL y exponer Ver original/Usar original/Recuperar. Historial off no habilita persistencia oculta.",
+        "Reversión externa solo con receipt vigente, mismo campo y contenido/rango confirmado; si no se puede verificar ofrecer copiar original, no Cmd+Z.",
+        "Probar todo pipeline con target invalidado después de procesamiento y con update/download en paralelo. Sonidos/status corresponden a resultado real."
+      ],
+      "acceptance": [
+        {
+          "id": "V25-AC01",
+          "kind": "automated",
+          "criterion": "Literal nunca invoca TextProcessor; Pulido listo lo invoca una vez y conserva snapshot."
+        },
+        {
+          "id": "V25-AC02",
+          "kind": "automated",
+          "criterion": "Fallback cambia appliedMode/reason, no requestedMode ni settings; UI no dice Pulido aplicado."
+        },
+        {
+          "id": "V25-AC03",
+          "kind": "automated",
+          "criterion": "Recovery expira con TTL/bloqueo y no deja transcript en disco con history off."
+        },
+        {
+          "id": "V25-AC04",
+          "kind": "automated",
+          "criterion": "Undo/redo se rechaza si cambió campo/contenido o receipt solo attempted sin prueba suficiente."
+        },
+        {
+          "id": "V25-AC05",
+          "kind": "manual",
+          "criterion": "Usuario QA puede alternar modos, ver original y recuperarlo en apps compatibles sin pérdida ni pegado al destino incorrecto."
+        }
+      ],
+      "tests": [
+        "swift test --filter ModePipelineTests",
+        "Prueba manual comparación Literal/Pulido con frase de autocorrección y apps de V27."
+      ],
+      "stop_conditions": [
+        "No llamar Undo universal a una copia al clipboard; explicar qué estrategia se verificó por app."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G3",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V26",
+      "title": "Adaptar recursos automáticamente sin cambiar intención",
+      "depends_on": [
+        "V25",
+        "V14",
+        "V05"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Sources/VozaKit/Core/EnginePolicy.swift",
+        "Sources/VozaKit/Core/HardwareSnapshot.swift",
+        "Tests/VozaTests/AdaptivePolicyTests.swift",
+        "Sources/VozaKit/State/AppState.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Sources/VozaKit/Core/ModelManager.swift",
+        "Sources/VozaKit/State/AppState.swift"
+      ],
+      "findings": [
+        "F03"
+      ],
+      "steps": [
+        "Medir audioDuration por frames y timings STT/processor/total con reloj monotónico; separar cold/warm y samples por mode/model/version.",
+        "Aplicar AD01–AD09 con candidatos compatibles aprobados. Cinco muestras válidas mínimo, cooldown y exclusión de outliers definidos antes de observar resultados.",
+        "Cambiar solo entre sesiones con assets existentes; propuesta de descarga nueva muestra tamaño/consentimiento. No usar índice de catálogo.",
+        "Ante memory pressure liberar residencia y priorizar continuidad; no cambiar modo, idioma ni proveedor ni corromper sesión activa.",
+        "Migrar perf antiguo con versionado o archivado seguro; tests no borran métricas reales. UI muestra beneficio medido sin afirmar precisión por RTF."
+      ],
+      "acceptance": [
+        {
+          "id": "V26-AC01",
+          "kind": "automated",
+          "criterion": "No se ajusta antes de muestras suficientes ni durante busy; cooldown impide oscilación."
+        },
+        {
+          "id": "V26-AC02",
+          "kind": "automated",
+          "criterion": "ES/auto permanecen compatibles en todos los caminos de ajuste y fallback."
+        },
+        {
+          "id": "V26-AC03",
+          "kind": "automated",
+          "criterion": "Presión alta libera/ajusta recursos aprobados sin cambiar Literal/Pulido ni habilitar cloud."
+        },
+        {
+          "id": "V26-AC04",
+          "kind": "automated",
+          "criterion": "Timings correctos no dependen del timer visual ni del reloj de pared."
+        },
+        {
+          "id": "V26-AC05",
+          "kind": "manual",
+          "criterion": "Resultados por hardware disponible reportan p95/memoria y limitaciones; no se promueven targets no probados."
+        }
+      ],
+      "tests": [
+        "swift test --filter AdaptivePolicyTests",
+        "Simular 8/16/32 GB, presión, red ausente y cambio de modo; luego benchmark real separado."
+      ],
+      "stop_conditions": [
+        "Si mayor modelo no tiene evidencia de mejor calidad, no vender ajuste como más preciso."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G3",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V27",
+      "title": "Ejecutar matriz adversarial y compatibilidad de apps",
+      "depends_on": [
+        "V19",
+        "V20",
+        "V25",
+        "V26",
+        "V13",
+        "V15"
+      ],
+      "files": [
+        "Tests/VozaTests/EndToEndContractTests.swift",
+        "docs/plan-glm/evidence/V27/compatibility.json",
+        "docs/plan-glm/evidence/V27/manual-qa.md"
+      ],
+      "reads": [
+        "Sources/VozaKit/Core/DictationPipeline.swift",
+        "Sources/VozaKit/Core/Paster.swift",
+        "docs/plan-glm/QA.md"
+      ],
+      "findings": [
+        "F01",
+        "F02",
+        "F04",
+        "F05",
+        "F06",
+        "F07",
+        "F08",
+        "F09",
+        "F12",
+        "F13",
+        "F15"
+      ],
+      "steps": [
+        "Ejecutar diez escenarios de QA y extender a mic switch/sleep/disk/long capture; separar fixtures de acciones de SO.",
+        "Compatibilidad con TextEdit, Notes, navegador textarea, editor Electron, chat y terminal de prueba. Versionar OS/app/strategy/receipt y límites. No enviar mensajes ni ejecutar comandos reales.",
+        "Probar instalación nueva, upgrade con settings/history legacy QA, permisos denegados y reanudación. Apps no disponibles quedan NOT_RUN.",
+        "Revisar VoiceOver, toggle, multi-monitor, fullscreen y panel no activante. Recoger defectos con ID y contraejemplo, no elogios.",
+        "Emitir cierre G0–G3 con AC y SHA/artefacto. Si hay P0, bloquear release y agregar regresión al ticket dueño; no parchear múltiples áreas sin registrar."
+      ],
+      "acceptance": [
+        {
+          "id": "V27-AC01",
+          "kind": "manual",
+          "criterion": "Los diez escenarios tienen procedimiento, equipo, resultado y evidencia; ninguno se marca PASS por predicción."
+        },
+        {
+          "id": "V27-AC02",
+          "kind": "manual",
+          "criterion": "Cada app comprometida tiene matriz real de inserción/recuperación y no recibió envío accidental."
+        },
+        {
+          "id": "V27-AC03",
+          "kind": "manual",
+          "criterion": "Equipo mínimo comprometido ejecuta ambos modos y pruebas de memoria/latencia."
+        },
+        {
+          "id": "V27-AC04",
+          "kind": "automated",
+          "criterion": "La suite de contratos integrada pasa en HEAD revisado y se registran warnings/failures."
+        },
+        {
+          "id": "V27-AC05",
+          "kind": "inspection",
+          "criterion": "Cualquier caso no ejecutado o riesgo abierto queda explícito y bloquea claims que dependen de él."
+        }
+      ],
+      "tests": [
+        "swift build y swift test en entorno aislado aprobado.",
+        "Ejecutar protocolos manuales sin tccutil en perfil productivo y sin leer secretos."
+      ],
+      "stop_conditions": [
+        "Faltan apps/hardware: solicitar evidencia o reducir soporte comprometido mediante decisión, nunca marcar como PASS."
+      ],
+      "estimated_engineering_days": 3,
+      "gate": "G4",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V28",
+      "title": "Firmar distribución, updater y rollback verificable",
+      "depends_on": [
+        "V27",
+        "V16",
+        "V13"
+      ],
+      "files": [
+        "Package.swift",
+        "Sources/VozaKit/App/VozaApp.swift",
+        "Sources/VozaKit/Core/UpdateCoordinator.swift",
+        "scripts/release.sh",
+        "build.sh",
+        "packaging/Info.plist",
+        "packaging/Voza.entitlements",
+        "packaging/voza.rb",
+        "Tests/VozaTests/UpdateCoordinatorTests.swift",
+        "Sources/VozaKit/App/Dependencies.swift"
+      ],
+      "reads": [
+        "scripts/release.sh",
+        "build.sh",
+        "packaging/Info.plist",
+        "packaging/Voza.entitlements",
+        "packaging/voza.rb"
+      ],
+      "findings": [
+        "F14",
+        "F20"
+      ],
+      "steps": [
+        "Revalidar documentación Apple/updater actual y credenciales autorizadas. No confundir firma ad hoc con Developer ID ni membership asumido.",
+        "Firmar componentes internos, app y contenedor final con requisitos adecuados; verificar runtime/rpaths/architectures. Eliminar AppleEvents entitlement si no se necesita.",
+        "Notarizar y staplear artefacto final bajo autorización específica; validar ticket/identidad/checksum y registrar SHA DMG. No scripts --deep como sustituto de orden de firma.",
+        "Integrar actualización firmada con preferencia explícita de red, idle-only install y versión/build creciente; conservar última versión válida ante fallo.",
+        "Cask con hash real/version correcta y arquitectura/requisitos honestos; instalación limpia y update/rollback no borran modelos ni datos. Publicación es acción separada."
+      ],
+      "acceptance": [
+        {
+          "id": "V28-AC01",
+          "kind": "automated",
+          "criterion": "UpdateCoordinator no instala mientras busy y errores conservan app/datos previos."
+        },
+        {
+          "id": "V28-AC02",
+          "kind": "inspection",
+          "criterion": "Cask no contiene :no_check y version/build/hash corresponden al artefacto exacto."
+        },
+        {
+          "id": "V28-AC03",
+          "kind": "manual",
+          "criterion": "Firma Developer ID, hardened runtime y ticket final se verifican con comandos/SHAs persistidos."
+        },
+        {
+          "id": "V28-AC04",
+          "kind": "manual",
+          "criterion": "Mac QA limpio instala artefacto descargado y actualiza desde versión anterior sin perder settings/modelos."
+        },
+        {
+          "id": "V28-AC05",
+          "kind": "inspection",
+          "criterion": "No publicación, cobro o envío realizado fuera de autorización de release vigente."
+        }
+      ],
+      "tests": [
+        "swift test --filter UpdateCoordinatorTests",
+        "codesign --verify --strict; stapler validate; evaluación Gatekeeper en QA sobre artefacto final.",
+        "Registrar comandos exactos actuales del updater, no copiar flags obsoletos del informe."
+      ],
+      "stop_conditions": [
+        "Sin Developer ID/notarización autorizada mantener ticket bloqueado/review; no afirmar release listo usando firma local."
+      ],
+      "estimated_engineering_days": 2.5,
+      "gate": "G4",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V29",
+      "title": "Cerrar decisiones comerciales y alinear claims con evidencia",
+      "depends_on": [
+        "V27"
+      ],
+      "files": [
+        "README.md",
+        "design/landing.html",
+        "docs/market-analysis.md",
+        "docs/design-adaptive-ux.md",
+        "docs/AUDIT-SPEC.md",
+        "docs/plan-glm/DECISIONS.md",
+        "docs/plan-glm/evidence/V29/commercial-readiness.md"
+      ],
+      "reads": [
+        "README.md",
+        "design/landing.html",
+        "docs/market-analysis.md",
+        "docs/design-adaptive-ux.md",
+        "docs/AUDIT-SPEC.md"
+      ],
+      "findings": [
+        "F18",
+        "F14"
+      ],
+      "steps": [
+        "Revalidar tarifas/proveedores/nombres y las promesas previas a compradores. Pedir solo decisiones D010–D013 materialmente pendientes; no asumir cero ventas por falta de cache local.",
+        "Recomendar estructura $29/$39 y proveedor con costes/payouts reales de la entidad; registrar decisión aceptada o bloqueada. No cambiar integración bancaria por escribir un documento.",
+        "Actualizar copy contra capabilities/compatibility reales: dos modos, instalación, privacidad de texto/audio, límites offline y versión soportada. No 10% de Superwhisper ni remappable sin implementar.",
+        "Distinguir downloads, activación de producto, licencia y compras. Plan sin telemetría oculta y sin métricas de uso inventadas.",
+        "Crear checklist de claims con evidencia por frase, refund/licensing/upgrade terms y límites. No reescribir AUDITORIA-ORIGINAL ni su fecha histórica."
+      ],
+      "acceptance": [
+        {
+          "id": "V29-AC01",
+          "kind": "inspection",
+          "criterion": "Cada claim comercial tiene evidencia del artefacto/versión o etiqueta clara de función futura."
+        },
+        {
+          "id": "V29-AC02",
+          "kind": "manual",
+          "criterion": "Propietario resolvió nombre/precio/licencias/proveedor necesarios o el lanzamiento queda bloqueado explícitamente."
+        },
+        {
+          "id": "V29-AC03",
+          "kind": "inspection",
+          "criterion": "Comparativas conservan fecha/moneda/plan equivalente y fuentes actuales, sin ratings inventados."
+        },
+        {
+          "id": "V29-AC04",
+          "kind": "inspection",
+          "criterion": "Política privacidad describe historial/RAM/clipboard/cloud por separado y refleja defaults reales."
+        },
+        {
+          "id": "V29-AC05",
+          "kind": "inspection",
+          "criterion": "Términos existentes se respetan; los cambios comerciales no se aplican retrospectivamente."
+        }
+      ],
+      "tests": [
+        "Revisión claim→evidencia y links; no test que solo busque palabras felices en HTML.",
+        "No publicar landing ni enviar campañas en este ticket sin autorización específica."
+      ],
+      "stop_conditions": [
+        "Si decisiones del propietario siguen pendientes, entregar documento revisable y mantener criterio correspondiente pendiente."
+      ],
+      "estimated_engineering_days": 1.5,
+      "gate": "G4",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V30",
+      "title": "Ejecutar beta y decidir continuar con métricas honestas",
+      "depends_on": [
+        "V28",
+        "V29"
+      ],
+      "files": [
+        "docs/plan-glm/evidence/V30/beta-protocol.md",
+        "docs/plan-glm/evidence/V30/funnel.json",
+        "docs/plan-glm/evidence/V30/decision.md"
+      ],
+      "reads": [
+        "docs/plan-glm/BUSINESS.md",
+        "docs/plan-glm/PRODUCT.md",
+        "docs/plan-glm/QA.md"
+      ],
+      "findings": [],
+      "steps": [
+        "Preparar beta consentida de 10 y luego 20 personas del ICP; no contactar/enviar mensajes sin autorización. Publicación es un paso posterior explícito.",
+        "Observar instalación, comprensión de modos, primer dictado, recuperación y problemas; no recoger contenido personal sin consentimiento específico.",
+        "Medir web/downloads/compras por agregados y uso solo en cohorte voluntaria; no atribuir toda activación por inferencia de descargas.",
+        "Aplicar calendario y canales de BUSINESS con piezas demostrativas reales; declarar relación de fundador y revisar reglas actuales al publicar.",
+        "Decisión 30/60/90 días con señales de valor, soporte/refunds y riesgos. No añadir V31/V32 hasta justificar demanda y capacidad."
+      ],
+      "acceptance": [
+        {
+          "id": "V30-AC01",
+          "kind": "manual",
+          "criterion": "Beta tiene consentimiento, conteo real y procedimientos, sin datos identificables innecesarios en repo."
+        },
+        {
+          "id": "V30-AC02",
+          "kind": "manual",
+          "criterion": "Activación/retención voluntaria y métricas comerciales tienen denominador y límites claros."
+        },
+        {
+          "id": "V30-AC03",
+          "kind": "inspection",
+          "criterion": "Ninguna medición oculta de dictados se agregó para completar funnel."
+        },
+        {
+          "id": "V30-AC04",
+          "kind": "manual",
+          "criterion": "Errores P0 detienen distribución y se registran acciones sobre versión afectada."
+        },
+        {
+          "id": "V30-AC05",
+          "kind": "inspection",
+          "criterion": "Decisión continuar/recortar/pivotar tiene evidencia, no solamente número de visitas o plan de features."
+        }
+      ],
+      "tests": [
+        "Auditar fórmula visitas→descargas→compras y separar licencia de primera dictación.",
+        "Registrar resultados de cohorte y soporte sin audios/transcripciones personales."
+      ],
+      "stop_conditions": [
+        "Sin beta consentida o permiso de publicación no simular participación ni conversiones."
+      ],
+      "estimated_engineering_days": 2,
+      "gate": "G5",
+      "initial_status": "todo",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V31",
+      "title": "Backlog condicionado: vocabulario y preferencias por aplicación",
+      "depends_on": [
+        "V30"
+      ],
+      "files": [
+        "Sources/VozaKit/Core/VocabularyStore.swift",
+        "Sources/VozaKit/Core/AppPreferencesStore.swift",
+        "Sources/VozaKit/Core/EnginePolicy.swift",
+        "Sources/VozaKit/UI/Settings/DictationSettings.swift",
+        "Tests/VozaTests/VocabularyTests.swift",
+        "Tests/VozaTests/AppPreferencesTests.swift"
+      ],
+      "reads": [
+        "docs/plan-glm/PRODUCT.md",
+        "Sources/VozaKit/Core/ModelManager.swift"
+      ],
+      "findings": [],
+      "steps": [
+        "No iniciar sin nueva priorización y evidencia de nombres técnicos/per-app en beta. Mantener solo dos modos principales.",
+        "Vocabulario con término esperado, idioma y corrección aprobada; hint al motor solo si capability soportada, reemplazo con límites de palabra/contexto.",
+        "Preferencia por bundle ID aplica al siguiente dictado y es visible. No leer pantalla/repositorio ni crear reglas por sitios sin alcance explícito.",
+        "Import/export y undo del diccionario, storage privado; ninguna sincronización cloud automática.",
+        "Probar nombres ambiguos, Unicode, cambio de app durante dictado y restablecer defaults sin perder otros settings."
+      ],
+      "acceptance": [
+        {
+          "id": "V31-AC01",
+          "kind": "inspection",
+          "criterion": "Existe decisión nueva que autoriza sacar este ticket de deferred basada en demanda."
+        },
+        {
+          "id": "V31-AC02",
+          "kind": "automated",
+          "criterion": "Corrección no altera subcadenas/idiomas ajenos ni simula hint en motor no compatible."
+        },
+        {
+          "id": "V31-AC03",
+          "kind": "automated",
+          "criterion": "Preferencia por app no cambia sesión activa y puede desactivarse/revertirse."
+        },
+        {
+          "id": "V31-AC04",
+          "kind": "manual",
+          "criterion": "Usuario entiende alcance y revierte una corrección sin asistencia técnica."
+        },
+        {
+          "id": "V31-AC05",
+          "kind": "inspection",
+          "criterion": "No nueva nube, lectura de pantalla ni tercero oculto para sincronización."
+        }
+      ],
+      "tests": [
+        "swift test --filter VocabularyTests",
+        "swift test --filter AppPreferencesTests"
+      ],
+      "stop_conditions": [
+        "Sin demanda/priorización explícita, permanecer deferred."
+      ],
+      "estimated_engineering_days": 4,
+      "gate": "BACKLOG",
+      "initial_status": "deferred",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    },
+    {
+      "id": "V32",
+      "title": "Backlog condicionado: parciales, traducción y comandos; Windows fuera",
+      "depends_on": [
+        "V30"
+      ],
+      "files": [
+        "docs/plan-glm/evidence/V32/scope-decision.md"
+      ],
+      "reads": [
+        "docs/plan-glm/AUDITORIA-ORIGINAL.md",
+        "docs/plan-glm/PRODUCT.md"
+      ],
+      "findings": [],
+      "steps": [
+        "Ticket de decisión previo a implementación, no una orden de construir cuatro productos. Separar parciales en panel, inserción progresiva, traducción y comandos.",
+        "Parciales: AsyncStream con ID/revision/final para evitar duplicados; preview no equivale a escritura incremental externa. Pulido sigue tras finalización.",
+        "Traducción: acción explícita con idioma origen/destino y original recuperable; no tercer modo de onboarding por defecto.",
+        "Comandos: gramática allowlist y receipt; no delete global, shell o envío por voz como comportamiento implícito. Revisar colisión contenido/comando.",
+        "Windows requiere proyecto/plan/QA propio y autorización; dejarlo fuera de este compromiso. Si se prioriza alguna función, crear tickets nuevos pequeños antes de tocar Sources."
+      ],
+      "acceptance": [
+        {
+          "id": "V32-AC01",
+          "kind": "inspection",
+          "criterion": "Nueva decisión de priorización identifica problema/demanda y función específica, no activación conjunta del backlog."
+        },
+        {
+          "id": "V32-AC02",
+          "kind": "inspection",
+          "criterion": "Scope-decision separa preview, streaming externo, traducción, comandos y Windows con dependencias y riesgos."
+        },
+        {
+          "id": "V32-AC03",
+          "kind": "inspection",
+          "criterion": "Cada función aprobada tiene tickets nuevos con archivos, contrato, tests y AC antes de implementarse."
+        },
+        {
+          "id": "V32-AC04",
+          "kind": "inspection",
+          "criterion": "Literal/Pulido y privacidad permanecen invariantes o existe decisión del propietario que los sustituye."
+        },
+        {
+          "id": "V32-AC05",
+          "kind": "inspection",
+          "criterion": "No se presentó un prototipo o diseño como función entregada."
+        }
+      ],
+      "tests": [
+        "Validar nuevos tickets/DAG y criterios antes de autorizar código."
+      ],
+      "stop_conditions": [
+        "No autorización o evidencia: continuar deferred y no crear infraestructura."
+      ],
+      "estimated_engineering_days": 1,
+      "gate": "BACKLOG",
+      "initial_status": "deferred",
+      "contracts": [
+        "PRODUCT.md",
+        "ARCHITECTURE.md",
+        "UX.md",
+        "QA.md"
+      ]
+    }
+  ]
+}

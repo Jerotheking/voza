@@ -22,8 +22,8 @@ Dictado local, offline y con IA para macOS — reemplazo de Superwhisper: más r
 
 | Action | How |
 |---|---|
-| **Dictate** | Hold **Right Option** anywhere in macOS, speak, release → text is pasted where your cursor is |
-| **Dictate + AI cleanup** | Hold **Right Control** instead → same flow, then a local LLM fixes punctuation and removes filler words |
+| **Dictate** | Hold **Option** (either side) anywhere in macOS, speak, release → text is pasted where your cursor is |
+| **Dictate + AI cleanup** | Hold **Right ⌘** instead → same flow, then a local LLM fixes punctuation and removes filler words |
 | **History** | Click the menu bar mic → last 10 transcripts with copy buttons |
 | **Log** | Every transcript is appended to `~/Dictation/YYYY-MM.md` with a timestamp |
 
@@ -45,7 +45,7 @@ Voza triggers up to three system prompts on first use — this is normal, and ea
 
 1. **Microphone** — to record your voice. Prompt appears the first time you hold the hotkey (or press *Grant* in onboarding).
 2. **Accessibility** — to paste text into the focused app. Prompt appears on the first paste; you can also open it via onboarding → *Open Settings*. Without it, transcripts still appear in history but are not pasted.
-3. **Input Monitoring** — to detect the Right Option / Right Control hotkeys globally. macOS shows this prompt when the event tap starts.
+3. **Input Monitoring** — to detect the Option / Right ⌘ hotkeys globally. macOS shows this prompt when the event tap starts.
 
 > If a permission was denied by accident: System Settings → Privacy & Security → Microphone / Accessibility / Input Monitoring → enable **Voza**.
 
@@ -58,7 +58,7 @@ swift build            # verify
 open build/Voza.app
 ```
 
-First launch: grant the permissions above, then open the menu bar mic → onboarding walks you through downloading the recommended model. After that, hold Right Option and talk.
+First launch: grant the permissions above, then open the menu bar mic → onboarding walks you through downloading the recommended model. After that, hold Option and talk.
 
 ### Configuration (optional)
 
@@ -105,8 +105,8 @@ See [docs/market-analysis.md](docs/market-analysis.md) for the full competitive 
 
 | Acción | Cómo |
 |---|---|
-| **Dictar** | Mantén **Option derecha** en cualquier app, habla, suelta → el texto se pega donde está tu cursor |
-| **Dictar + limpieza IA** | Mantén **Control derecha** → mismo flujo, y un LLM local arregla puntuación y quita muletillas |
+| **Dictar** | Mantén **Option** (cualquier lado) en cualquier app, habla, suelta → el texto se pega donde está tu cursor |
+| **Dictar + limpieza IA** | Mantén **⌘ derecha** → mismo flujo, y un LLM local arregla puntuación y quita muletillas |
 | **Historial** | Clic en el micrófono de la barra de menú → últimos 10 dictados con botón de copiar |
 | **Log** | Cada dictado se agrega a `~/Dictation/YYYY-MM.md` con fecha y hora |
 
@@ -120,7 +120,7 @@ See [docs/market-analysis.md](docs/market-analysis.md) for the full competitive 
 
 1. **Micrófono** — para grabar tu voz.
 2. **Accesibilidad** — para pegar el texto en la app enfocada.
-3. **Input Monitoring** — para detectar las teclas Option/Control derechas globalmente.
+3. **Input Monitoring** — para detectar las teclas Option / ⌘ derecha globalmente.
 
 Si negaste alguno por accidente: Ajustes del Sistema → Privacidad y seguridad → Micrófono / Accesibilidad / Input Monitoring → activa **Voza**.
 

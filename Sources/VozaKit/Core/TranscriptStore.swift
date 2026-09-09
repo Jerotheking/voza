@@ -24,14 +24,24 @@ final class TranscriptStore {
 
     private(set) var recent: [TranscriptEntry] = []
     private let queue = DispatchQueue(label: "voza.transcriptstore")
-    static var logDirectory: URL {
-        let url = URL(fileURLWithPath: Config.shared.resolvedLogDirectory, isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
+    private let paths: AppPaths
+    private let clock: Clock
+
+    /// Injected dependencies (plan-glm V01). Defaults reproduce the exact
+    /// baseline production behavior; tests inject QA paths and a fixed clock.
+    init(paths: AppPaths = .default, clock: Clock = SystemClock()) {
+        self.paths = paths
+        self.clock = clock
     }
 
+    /// History directory for the CURRENT store instance. Never creates
+    /// directories (moved to `appendToFile`'s prepare step, V01-AC01).
+    /// Legacy static form (pre-V01 callers): resolves baseline paths read-only.
+    static var logDirectory: URL { AppPaths.default.history }
+    var logDirectory: URL { paths.history }
+
     func add(text: String, cleaned: Bool) {
-        let entry = TranscriptEntry(id: UUID(), date: Date(), text: text, cleaned: cleaned)
+        let entry = TranscriptEntry(id: UUID(), date: clock.now, text: text, cleaned: cleaned)
         queue.async { [weak self] in
             self?.appendToFile(entry)
             DispatchQueue.main.async {
@@ -67,19 +77,17 @@ final class TranscriptStore {
     }
 
     private func appendToFile(_ entry: TranscriptEntry) {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM"
-        let monthFile = Self.logDirectory.appendingPathComponent("\(f.string(from: entry.date)).md")
-        let tf = DateFormatter()
-        tf.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        let block = "## \(tf.string(from: entry.date))\(entry.cleaned ? "  ✨" : "")\n\n\(entry.text)\n\n"
+        // Write path: prepare the history tree right before appending (V01-AC01).
+        guard paths.prepareHistory() else { return }
+        let monthFile = paths.history.appendingPathComponent("\(Self.monthFormatter.string(from: entry.date)).md")
+        let block = "## \(Self.stampFormatter.string(from: entry.date))\(entry.cleaned ? "  ✨" : "")\n\n\(entry.text)\n\n"
         if !FileManager.default.fileExists(atPath: monthFile.path) {
-            let header = "# Dictation log — \(f.string(from: entry.date))\n\n"
+            let header = "# Dictation log — \(Self.monthFormatter.string(from: entry.date))\n\n"
             try? header.write(to: monthFile, atomically: true, encoding: .utf8)
         }
         if let handle = try? FileHandle(forWritingTo: monthFile) {
             defer { try? handle.close() }
-            try? handle.seekToEnd()
+            _ = try? handle.seekToEnd()
             try? handle.write(contentsOf: Data(block.utf8))
         }
     }
@@ -87,13 +95,11 @@ final class TranscriptStore {
     /// Hydrate recent entries from the markdown logs (current + previous month).
     func loadRecent(limit: Int = 10) {
         queue.async { [weak self] in
-            let f = DateFormatter()
-            f.dateFormat = "yyyy-MM"
             var files: [URL] = []
             for offset in [0, -1] {
                 let date = Calendar.current.date(byAdding: .month, value: offset, to: Date()) ?? Date()
-                let url = Self.logDirectory.appendingPathComponent("\(f.string(from: date)).md")
-                if FileManager.default.fileExists(atPath: url.path) { files.append(url) }
+                let url = self?.paths.history.appendingPathComponent("\(Self.monthFormatter.string(from: date)).md")
+                if let url, FileManager.default.fileExists(atPath: url.path) { files.append(url) }
             }
             var entries: [TranscriptEntry] = []
             for url in files {
@@ -105,5 +111,16 @@ final class TranscriptStore {
                 self?.recent = Array(entries.prefix(limit))
             }
         }
+    }
+
+    // Cached formatters for the serial I/O queue ( DateFormatter allocation
+    // per append was pure churn). parseEntries keeps a local formatter so it
+    // stays safe when called concurrently from arbitrary threads.
+    private static let monthFormatter: DateFormatter = makeFormatter("yyyy-MM")
+    private static let stampFormatter: DateFormatter = makeFormatter("yyyy-MM-dd HH:mm:ss")
+    private static func makeFormatter(_ format: String) -> DateFormatter {
+        let f = DateFormatter()
+        f.dateFormat = format
+        return f
     }
 }

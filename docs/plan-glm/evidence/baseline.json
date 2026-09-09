@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-09-07",
+  "commit": "44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf",
+  "branch": "main",
+  "code_files": {
+    "Sources/VozaSmoke/main.swift": {
+      "sha256": "ce5e90baf72281db31a7c60629f4669f769fde3e7228e69f354f2513e0cf5716",
+      "lines": 202
+    },
+    "Sources/Voza/main.swift": {
+      "sha256": "eb43fe9e41fcc7c2827c4c8e7dadceef422f394b0912f345d4033fb2474232da",
+      "lines": 8
+    },
+    "Sources/VozaKit/UI/SettingsView.swift": {
+      "sha256": "d9bd589c1398825edc69f170e805ba7f832c52e139e69e897f5d607541e16607",
+      "lines": 571
+    },
+    "Sources/VozaKit/UI/PopoverView.swift": {
+      "sha256": "db3a0fe78f569084dfbb44605ccd825dfbc22811dfb2b5210e130e1080ec3c70",
+      "lines": 177
+    },
+    "Sources/VozaKit/UI/Theme.swift": {
+      "sha256": "7a1a207d3dc2faa898738b1ba0c31b0c023c3ac15437ae8e89f139106aa01f87",
+      "lines": 11
+    },
+    "Sources/VozaKit/UI/OnboardingView.swift": {
+      "sha256": "63145ee18dfd5d369edb8ef437f23adb7c08ddaedab06ef09ad25594ff5f83f6",
+      "lines": 115
+    },
+    "Sources/VozaKit/Core/TranscriptStore.swift": {
+      "sha256": "69844c59b85314e5b6e88857257ce06c6150d5582c0d1c2203f7ec8e7a0d609c",
+      "lines": 109
+    },
+    "Sources/VozaKit/Core/HotKeyManager.swift": {
+      "sha256": "63baf3275eb7425a277dee00f2a763cde44b7323f9148bf1cf5a9dba7a11d80d",
+      "lines": 116
+    },
+    "Sources/VozaKit/Core/Paster.swift": {
+      "sha256": "4a55dcb6ceabed1a7c219f66486ba658f78049f9ab4595f327af741ab6db6672",
+      "lines": 54
+    },
+    "Sources/VozaKit/Core/Permissions.swift": {
+      "sha256": "c7e46630498a31c1a7f663bcec6e800452fa81596186aa6a8faefa359156083e",
+      "lines": 50
+    },
+    "Sources/VozaKit/Core/Config.swift": {
+      "sha256": "a706e2ce51ab323899a8c7a37fd26b456dea73fcd0c6f853bb6ccc711fc6e385",
+      "lines": 146
+    },
+    "Sources/VozaKit/Core/ReadinessChecker.swift": {
+      "sha256": "3156bd31bc6d087673dfaee057e4ebb4116c1d176286b0970cb49d98e56d4303",
+      "lines": 41
+    },
+    "Sources/VozaKit/Core/Transcriber.swift": {
+      "sha256": "4d81f9e5d7404def7e02c29be55436f27b9319bb18213f232ed8cb4a1996ea37",
+      "lines": 102
+    },
+    "Sources/VozaKit/Core/PerformanceMonitor.swift": {
+      "sha256": "3dde25da051f0b35afef0f8efff59ce302884a6b4273e5cd0df7d260aeb19772",
+      "lines": 103
+    },
+    "Sources/VozaKit/Core/Cleaner.swift": {
+      "sha256": "7c0528980040ee373d46192096dcfdefd170e7951be179e5f9fc7ec08c5c6473",
+      "lines": 154
+    },
+    "Sources/VozaKit/Core/ModelManager.swift": {
+      "sha256": "27eea4a1cf92337683ac42b4dfc5aa74bc5d743969e93ea0d3a630e84546d3b0",
+      "lines": 214
+    },
+    "Sources/VozaKit/Core/AudioRecorder.swift": {
+      "sha256": "83b97c5ecbfa950237f75f4d50d52838137d097809dc9ba93b925cdf7d1844fb",
+      "lines": 180
+    },
+    "Sources/VozaKit/Core/BrewInstaller.swift": {
+      "sha256": "551e76a39a62f19d1fe5f2d6cf05591b0d8b3b8f4091b32692066b6fff5fbe52",
+      "lines": 70
+    },
+    "Sources/VozaKit/Core/LicenseManager.swift": {
+      "sha256": "8649856847c4401a05cb688dd6a7c8e42ab6296b45273a759d3a4c04eada4960",
+      "lines": 175
+    },
+    "Sources/VozaKit/App/VozaApp.swift": {
+      "sha256": "db5cd497d9d52ecf9639ba1291bb23e3474823bde2065fb21c094cfe05c70391",
+      "lines": 60
+    },
+    "Sources/VozaKit/App/Localizer.swift": {
+      "sha256": "e375ad0cd62e2099052588ca4f48021215d644735be03c17e853e1c85df7b4a6",
+      "lines": 20
+    },
+    "Sources/VozaKit/State/AppState.swift": {
+      "sha256": "5549f05877f126b2f4b80b633773add504c14af0355e737ff751bc4405f0c05d",
+      "lines": 255
+    },
+    "Tests/VozaTests/ConfigTests.swift": {
+      "sha256": "6fc2de2effd303c0e293f53b001bdc33d65329da0b2fae51768b5c8f33ee2eae",
+      "lines": 50
+    },
+    "packaging/Voza.entitlements": {
+      "sha256": "f1dc08c81c7a20992f594d3c26dc4e15a1ae79a1e17c958bb00500e65342cea6",
+      "lines": 12
+    },
+    "packaging/voza.rb": {
+      "sha256": "80d766b715694a896a0fb5e9b6df36737b64f352bee2b3b732047b702f4fb881",
+      "lines": 23
+    },
+    "packaging/Info.plist": {
+      "sha256": "41284a5d0261529c802ab3533608d33351c9fa9b1b8ff2ba2c65b271d4c96181",
+      "lines": 19
+    },
+    "scripts/release.sh": {
+      "sha256": "d3059ef578b11b8fdc8c4c22c560d9fc964bfef3544d334ad6b17da9ae3380b0",
+      "lines": 61
+    },
+    "scripts/make-icons.sh": {
+      "sha256": "0bb2e6ded4932ee613aac80bfb70d72ae8ecdf2ee992c8b524049c74e6f18da9",
+      "lines": 21
+    },
+    "design/landing.html": {
+      "sha256": "b1bc644073c53ab5041f74bc49e51f7c166892f5e3dadbc34f9873657da75357",
+      "lines": 295
+    },
+    "design/wireframes/wireframes.html": {
+      "sha256": "4830d8322bb37d21d4577ae7c5eacc3b012152a0fa598f3a5e249c32e95b3f14",
+      "lines": 187
+    },
+    "design/assets/voza-icon.svg": {
+      "sha256": "33d035bd258daf39742dd99447b03ee9c40a39623443b530e01e2a88116baa31",
+      "lines": 20
+    },
+    "Package.swift": {
+      "sha256": "21fec8e0bdc969a56bc32f89824a093426039a53dc9e936a2da74a02be4eadf9",
+      "lines": 28
+    },
+    "build.sh": {
+      "sha256": "7496cc2135ebb64ee04b375d37a18dfa607e954778b118132c7a4cb7a809fb9f",
+      "lines": 35
+    },
+    "README.md": {
+      "sha256": "ef2c15acf940322a30ac12ca9effb979760557d5df206e20b4048047d0a91aad",
+      "lines": 141
+    },
+    "docs/AUDIT-SPEC.md": {
+      "sha256": "921a1bcc01fa9a78ec268925172b51f11d22edc01d88e08462f906c3315c91d8",
+      "lines": 422
+    },
+    "docs/design-adaptive-ux.md": {
+      "sha256": "fd7934b3921a8d2ea75742e6f6ee542fe48f8985f8aaf46e3ffe51d772f04fbe",
+      "lines": 60
+    },
+    "docs/market-analysis.md": {
+      "sha256": "942d3515478533d4e3ceb948baf475fbe620358271ab61636fcdcd9b9ceda278",
+      "lines": 49
+    }
+  },
+  "audit_sha256": "38120c8b3bab1d6fc99f651d648a4bfd23cbb33bb45215f6fce34a2fe3e06390",
+  "audit_chars": 104964,
+  "current_turn_scope": "documentation_only",
+  "app_tests_run_this_turn": false,
+  "build_run_this_turn": false
+}

@@ -4,18 +4,25 @@ struct PopoverView: View {
     @EnvironmentObject var appState: AppState
 
     var body: some View {
-        Group {
+        VStack(spacing: 0) {
+            header
+            Divider()
+            historySection
+            // While setup is incomplete, offer a way back to the floating
+            // guide window (which lives outside this dismissable panel).
             if appState.showOnboarding {
-                OnboardingView()
-            } else {
-                VStack(spacing: 0) {
-                    header
-                    Divider()
-                    historySection
-                    Divider()
-                    footer
+                Divider()
+                Button {
+                    OnboardingWindowController.shared.show(appState: appState)
+                } label: {
+                    Label(L.t("Show setup guide", es: "Mostrar guía de configuración"),
+                          systemImage: "questionmark.circle")
                 }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 12).padding(.vertical, 8)
             }
+            Divider()
+            footer
         }
         .frame(width: Theme.popoverWidth)
         .onAppear { appState.refresh() }
@@ -25,9 +32,9 @@ struct PopoverView: View {
         VStack(spacing: 4) {
             switch appState.phase {
             case .idle:
-                Label(L.t("Hold Right Option to talk", es: "Mantén Option derecha para hablar"),
+                Label(L.t("Hold Option to talk", es: "Mantén Option para hablar"),
                       systemImage: "mic").font(.system(size: 12, weight: .medium))
-                Text(L.t("Right Control = AI cleanup", es: "Control derecha = limpieza IA"))
+                Text(L.t("Right ⌘ = AI cleanup", es: "⌘ derecha = limpieza IA"))
                     .font(.caption2).foregroundStyle(.secondary)
             case .recording(let cleanup):
                 Label(L.t(cleanup ? "Recording — cleanup mode" : "Recording…",
@@ -86,7 +93,7 @@ struct PopoverView: View {
                 .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4)
 
             if appState.recent.isEmpty {
-                Text(L.t("Nothing yet — hold Right Option and speak.", es: "Nada aún — mantén Option derecha y habla."))
+                Text(L.t("Nothing yet — hold Option and speak.", es: "Nada aún — mantén Option y habla."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 12).padding(.bottom, 12)

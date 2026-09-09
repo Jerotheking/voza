@@ -51,12 +51,16 @@ enum HardwareProfile {
     ///   "en" may get the English-only build (slightly better on English);
     ///   everything else — including "auto" — must get a multilingual model.
     static func recommendedModel(language: String) -> String {
-        // ≥30 GB: large-v3-turbo runs comfortably, gives the best accuracy and is multilingual.
-        // <30 GB: the quantized 190 MB build keeps memory low on 8–16 GB Macs while
-        // staying near real time on M-series GPUs.
+        // Hardware-adaptive tiers. large-v3-turbo needs only ~1–1.5 GB RAM at
+        // runtime (Metal) — every Mac with ≥16 GB runs it comfortably and it is
+        // VASTLY better for non-English (the old 30 GB threshold handed 24 GB
+        // Macs the 181 MB quantized small, which degrades badly on Spanish —
+        // owner QA 2026-09-08). 8–16 GB gets fp16 small (better than q5_1);
+        // only sub-8 GB machines get the quantized build.
         switch totalRAMGB {
-        case 30...: return "large-v3-turbo"
-        default:    return language == "en" ? "small.en-q5_1" : "small-q5_1"
+        case 16...: return "large-v3-turbo"
+        case 8..<16: return language == "en" ? "small.en" : "small"
+        default:     return language == "en" ? "small.en-q5_1" : "small-q5_1"
         }
     }
 }

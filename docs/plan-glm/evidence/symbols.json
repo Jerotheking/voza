@@ -1,0 +1,894 @@
+{
+  "baseline_commit": "44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf",
+  "status": "BASELINE_ANCHORS_NOT_FUTURE_API",
+  "symbols": [
+    {
+      "path": "Sources/VozaKit/App/Localizer.swift",
+      "line": 5,
+      "symbol": "L",
+      "declaration": "enum L {"
+    },
+    {
+      "path": "Sources/VozaKit/App/Localizer.swift",
+      "line": 17,
+      "symbol": "t",
+      "declaration": "static func t(_ en: String, es: String) -> String {"
+    },
+    {
+      "path": "Sources/VozaKit/App/VozaApp.swift",
+      "line": 3,
+      "symbol": "VozaApp",
+      "declaration": "public struct VozaApp: App {"
+    },
+    {
+      "path": "Sources/VozaKit/App/VozaApp.swift",
+      "line": 26,
+      "symbol": "MenuBarLabel",
+      "declaration": "struct MenuBarLabel: View {"
+    },
+    {
+      "path": "Sources/VozaKit/App/VozaApp.swift",
+      "line": 43,
+      "symbol": "AppDelegate",
+      "declaration": "final class AppDelegate: NSObject, NSApplicationDelegate {"
+    },
+    {
+      "path": "Sources/VozaKit/App/VozaApp.swift",
+      "line": 44,
+      "symbol": "applicationDidFinishLaunching",
+      "declaration": "func applicationDidFinishLaunching(_ notification: Notification) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 4,
+      "symbol": "AudioRecorderError",
+      "declaration": "enum AudioRecorderError: LocalizedError {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 18,
+      "symbol": "AudioRecorder",
+      "declaration": "final class AudioRecorder {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 37,
+      "symbol": "start",
+      "declaration": "func start() throws {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 84,
+      "symbol": "stop",
+      "declaration": "func stop() -> URL? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 102,
+      "symbol": "cancel",
+      "declaration": "func cancel() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 121,
+      "symbol": "enqueue",
+      "declaration": "private func enqueue(_ buffer: AVAudioPCMBuffer) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 147,
+      "symbol": "finalizeWAVHeader",
+      "declaration": "private func finalizeWAVHeader(at url: URL, pcmBytes: UInt64) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 163,
+      "symbol": "wavHeader",
+      "declaration": "static func wavHeader(dataBytes: UInt32, sampleRate: UInt32 = UInt32(Config.targetSampleRate)) -> Data {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 165,
+      "symbol": "appendStr",
+      "declaration": "func appendStr(_ s: String) { header.append(Data(s.utf8)) }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 166,
+      "symbol": "appendU32",
+      "declaration": "func appendU32(_ v: UInt32) { var le = v.littleEndian; withUnsafeBytes(of: &le) { header.append(contentsOf: $0) } }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/AudioRecorder.swift",
+      "line": 167,
+      "symbol": "appendU16",
+      "declaration": "func appendU16(_ v: UInt16) { var le = v.littleEndian; withUnsafeBytes(of: &le) { header.append(contentsOf: $0) } }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/BrewInstaller.swift",
+      "line": 7,
+      "symbol": "BrewInstaller",
+      "declaration": "final class BrewInstaller: ObservableObject {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/BrewInstaller.swift",
+      "line": 13,
+      "symbol": "brewPath",
+      "declaration": "nonisolated static func brewPath() -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/BrewInstaller.swift",
+      "line": 20,
+      "symbol": "installEngine",
+      "declaration": "func installEngine() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 12,
+      "symbol": "Cleaner",
+      "declaration": "enum Cleaner {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 17,
+      "symbol": "CleaningOutcome",
+      "declaration": "struct CleaningOutcome: Sendable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 25,
+      "symbol": "providerChain",
+      "declaration": "static func providerChain(for mode: String) -> [String] {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 34,
+      "symbol": "clean",
+      "declaration": "static func clean(_ text: String, config: Config) async -> CleaningOutcome {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 66,
+      "symbol": "ollamaClean",
+      "declaration": "private static func ollamaClean(_ text: String, model: String) async -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 85,
+      "symbol": "OllamaResp",
+      "declaration": "struct OllamaResp: Decodable { let response: String }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 93,
+      "symbol": "ChatResponse",
+      "declaration": "private struct ChatResponse: Decodable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 94,
+      "symbol": "Choice",
+      "declaration": "struct Choice: Decodable { struct Message: Decodable { let content: String? }; let message: Message? }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 98,
+      "symbol": "openAIClean",
+      "declaration": "private static func openAIClean(_ text: String, config: Config) async -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 126,
+      "symbol": "anthropicClean",
+      "declaration": "private static func anthropicClean(_ text: String, config: Config) async -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 143,
+      "symbol": "AnthropicResp",
+      "declaration": "struct AnthropicResp: Decodable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Cleaner.swift",
+      "line": 144,
+      "symbol": "Block",
+      "declaration": "struct Block: Decodable { let text: String? }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 6,
+      "symbol": "Config",
+      "declaration": "final class Config {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 45,
+      "symbol": "reload",
+      "declaration": "func reload() { load() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 47,
+      "symbol": "load",
+      "declaration": "private func load() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 93,
+      "symbol": "setModel",
+      "declaration": "func setModel(_ v: String?)            { modelId = v;        if let v { raw[\"model\"] = v }; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 94,
+      "symbol": "setWhisperBinary",
+      "declaration": "func setWhisperBinary(_ v: String?)    { whisperBinary = v;  if let v { raw[\"whisper_binary\"] = v }; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 95,
+      "symbol": "setModelsDirectory",
+      "declaration": "func setModelsDirectory(_ v: String?)  { modelsDirectory = v; if let v { raw[\"models_dir\"] = v }; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 96,
+      "symbol": "setLogDirectory",
+      "declaration": "func setLogDirectory(_ v: String?)     { logDirectory = v;   if let v { raw[\"log_dir\"] = v }; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 97,
+      "symbol": "setCleanupMode",
+      "declaration": "func setCleanupMode(_ v: String)       { cleanupMode = v;    raw[\"cleanup\"] = v; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 98,
+      "symbol": "setOllamaModel",
+      "declaration": "func setOllamaModel(_ v: String)       { ollamaModel = v;    raw[\"ollama_model\"] = v; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 99,
+      "symbol": "setLanguage",
+      "declaration": "func setLanguage(_ v: String)          { language = v;       raw[\"language\"] = v; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 100,
+      "symbol": "setPlaySound",
+      "declaration": "func setPlaySound(_ v: Bool)           { playSound = v;      raw[\"play_sound\"] = v ? \"true\" : \"false\"; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 101,
+      "symbol": "setGumroadPermalink",
+      "declaration": "func setGumroadPermalink(_ v: String)  { gumroadPermalink = v; raw[\"gumroad_permalink\"] = v; persist() }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Config.swift",
+      "line": 103,
+      "symbol": "persist",
+      "declaration": "private func persist() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 7,
+      "symbol": "HotKeyManager",
+      "declaration": "final class HotKeyManager {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 20,
+      "symbol": "start",
+      "declaration": "func start() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 28,
+      "symbol": "installTap",
+      "declaration": "private func installTap() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 61,
+      "symbol": "ensureTapAlive",
+      "declaration": "private func ensureTapAlive() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 71,
+      "symbol": "handle",
+      "declaration": "private static func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 87,
+      "symbol": "handleFlagsChanged",
+      "declaration": "@MainActor private func handleFlagsChanged(keyCode: Int64, alt: Bool, ctrl: Bool) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/HotKeyManager.swift",
+      "line": 108,
+      "symbol": "stop",
+      "declaration": "func stop() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 12,
+      "symbol": "LicenseManager",
+      "declaration": "final class LicenseManager: ObservableObject {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 17,
+      "symbol": "State",
+      "declaration": "enum State: Equatable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 31,
+      "symbol": "LicenseCache",
+      "declaration": "private struct LicenseCache: Codable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 37,
+      "symbol": "VerifyResponse",
+      "declaration": "private struct VerifyResponse: Decodable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 40,
+      "symbol": "Purchase",
+      "declaration": "struct Purchase: Decodable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 62,
+      "symbol": "refreshIfNeeded",
+      "declaration": "func refreshIfNeeded() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 74,
+      "symbol": "activate",
+      "declaration": "func activate(_ rawKey: String) async {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 98,
+      "symbol": "computeTrialState",
+      "declaration": "private func computeTrialState() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 116,
+      "symbol": "VerificationPurpose",
+      "declaration": "private enum VerificationPurpose {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 121,
+      "symbol": "verifyRequest",
+      "declaration": "private static func verifyRequest(key: String, purpose: VerificationPurpose) async throws -> VerifyResponse {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 142,
+      "symbol": "reverify",
+      "declaration": "private func reverify(_ cache: LicenseCache) async {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 160,
+      "symbol": "readCache",
+      "declaration": "private func readCache() -> LicenseCache? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 165,
+      "symbol": "writeCache",
+      "declaration": "private func writeCache(_ cache: LicenseCache) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/LicenseManager.swift",
+      "line": 172,
+      "symbol": "clearCache",
+      "declaration": "private func clearCache() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 4,
+      "symbol": "WhisperModel",
+      "declaration": "struct WhisperModel: Identifiable, Hashable, Sendable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 16,
+      "symbol": "WhisperCatalog",
+      "declaration": "enum WhisperCatalog {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 31,
+      "symbol": "byId",
+      "declaration": "static func byId(_ id: String) -> WhisperModel? { all.first { $0.id == id } }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 35,
+      "symbol": "HardwareProfile",
+      "declaration": "enum HardwareProfile {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 53,
+      "symbol": "recommendedModel",
+      "declaration": "static func recommendedModel(language: String) -> String {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 65,
+      "symbol": "ModelManager",
+      "declaration": "final class ModelManager: Sendable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 82,
+      "symbol": "localPath",
+      "declaration": "func localPath(for model: WhisperModel) -> URL {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 86,
+      "symbol": "fileSize",
+      "declaration": "func fileSize(at url: URL) -> Int? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 92,
+      "symbol": "isDownloaded",
+      "declaration": "func isDownloaded(_ model: WhisperModel) -> Bool {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 96,
+      "symbol": "downloadedModels",
+      "declaration": "func downloadedModels() -> [WhisperModel] {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 103,
+      "symbol": "resolvedModel",
+      "declaration": "func resolvedModel(preferredId: String) -> (model: WhisperModel, path: String)? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 110,
+      "symbol": "resolvedModelPath",
+      "declaration": "func resolvedModelPath(preferredId: String) -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 115,
+      "symbol": "download",
+      "declaration": "func download(_ model: WhisperModel, progress: @escaping @Sendable (Double) -> Void) async throws {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ModelManager.swift",
+      "line": 205,
+      "symbol": "sha256",
+      "declaration": "static func sha256(of url: URL) throws -> String {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Paster.swift",
+      "line": 6,
+      "symbol": "Paster",
+      "declaration": "enum Paster {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Paster.swift",
+      "line": 12,
+      "symbol": "paste",
+      "declaration": "static func paste(_ text: String) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Paster.swift",
+      "line": 44,
+      "symbol": "sendCmdV",
+      "declaration": "static func sendCmdV() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 5,
+      "symbol": "PerformanceMonitor",
+      "declaration": "final class PerformanceMonitor {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 8,
+      "symbol": "Suggestion",
+      "declaration": "struct Suggestion: Equatable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 9,
+      "symbol": "Direction",
+      "declaration": "enum Direction: String { case lighter, heavier }"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 15,
+      "symbol": "Records",
+      "declaration": "private struct Records: Codable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 31,
+      "symbol": "record",
+      "declaration": "func record(rtf: Double, model: String) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 41,
+      "symbol": "medianRTF",
+      "declaration": "func medianRTF(model: String) -> Double? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 51,
+      "symbol": "speedLabel",
+      "declaration": "func speedLabel(model: String) -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 57,
+      "symbol": "suggestion",
+      "declaration": "func suggestion(currentModel: String, ramGB: Int) -> Suggestion? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 82,
+      "symbol": "dismiss",
+      "declaration": "func dismiss(_ suggestion: Suggestion) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 88,
+      "symbol": "save",
+      "declaration": "private func save() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 94,
+      "symbol": "_test_setSamples",
+      "declaration": "func _test_setSamples(_ rtfs: [Double], model: String) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/PerformanceMonitor.swift",
+      "line": 99,
+      "symbol": "_test_clear",
+      "declaration": "func _test_clear() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Permissions.swift",
+      "line": 6,
+      "symbol": "Permissions",
+      "declaration": "enum Permissions {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Permissions.swift",
+      "line": 26,
+      "symbol": "requestMicrophone",
+      "declaration": "static func requestMicrophone() async -> Bool {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Permissions.swift",
+      "line": 36,
+      "symbol": "openAccessibilitySettings",
+      "declaration": "static func openAccessibilitySettings() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Permissions.swift",
+      "line": 41,
+      "symbol": "openMicrophoneSettings",
+      "declaration": "static func openMicrophoneSettings() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Permissions.swift",
+      "line": 46,
+      "symbol": "openInputMonitoringSettings",
+      "declaration": "static func openInputMonitoringSettings() {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ReadinessChecker.swift",
+      "line": 4,
+      "symbol": "Readiness",
+      "declaration": "struct Readiness {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ReadinessChecker.swift",
+      "line": 15,
+      "symbol": "ReadinessChecker",
+      "declaration": "enum ReadinessChecker {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ReadinessChecker.swift",
+      "line": 16,
+      "symbol": "check",
+      "declaration": "static func check() -> Readiness {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ReadinessChecker.swift",
+      "line": 31,
+      "symbol": "requiredFreeMB",
+      "declaration": "static func requiredFreeMB(for model: WhisperModel) -> Int {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/ReadinessChecker.swift",
+      "line": 35,
+      "symbol": "freeDiskMB",
+      "declaration": "static func freeDiskMB() -> Int {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Transcriber.swift",
+      "line": 3,
+      "symbol": "TranscriptionError",
+      "declaration": "enum TranscriptionError: LocalizedError {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Transcriber.swift",
+      "line": 23,
+      "symbol": "Transcriber",
+      "declaration": "final class Transcriber {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Transcriber.swift",
+      "line": 25,
+      "symbol": "locateBinary",
+      "declaration": "static func locateBinary() -> String? {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Transcriber.swift",
+      "line": 38,
+      "symbol": "transcribe",
+      "declaration": "func transcribe(wavURL: URL, modelPath: String, language: String) throws -> String {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Transcriber.swift",
+      "line": 72,
+      "symbol": "isNonSpeechMarker",
+      "declaration": "static func isNonSpeechMarker(_ text: String) -> Bool {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/Transcriber.swift",
+      "line": 81,
+      "symbol": "runProcess",
+      "declaration": "private func runProcess(launchPath: String, arguments: [String], timeout: TimeInterval) throws -> (stdout: String, stderr: String, exitCode: Int32) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/TranscriptStore.swift",
+      "line": 3,
+      "symbol": "TranscriptEntry",
+      "declaration": "struct TranscriptEntry: Identifiable, Hashable {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/TranscriptStore.swift",
+      "line": 22,
+      "symbol": "TranscriptStore",
+      "declaration": "final class TranscriptStore {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/TranscriptStore.swift",
+      "line": 33,
+      "symbol": "add",
+      "declaration": "func add(text: String, cleaned: Bool) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/TranscriptStore.swift",
+      "line": 50,
+      "symbol": "parseEntries",
+      "declaration": "static func parseEntries(fromMarkdown raw: String) -> [TranscriptEntry] {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/TranscriptStore.swift",
+      "line": 69,
+      "symbol": "appendToFile",
+      "declaration": "private func appendToFile(_ entry: TranscriptEntry) {"
+    },
+    {
+      "path": "Sources/VozaKit/Core/TranscriptStore.swift",
+      "line": 88,
+      "symbol": "loadRecent",
+      "declaration": "func loadRecent(limit: Int = 10) {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 5,
+      "symbol": "VozaPhase",
+      "declaration": "enum VozaPhase: Equatable {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 22,
+      "symbol": "AppState",
+      "declaration": "final class AppState: ObservableObject {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 47,
+      "symbol": "refresh",
+      "declaration": "func refresh() {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 61,
+      "symbol": "startDictation",
+      "declaration": "func startDictation(cleanup: Bool) {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 88,
+      "symbol": "stopDictation",
+      "declaration": "func stopDictation() {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 108,
+      "symbol": "pipeline",
+      "declaration": "private func pipeline(wavURL: URL) async {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 175,
+      "symbol": "downloadModel",
+      "declaration": "func downloadModel(id: String, switchWhenDone: Bool = false) {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 219,
+      "symbol": "applySuggestion",
+      "declaration": "func applySuggestion() {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 232,
+      "symbol": "dismissSuggestion",
+      "declaration": "func dismissSuggestion() {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 239,
+      "symbol": "formatETA",
+      "declaration": "nonisolated static func formatETA(_ seconds: TimeInterval) -> String {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 246,
+      "symbol": "copyToClipboard",
+      "declaration": "func copyToClipboard(_ text: String) {"
+    },
+    {
+      "path": "Sources/VozaKit/State/AppState.swift",
+      "line": 252,
+      "symbol": "openLogFolder",
+      "declaration": "func openLogFolder() {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/OnboardingView.swift",
+      "line": 5,
+      "symbol": "OnboardingView",
+      "declaration": "struct OnboardingView: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/OnboardingView.swift",
+      "line": 90,
+      "symbol": "refresh",
+      "declaration": "private func refresh() {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/OnboardingView.swift",
+      "line": 98,
+      "symbol": "stepRow",
+      "declaration": "private func stepRow(done: Bool, title: String, detail: String, actionTitle: String?, action: (() -> Void)? = nil) -> some View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/PopoverView.swift",
+      "line": 3,
+      "symbol": "PopoverView",
+      "declaration": "struct PopoverView: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/PopoverView.swift",
+      "line": 142,
+      "symbol": "TranscriptRow",
+      "declaration": "struct TranscriptRow: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 5,
+      "symbol": "SettingsView",
+      "declaration": "struct SettingsView: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 29,
+      "symbol": "StatusView",
+      "declaration": "struct StatusView: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 58,
+      "symbol": "refreshNow",
+      "declaration": "private func refreshNow() {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 63,
+      "symbol": "refreshSoon",
+      "declaration": "private func refreshSoon() {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 154,
+      "symbol": "hero",
+      "declaration": "private func hero(icon: String, tint: Color, title: String, detail: String, buttonTitle: String? = nil, action: (() -> Void)? = nil) -> some View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 191,
+      "symbol": "chip",
+      "declaration": "private func chip(_ label: String, ok: Bool) -> some View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 220,
+      "symbol": "suggestionCard",
+      "declaration": "private func suggestionCard(_ suggestion: PerformanceMonitor.Suggestion) -> some View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 293,
+      "symbol": "DictationSettings",
+      "declaration": "struct DictationSettings: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 358,
+      "symbol": "ModelSettings",
+      "declaration": "struct ModelSettings: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 402,
+      "symbol": "modelRow",
+      "declaration": "private func modelRow(_ model: WhisperModel) -> some View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 441,
+      "symbol": "AdvancedSettings",
+      "declaration": "struct AdvancedSettings: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 485,
+      "symbol": "LicenseSettings",
+      "declaration": "struct LicenseSettings: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/SettingsView.swift",
+      "line": 554,
+      "symbol": "AboutSettings",
+      "declaration": "struct AboutSettings: View {"
+    },
+    {
+      "path": "Sources/VozaKit/UI/Theme.swift",
+      "line": 4,
+      "symbol": "Theme",
+      "declaration": "enum Theme {"
+    }
+  ]
+}

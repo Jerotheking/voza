@@ -24,9 +24,11 @@ final class LicenseManager: ObservableObject {
 
     @Published private(set) var state: State = .unlicensed
 
-    private var cacheFile: URL {
-        URL(fileURLWithPath: Config.appSupportDirectory + "/license.json")
-    }
+    private let paths: AppPaths
+    private let clock: Clock
+    private let defaults: UserDefaults
+
+    private var cacheFile: URL { paths.licenseCacheFile }
 
     private struct LicenseCache: Codable {
         let key: String
@@ -54,7 +56,17 @@ final class LicenseManager: ObservableObject {
         }
     }
 
-    private init() {}
+    /// Injected dependencies (plan-glm V01). Defaults reproduce the exact
+    /// baseline production behavior; tests inject QA paths, a fixed clock and
+    /// an isolated defaults suite. Internal (not private) so the QA suites can
+    /// construct isolated instances; `shared` remains the production singleton.
+    init(paths: AppPaths = .default,
+                 clock: Clock = SystemClock(),
+                 defaults: UserDefaults = .standard) {
+        self.paths = paths
+        self.clock = clock
+        self.defaults = defaults
+    }
 
     // MARK: - Public API
 
@@ -62,7 +74,7 @@ final class LicenseManager: ObservableObject {
     func refreshIfNeeded() {
         if let cache = readCache() {
             state = .licensed(email: cache.email)
-            if Date().timeIntervalSince(cache.lastVerified) > Self.reverifyInterval {
+            if clock.now.timeIntervalSince(cache.lastVerified) > Self.reverifyInterval {
                 Task { [weak self] in await self?.reverify(cache) }
             }
             return
@@ -81,7 +93,7 @@ final class LicenseManager: ObservableObject {
             // Activating a NEW installation counts a use; see verifyRequest.
             let response = try await Self.verifyRequest(key: key, purpose: .activation)
             if response.purchaseUsable {
-                let cache = LicenseCache(key: key, email: response.purchase?.email, lastVerified: Date())
+                let cache = LicenseCache(key: key, email: response.purchase?.email, lastVerified: clock.now)
                 writeCache(cache)
                 state = .licensed(email: cache.email)
             } else {
@@ -96,16 +108,15 @@ final class LicenseManager: ObservableObject {
     // MARK: - Trial
 
     private func computeTrialState() {
-        let defaults = UserDefaults.standard
         let key = "voza.trialStart"
         let start: Date
         if let saved = defaults.object(forKey: key) as? Date {
             start = saved
         } else {
-            start = Date()
+            start = clock.now
             defaults.set(start, forKey: key)
         }
-        let daysLeft = Self.trialDays - Int(Date().timeIntervalSince(start) / 86_400)
+        let daysLeft = Self.trialDays - Int(clock.now.timeIntervalSince(start) / 86_400)
         state = daysLeft > 0 ? .trial(daysLeft: daysLeft) : .trialOver
     }
 
@@ -144,7 +155,7 @@ final class LicenseManager: ObservableObject {
             // Silent recheck: never bump the use counter.
             let response = try await Self.verifyRequest(key: cache.key, purpose: .revalidation)
             if response.purchaseUsable {
-                writeCache(LicenseCache(key: cache.key, email: response.purchase?.email ?? cache.email, lastVerified: Date()))
+                writeCache(LicenseCache(key: cache.key, email: response.purchase?.email ?? cache.email, lastVerified: clock.now))
             } else {
                 // Key revoked/refunded/disputed → clear and fall back to trial state.
                 clearCache()

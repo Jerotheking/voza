@@ -1,0 +1,20 @@
+Building for debugging...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+Build of product 'VozaSmoke' complete! (0.09s)
+[PASS] v01 ac01 construct+read creates nothing
+[PASS] v01 ac01 config write inside root
+[PASS] v01 ac01 config write did not touch history
+[PASS] v01 ac01 history write inside root
+[PASS] v01 ac02 trial starts at 14 days — trial(daysLeft: 14)
+[PASS] v01 ac02 trial over after 15 simulated days
+[PASS] v01 ac02 trial state in isolated defaults
+[PASS] v01 ac02 elapsed independent of wall jump
+[PASS] v01 ac03 qa root removed
+[PASS] v01 ac03 sibling sentinel intact
+[PASS] v01 ac04 prod config path unchanged
+[PASS] v01 ac04 prod history path unchanged
+[PASS] v01 ac04 legacy Config anchor unchanged
+[PASS] v01 ac04 real config.toml untouched by run
+[INFO] v01: original smoke suites intentionally NOT executed (real-profile protection, V01-AC05)
+
+V01 hermetic checks passed.

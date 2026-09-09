@@ -1,0 +1,1587 @@
+{
+  "schema_version": 1,
+  "updated_on": "2026-09-08",
+  "canonical_checkout": "~/Developer/voza",
+  "implementation_started": true,
+  "product_gates": "NOT_RUN",
+  "tickets": {
+    "V01": {
+      "status": "review",
+      "owner": "buffy",
+      "session": "v01-hermetic-isolation",
+      "branch": "codex/voza-V01-hermetic-isolation",
+      "base_commit": "44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf",
+      "worktree": "~/Developer/voza",
+      "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20",
+      "reviewed_by": null,
+      "handoff": "sessions/2026-09-08T231234Z-V01-buffy.md",
+      "blocker": null,
+      "acceptance": {
+        "V01-AC01": {
+          "status": "PASS",
+          "evidence": [
+            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+          ],
+          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_by": "buffy",
+          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+        },
+        "V01-AC02": {
+          "status": "PASS",
+          "evidence": [
+            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+          ],
+          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_by": "buffy",
+          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+        },
+        "V01-AC03": {
+          "status": "PASS",
+          "evidence": [
+            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+          ],
+          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_by": "buffy",
+          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+        },
+        "V01-AC04": {
+          "status": "PASS",
+          "evidence": [
+            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+          ],
+          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_by": "buffy",
+          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+        },
+        "V01-AC05": {
+          "status": "PASS",
+          "evidence": [
+            "evidence/V01/v01-hermetic-isolation/smoke-v01.log"
+          ],
+          "verified_at": "2026-09-08T23:12:34Z",
+          "verified_by": "buffy",
+          "code_revision": "working-tree:63c7ae2adb302892cd63319690b63317a2c13bf7acc5ba57f3e66ce9ce615d20"
+        }
+      }
+    },
+    "V02": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V02-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V02-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V02-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V02-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V02-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V03": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V03-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V03-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V03-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V03-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V03-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V04": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V04-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V04-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V04-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V04-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V04-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V05": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V05-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V05-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V05-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V05-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V05-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V06": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V06-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V06-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V06-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V06-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V06-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V07": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V07-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V07-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V07-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V07-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V07-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V08": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V08-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V08-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V08-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V08-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V08-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V09": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V09-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V09-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V09-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V09-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V09-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V10": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V10-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V10-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V10-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V10-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V10-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V11": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V11-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V11-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V11-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V11-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V11-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V12": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V12-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V12-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V12-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V12-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V12-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V13": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V13-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V13-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V13-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V13-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V13-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V14": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V14-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V14-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V14-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V14-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V14-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V15": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V15-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V15-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V15-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V15-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V15-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V16": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V16-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V16-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V16-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V16-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V16-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V17": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V17-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V17-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V17-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V17-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V17-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V18": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V18-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V18-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V18-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V18-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V18-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V19": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V19-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V19-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V19-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V19-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V19-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V20": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V20-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V20-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V20-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V20-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V20-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V21": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V21-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V21-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V21-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V21-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V21-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V22": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V22-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V22-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V22-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V22-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V22-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V23": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V23-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V23-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V23-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V23-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V23-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V24": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V24-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V24-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V24-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V24-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V24-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V25": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V25-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V25-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V25-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V25-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V25-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V26": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V26-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V26-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V26-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V26-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V26-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V27": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V27-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V27-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V27-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V27-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V27-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V28": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V28-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V28-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V28-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V28-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V28-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V29": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V29-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V29-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V29-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V29-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V29-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V30": {
+      "status": "todo",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V30-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V30-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V30-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V30-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V30-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V31": {
+      "status": "deferred",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V31-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V31-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V31-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V31-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V31-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    },
+    "V32": {
+      "status": "deferred",
+      "owner": null,
+      "session": null,
+      "branch": null,
+      "base_commit": null,
+      "worktree": null,
+      "code_revision": null,
+      "reviewed_by": null,
+      "handoff": null,
+      "blocker": null,
+      "acceptance": {
+        "V32-AC01": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V32-AC02": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V32-AC03": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V32-AC04": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        },
+        "V32-AC05": {
+          "status": "NOT_RUN",
+          "evidence": [],
+          "verified_at": null,
+          "verified_by": null,
+          "code_revision": null
+        }
+      }
+    }
+  }
+}

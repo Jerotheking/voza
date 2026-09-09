@@ -73,6 +73,7 @@ struct OnboardingView: View {
             if micGranted && axGranted {
                 Button(L.t("Start dictating", es: "Empezar a dictar")) {
                     appState.showOnboarding = false
+                    OnboardingWindowController.shared.closeIfVisible()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)

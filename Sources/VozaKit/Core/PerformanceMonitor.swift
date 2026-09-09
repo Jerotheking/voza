@@ -17,12 +17,23 @@ final class PerformanceMonitor {
     }
 
     private var records = Records()
-    private let file = URL(fileURLWithPath: Config.appSupportDirectory + "/perf.json")
+    private let paths: AppPaths
+    private let clock: Clock
+    private let defaults: UserDefaults
     private let maxSamples = 20
     private static let dismissalDays = 14.0
 
-    init() {
-        if let data = try? Data(contentsOf: file),
+    /// Injected dependencies (plan-glm V01). Defaults reproduce the exact
+    /// baseline production behavior; tests inject QA paths, a fixed clock and
+    /// an isolated defaults suite. Initialization only READS perf.json — it
+    /// never creates files or directories.
+    init(paths: AppPaths = .default,
+         clock: Clock = SystemClock(),
+         defaults: UserDefaults = .standard) {
+        self.paths = paths
+        self.clock = clock
+        self.defaults = defaults
+        if let data = try? Data(contentsOf: paths.perfFile),
            let decoded = try? JSONDecoder().decode(Records.self, from: data) {
             records = decoded
         }
@@ -72,22 +83,22 @@ final class PerformanceMonitor {
         let candidate = Suggestion(direction: direction, targetModelId: target.id)
 
         // Respect dismissal window.
-        let dismissed = UserDefaults.standard.object(forKey: "voza.perfDismissed." + candidate.suppressionKey) as? Date
-        if let dismissed, Date().timeIntervalSince(dismissed) < Self.dismissalDays * 86_400 {
+        let dismissed = defaults.object(forKey: "voza.perfDismissed." + candidate.suppressionKey) as? Date
+        if let dismissed, clock.now.timeIntervalSince(dismissed) < Self.dismissalDays * 86_400 {
             return nil
         }
         return candidate
     }
 
     func dismiss(_ suggestion: Suggestion) {
-        UserDefaults.standard.set(Date(), forKey: "voza.perfDismissed." + suggestion.suppressionKey)
+        defaults.set(clock.now, forKey: "voza.perfDismissed." + suggestion.suppressionKey)
     }
 
     // MARK: - Persistence + test hooks
 
     private func save() {
         if let data = try? JSONEncoder().encode(records) {
-            try? data.write(to: file, options: .atomic)
+            try? data.write(to: paths.perfFile, options: .atomic)
         }
     }
 

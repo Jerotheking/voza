@@ -146,8 +146,8 @@ struct StatusView: View {
         } else {
             hero(icon: "checkmark.seal.fill", tint: .green,
                  title: L.t("Voza is ready", es: "Voza está lista"),
-                 detail: L.t("Hold Right Option anywhere and talk. Right Control adds AI cleanup.",
-                             es: "Mantén Option derecha en cualquier app y habla. Control derecha agrega limpieza IA."))
+                 detail: L.t("Hold Option (either side) anywhere and talk. Right ⌘ adds AI cleanup.",
+                             es: "Mantén Option (cualquier lado) en cualquier app y habla. ⌘ derecha agrega limpieza IA."))
         }
     }
 
@@ -343,8 +343,8 @@ struct DictationSettings: View {
                 Text(L.t("Languages", es: "Idiomas"))
             }
             Section {
-                Text(L.t("Hotkeys: hold **Right Option** to dictate, hold **Right Control** to dictate with AI cleanup.",
-                         es: "Teclas: mantén **Option derecha** para dictar, mantén **Control derecha** para dictar con limpieza IA."))
+                Text(L.t("Hotkeys: hold **Option** (either side) to dictate, hold **Right ⌘** to dictate with AI cleanup.",
+                         es: "Teclas: mantén **Option** (cualquier lado) para dictar, mantén **⌘ derecha** para dictar con limpieza IA."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

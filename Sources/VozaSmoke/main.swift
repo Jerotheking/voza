@@ -10,6 +10,87 @@ func check(_ name: String, _ condition: Bool, _ detail: String = "") {
     if !condition { exit(1) }
 }
 
+// ===== V01 hermetic isolation (plan-glm) — runs FIRST and exits BEFORE any
+// suite that touches the real profile (UserDefaults, perf.json, mic). Mirrors
+// Tests/VozaTests/TestEnvironmentTests (which needs Xcode; this runs on CLT).
+if CommandLine.arguments.contains("v01") {
+    // QA environment: unique root + volatile defaults suite + fixed clock.
+    // (Inline mirror of TestEnvironment; that helper lives in the XCTest target.)
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("voza-tests", isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let paths = AppPaths.qa(root: root)
+    let suiteName = "voza.smoke.v01." + UUID().uuidString
+    guard let defaults = UserDefaults(suiteName: suiteName) else {
+        check("v01 qa defaults suite available", false); exit(1)
+    }
+    let clock = FixedClock(wall: Date(timeIntervalSince1970: 1_700_000_000))
+
+    // Contamination guard for the real profile: config.toml existence must be
+    // identical before and after this run (V01-AC05).
+    let realConfig = AppPaths.default.configFile.path
+    let realConfigExisted = FileManager.default.fileExists(atPath: realConfig)
+
+    // --- AC01: construction and pure reads create nothing ---
+    _ = Config(paths: paths)
+    _ = PerformanceMonitor(paths: paths, clock: clock, defaults: defaults)
+    let store = TranscriptStore(paths: paths, clock: clock)
+    MainActor.assumeIsolated { _ = LicenseManager(paths: paths, clock: clock, defaults: defaults) }
+    _ = store.logDirectory.path
+    check("v01 ac01 construct+read creates nothing", !FileManager.default.fileExists(atPath: root.path))
+
+    // --- AC01: writes stay inside the QA root, each tree only its own ---
+    Config(paths: paths).setPlaySound(true)
+    check("v01 ac01 config write inside root", FileManager.default.fileExists(atPath: paths.configFile.path))
+    check("v01 ac01 config write did not touch history", !FileManager.default.fileExists(atPath: paths.history.path))
+
+    store.add(text: "v01-hermetic-marker", cleaned: false)
+    Thread.sleep(forTimeInterval: 0.3) // drain the store's serial I/O queue
+    let monthF = DateFormatter(); monthF.dateFormat = "yyyy-MM"
+    let monthFile = paths.history.appendingPathComponent("\(monthF.string(from: clock.now)).md")
+    check("v01 ac01 history write inside root", FileManager.default.fileExists(atPath: monthFile.path))
+
+    // --- AC02: the simulated clock determines dates and elapsed time, no sleeps ---
+    MainActor.assumeIsolated {
+        let license = LicenseManager(paths: paths, clock: clock, defaults: defaults)
+        license.refreshIfNeeded()
+        check("v01 ac02 trial starts at 14 days", license.state == .trial(daysLeft: 14), "\(license.state)")
+        clock.advance(seconds: 15 * 86_400) // 15 simulated days, instantly
+        license.refreshIfNeeded()
+        check("v01 ac02 trial over after 15 simulated days", license.state == .trialOver)
+        check("v01 ac02 trial state in isolated defaults", defaults.object(forKey: "voza.trialStart") != nil)
+    }
+    let elapsedBefore = clock.uptimeSeconds
+    clock.advance(seconds: 10, wallSeconds: 400_000)
+    check("v01 ac02 elapsed independent of wall jump",
+          abs(clock.uptimeSeconds - (elapsedBefore + 10)) < 0.001
+          && clock.now.timeIntervalSince1970 == 1_700_000_000 + 15 * 86_400 + 400_000)
+
+    // --- AC03: teardown removes only what it owns (sibling sentinel survives) ---
+    let sentinelParent = FileManager.default.temporaryDirectory
+        .appendingPathComponent("voza-tests", isDirectory: true)
+    try FileManager.default.createDirectory(at: sentinelParent, withIntermediateDirectories: true)
+    let sentinel = sentinelParent.appendingPathComponent("sentinel-\(UUID().uuidString)")
+    try "do-not-delete".write(to: sentinel, atomically: true, encoding: .utf8)
+    defaults.removePersistentDomain(forName: suiteName)
+    try? FileManager.default.removeItem(at: root)
+    check("v01 ac03 qa root removed", !FileManager.default.fileExists(atPath: root.path))
+    check("v01 ac03 sibling sentinel intact", FileManager.default.fileExists(atPath: sentinel.path))
+    try? FileManager.default.removeItem(at: sentinel)
+
+    // --- AC04: production defaults byte-identical to baseline ---
+    let home = FileManager.default.homeDirectoryForCurrentUser
+    let prod = AppPaths.default
+    check("v01 ac04 prod config path unchanged", prod.appSupport.path == home.appendingPathComponent(".config/voza").path)
+    check("v01 ac04 prod history path unchanged", prod.history.path == home.appendingPathComponent("Dictation").path)
+    check("v01 ac04 legacy Config anchor unchanged", Config.appSupportDirectory == home.appendingPathComponent(".config/voza").path)
+    check("v01 ac04 real config.toml untouched by run", FileManager.default.fileExists(atPath: realConfig) == realConfigExisted)
+
+    print("[INFO] v01: original smoke suites intentionally NOT executed (real-profile protection, V01-AC05)")
+    print("\nV01 hermetic checks passed.")
+    exit(0)
+}
+
 // 1. Model catalog integrity
 for m in WhisperCatalog.all {
     check("catalog[\(m.id)] hash format", m.sha256.count == 64 && m.sha256.allSatisfy(\.isHexDigit))

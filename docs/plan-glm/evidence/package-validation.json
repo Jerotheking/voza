@@ -1,0 +1,688 @@
+{
+  "captured_at": "2026-09-08T03:43:40.171370+00:00",
+  "scope": "documentation_only",
+  "implementation_started": false,
+  "product_gates": "NOT_RUN",
+  "files_manifest": {
+    "ADDENDUM.md": {
+      "bytes": 4742,
+      "sha256": "fe0f7effe404b5b83f3635c8d8de06bbd187d1ff24a441e82aec8a9da7e2e717"
+    },
+    "ARCHITECTURE.md": {
+      "bytes": 14339,
+      "sha256": "2672fa9c428b229659f3753a2050ebcca7f2401a7488336c61aa86a6e98b0f18"
+    },
+    "AUDITORIA-ORIGINAL.md": {
+      "bytes": 107393,
+      "sha256": "492d3fd51db2b4bd7baee151b5acc560eb61e9cad10ef3f0af8a5fc635edea09"
+    },
+    "BUSINESS.md": {
+      "bytes": 6857,
+      "sha256": "af2f3279882feba2bf148d0c0b43e1d1b1735da5bfd55c1d99916df66e887aab"
+    },
+    "CODE-MAP.md": {
+      "bytes": 32899,
+      "sha256": "914132d7d0faca984f4555dfaa05a3677bb653bb98898a867de5f0cef299e90e"
+    },
+    "DECISIONS.md": {
+      "bytes": 4250,
+      "sha256": "7a35c8b1e25f3282a955a616e6e06638657d4978818de9cb28b76975ac7d87c6"
+    },
+    "DOCUMENTO-MAESTRO.md": {
+      "bytes": 395122,
+      "sha256": "1a6b5068c33bd2f4117df9c2902fb55bd8a6f257cfcdc3ab5cf5b48a47f3489a"
+    },
+    "PLAN.json": {
+      "bytes": 99853,
+      "sha256": "7e17d38c0d3f31877fd9c5bd78b794f186eb40174028d928a58866ec33443396"
+    },
+    "PRODUCT.md": {
+      "bytes": 8741,
+      "sha256": "eb9f5817d375cbd609904b971750f803c74e780aeff4b0e3a2b1f3975cdd415f"
+    },
+    "QA.md": {
+      "bytes": 7261,
+      "sha256": "cf18d6f6b1396eadf13305ee63ab78f8936f411f3f013408eec6b33c450f11fa"
+    },
+    "ROADMAP.md": {
+      "bytes": 9685,
+      "sha256": "fe31bcd1125d78bf190b54343b1eb68047afc8a4c6306f8ef93ec47099e2e1d1"
+    },
+    "SESSIONS.md": {
+      "bytes": 759,
+      "sha256": "ca39b131a342afe815327a2c5956b4af900a0070510f1e6fdee2f8f7ebe0d4d2"
+    },
+    "SOURCES.md": {
+      "bytes": 4007,
+      "sha256": "bb77e7fa089eb1bc33d492a9995f8bf49d6ef0536e77441dc8f153c379bc0c20"
+    },
+    "START-HERE.md": {
+      "bytes": 9313,
+      "sha256": "477763116b9132751c23009f906c1ca7f3c9e8c5ed98b77034dba7d7115be7ee"
+    },
+    "STATE.json": {
+      "bytes": 38993,
+      "sha256": "05c38fa0c9a260f666be091cffd7603d565ab1e77156a9e5e3c04dabb688c834"
+    },
+    "UX.md": {
+      "bytes": 11214,
+      "sha256": "80ca7d33cc59a59d452cd3d42e2c3d6b481b9ed1672b06f951199df1a2052095"
+    },
+    "evidence/baseline.json": {
+      "bytes": 5915,
+      "sha256": "7bdf41618a4ee02faa1c57bae3a3dbdc0ff5ded8ee5977c140e1174f0a84622c"
+    },
+    "evidence/symbols.json": {
+      "bytes": 28421,
+      "sha256": "1b3c08d7c37b662a3db88ef629f9b688a4739bab7697d741241279cedb1d70ab"
+    },
+    "fixtures/polished-seed.json": {
+      "bytes": 43393,
+      "sha256": "0e6839036f792b8ff457066620153edfda4a49ab8e7e74e8b929c53d35ec9661"
+    },
+    "sessions/TEMPLATE.md": {
+      "bytes": 1911,
+      "sha256": "98483a9f98f06b7d32488f037e2be58fdb3f85827bd89ed03deee1b9f4f73e56"
+    },
+    "tickets/V01.md": {
+      "bytes": 6153,
+      "sha256": "942d09c57fd8936e452d95a08f028ca724da64f540deb230abfbe36bb1a64ec9"
+    },
+    "tickets/V02.md": {
+      "bytes": 5862,
+      "sha256": "cc243315e4fbc4bd241cb10ba7df087cd1f383df2797238b653bf7fb7b914d8d"
+    },
+    "tickets/V03.md": {
+      "bytes": 5241,
+      "sha256": "6a45e910cc8e8fa5f626ae45fcb880d3cf79bba187373464ba6d14b8ef1a5292"
+    },
+    "tickets/V04.md": {
+      "bytes": 5637,
+      "sha256": "aa4c3adc2c69a3aae76a44a164d380392bd419686ff03929a213d770ad75fc24"
+    },
+    "tickets/V05.md": {
+      "bytes": 5390,
+      "sha256": "163f086598e6c873f4ef6aa4fe841e13eace7af1e4ef85189c3bdc1f917501f0"
+    },
+    "tickets/V06.md": {
+      "bytes": 5422,
+      "sha256": "30f9c3f5e676b46aa1d5d17c737ff0b5300afb21b13f2a40192255e0aff4a711"
+    },
+    "tickets/V07.md": {
+      "bytes": 5095,
+      "sha256": "c3c5061f253b94aa0a3993f3351f598efe926be58867eb27b156e8ad5f46a872"
+    },
+    "tickets/V08.md": {
+      "bytes": 5290,
+      "sha256": "5fe06b1417aa79d355653eba8420585ddac4f298c264d28f7fc54493366623ec"
+    },
+    "tickets/V09.md": {
+      "bytes": 5162,
+      "sha256": "a30cb3d6fc2f05137b5608936eec0f5836b85d36a0c2987af24bc0c3bb7738e2"
+    },
+    "tickets/V10.md": {
+      "bytes": 5497,
+      "sha256": "f02ad38035c1a41acbb5de2476824f872da86529b72dd4c6de31948ad2a4002c"
+    },
+    "tickets/V11.md": {
+      "bytes": 5411,
+      "sha256": "8da99fe24b5042a089039fc38382fcc77bb84e76fc11e40fcf4670cadd97d6c0"
+    },
+    "tickets/V12.md": {
+      "bytes": 5065,
+      "sha256": "3d9e10a019bcd5dd9615d305efe9a720b5375a27e95de61f14c474173a338dac"
+    },
+    "tickets/V13.md": {
+      "bytes": 5177,
+      "sha256": "438385524aa1489aa9103cd46baa1db9410063c5cf9fcddee38e5201ab2b6467"
+    },
+    "tickets/V14.md": {
+      "bytes": 5299,
+      "sha256": "d1de00e526df8eb3ca923147083d32f5627d41ad8cd5a2305666a997921eff2a"
+    },
+    "tickets/V15.md": {
+      "bytes": 5274,
+      "sha256": "5a76978d5708430d0e46d76c3507b86c15edc1518fee7834b131ad22313dab5c"
+    },
+    "tickets/V16.md": {
+      "bytes": 5669,
+      "sha256": "d53ffd9b75bf64e82f5b5839ed5a46b96178afe4eb6f4932c0f6d27408570da6"
+    },
+    "tickets/V17.md": {
+      "bytes": 5387,
+      "sha256": "1e8a81de1b3c383c8b4e591417c2eb235bc19f0d0c99335faff6007b6e404ae1"
+    },
+    "tickets/V18.md": {
+      "bytes": 6091,
+      "sha256": "fb5166b1320a519077b5c6a58e16dcb3e7b6fa1d7f77e0aac34d82aca5a561bc"
+    },
+    "tickets/V19.md": {
+      "bytes": 5148,
+      "sha256": "7a5b0fe70a4d6a17f98b0f8bb658c5a22604656ac74d45169e5f8f7fd2b330c3"
+    },
+    "tickets/V20.md": {
+      "bytes": 5206,
+      "sha256": "b833a59cfbd7a0d1f37519b56836cde277ada97d51ecc5347d2925e2b890c504"
+    },
+    "tickets/V21.md": {
+      "bytes": 5157,
+      "sha256": "2d3dd88f04f875ddc0eeda898c3f2064b99c5ca54d11402ae77576ffbb3162fc"
+    },
+    "tickets/V22.md": {
+      "bytes": 5282,
+      "sha256": "10b48a607c3d234565188e47aa8ce4f9f7c2d434533705ff15d802c89e604042"
+    },
+    "tickets/V23.md": {
+      "bytes": 5195,
+      "sha256": "aaea0ab3a6252e809887b798031050a23429cbd8e4c0824b1750b914cfdf63d8"
+    },
+    "tickets/V24.md": {
+      "bytes": 5037,
+      "sha256": "48684f136b8cf7bf8d441ce75c37f9d4223cd63b9e4b2f7ed417b322a2ea05fb"
+    },
+    "tickets/V25.md": {
+      "bytes": 5454,
+      "sha256": "9cbfcb3b2787dc1552f12ec8eed417dd0088841934d49c33929e1bc98291c970"
+    },
+    "tickets/V26.md": {
+      "bytes": 5338,
+      "sha256": "fde9329abacbadd9f381210706d9c09b4ca1401ec37dad7dcbf2574d766f4bfb"
+    },
+    "tickets/V27.md": {
+      "bytes": 5146,
+      "sha256": "803ae391d0bd197cff5284be54abfdfe5e8d3598be668ba3fdb58e7e90eec916"
+    },
+    "tickets/V28.md": {
+      "bytes": 5665,
+      "sha256": "5562b280c2e6ed2a79c66678d454c90b897de27e08246a7e8747bb822de93942"
+    },
+    "tickets/V29.md": {
+      "bytes": 5497,
+      "sha256": "1c991ec62b3f20c07140cbf3eaaa7e4c743dfb726a24838fb3a401c82fdeea92"
+    },
+    "tickets/V30.md": {
+      "bytes": 5053,
+      "sha256": "69aacef276c732cf200d2a79e56539d7a47c6e906f7479ffda5388e135ea3080"
+    },
+    "tickets/V31.md": {
+      "bytes": 5052,
+      "sha256": "bb6156121ab68cbaf4b639f7c15189cf29b90a3a4d9ac3f736c0a3f6467e1aca"
+    },
+    "tickets/V32.md": {
+      "bytes": 4867,
+      "sha256": "2fa1803c17a9f235c55c040a7fc5c7a69edb0aab2644403fe331e1d629e985da"
+    },
+    "tools/plan.py": {
+      "bytes": 21821,
+      "sha256": "96ff5ab254af39129e3de9697be41910d8ededabe741b4ca6c0d3ad4c8674959"
+    }
+  },
+  "checks": {
+    "validate": {
+      "command": [
+        "python3",
+        "-B",
+        "docs/plan-glm/tools/plan.py",
+        "validate"
+      ],
+      "exit_code": 0,
+      "result": {
+        "ok": true,
+        "tickets": 32,
+        "acceptance_criteria": 160,
+        "local_links_checked": 1477,
+        "errors": [],
+        "scope": "documentation_structure_only_not_product_verification"
+      }
+    },
+    "selftest": {
+      "command": [
+        "python3",
+        "-B",
+        "docs/plan-glm/tools/plan.py",
+        "selftest"
+      ],
+      "exit_code": 0,
+      "result": [
+        {
+          "case": "ciclo",
+          "expectation_met": true
+        },
+        {
+          "case": "dependencia_inexistente",
+          "expectation_met": true
+        },
+        {
+          "case": "id_duplicado",
+          "expectation_met": true
+        },
+        {
+          "case": "done_sin_evidencia",
+          "expectation_met": true
+        },
+        {
+          "case": "pass_sin_evidencia",
+          "expectation_met": true
+        },
+        {
+          "case": "bloqueo_sin_razon",
+          "expectation_met": true
+        },
+        {
+          "case": "ruta_fuera_repo",
+          "expectation_met": true
+        },
+        {
+          "case": "ac_perdido",
+          "expectation_met": true
+        },
+        {
+          "case": "valid_state_fixture_in_memory",
+          "expectation_met": true
+        },
+        {
+          "case": "overlapping_owners_rejected",
+          "expectation_met": true
+        }
+      ]
+    },
+    "baseline": {
+      "command": [
+        "python3",
+        "-B",
+        "docs/plan-glm/tools/plan.py",
+        "baseline"
+      ],
+      "exit_code": 0,
+      "result": {
+        "baseline_commit": "44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf",
+        "checked": 37,
+        "original_files_unchanged": true,
+        "changed": []
+      }
+    },
+    "status": {
+      "command": [
+        "python3",
+        "-B",
+        "docs/plan-glm/tools/plan.py",
+        "status"
+      ],
+      "exit_code": 0,
+      "result": {
+        "product_gates": "NOT_RUN",
+        "tickets": [
+          {
+            "ticket": "V01",
+            "title": "Aislar rutas, preferencias y reloj antes de ejecutar pruebas",
+            "status": "todo",
+            "available": true,
+            "waiting_for": [],
+            "owner": null
+          },
+          {
+            "ticket": "V02",
+            "title": "Reparar XCTest, hacer Smoke hermético y establecer CI",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V01"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V03",
+            "title": "Corregir atajos y modelar la tecla dueña de la sesión",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V02"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V04",
+            "title": "Crear ProcessRunner cancelable sin deadlock de pipes",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V02"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V05",
+            "title": "Asegurar captura, escritura WAV y cleanup de recursos",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V04"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V06",
+            "title": "Definir contratos de sesión y composición inyectable",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V02",
+              "V05"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V07",
+            "title": "Integrar pipeline con sesión única y descarga independiente",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V03",
+              "V04",
+              "V05",
+              "V06"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V08",
+            "title": "Proteger campos seguros, bloqueo y cambios de foco",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V07"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V09",
+            "title": "Hacer inserción y clipboard recuperables y no bloqueantes",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V08",
+              "V04"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V10",
+            "title": "Implementar privacidad del historial y recuperación RAM",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V09",
+              "V01",
+              "V06"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V11",
+            "title": "Migrar configuración a un esquema tipado observable",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V01",
+              "V06"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V12",
+            "title": "Guardar credenciales en Keychain y fijar frontera de proveedores",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V11"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V13",
+            "title": "Endurecer licencia offline-first con fixtures de respuesta",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V11",
+              "V12"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V14",
+            "title": "Unificar catálogo, capacidad de idiomas y salida no lingüística",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V11",
+              "V06"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V15",
+            "title": "Descargas verificadas, resume correcto y disco del destino",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V14",
+              "V04"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V16",
+            "title": "Empaquetar motor y dependencias sin requerir Homebrew",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V14",
+              "V04"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V17",
+            "title": "Unificar readiness y publicación observable de resultados",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V07",
+              "V08",
+              "V09",
+              "V15",
+              "V16"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V18",
+            "title": "Introducir UI Literal/Pulido y ajustes por intención",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V17",
+              "V11",
+              "V06",
+              "V03"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V19",
+            "title": "Construir onboarding de cinco pasos con primera dictación",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V18",
+              "V17",
+              "V16"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V20",
+            "title": "Panel visible de grabación y accesibilidad completa",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V18",
+              "V19"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V21",
+            "title": "Construir corpus bilingüe independiente para Pulido",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V06"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V22",
+            "title": "Seleccionar motores por benchmark y licencia, no intuición",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V21",
+              "V04",
+              "V14",
+              "V16"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V23",
+            "title": "Integrar runtime de Pulido local administrado por Voza",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V22",
+              "V15",
+              "V16"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V24",
+            "title": "Validar reescritura, autocorrecciones y abstención",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V23",
+              "V21"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V25",
+            "title": "Completar Literal/Pulido, fallback honesto y reversión segura",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V24",
+              "V18",
+              "V09",
+              "V10",
+              "V12"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V26",
+            "title": "Adaptar recursos automáticamente sin cambiar intención",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V25",
+              "V14",
+              "V05"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V27",
+            "title": "Ejecutar matriz adversarial y compatibilidad de apps",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V19",
+              "V20",
+              "V25",
+              "V26",
+              "V13",
+              "V15"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V28",
+            "title": "Firmar distribución, updater y rollback verificable",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V27",
+              "V16",
+              "V13"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V29",
+            "title": "Cerrar decisiones comerciales y alinear claims con evidencia",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V27"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V30",
+            "title": "Ejecutar beta y decidir continuar con métricas honestas",
+            "status": "todo",
+            "available": false,
+            "waiting_for": [
+              "V28",
+              "V29"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V31",
+            "title": "Backlog condicionado: vocabulario y preferencias por aplicación",
+            "status": "deferred",
+            "available": false,
+            "waiting_for": [
+              "V30"
+            ],
+            "owner": null
+          },
+          {
+            "ticket": "V32",
+            "title": "Backlog condicionado: parciales, traducción y comandos; Windows fuera",
+            "status": "deferred",
+            "available": false,
+            "waiting_for": [
+              "V30"
+            ],
+            "owner": null
+          }
+        ]
+      }
+    }
+  },
+  "only_initial_available_ticket": [
+    "V01"
+  ],
+  "source_files_unchanged": true,
+  "limits": [
+    "No app build/test/runtime rerun in this document preparation turn.",
+    "Validator checks structure and files, not authenticity or quality of product evidence.",
+    "Corpus seed is synthetic and not human-reviewed."
+  ]
+}

@@ -96,6 +96,11 @@ final class AudioRecorder {
 
         guard let url = outputURL else { return nil }
         finalizeWAVHeader(at: url, pcmBytes: pcmBytes)
+        // Full state reset: the file's ownership transfers to the caller; the
+        // recorder must not retain anything from the finished session.
+        outputURL = nil
+        pcmBytes = 0
+        startedAt = nil
         return url
     }
 

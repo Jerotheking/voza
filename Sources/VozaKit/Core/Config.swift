@@ -11,12 +11,10 @@ final class Config {
     static let targetSampleRate: Double = 16_000
     static let transcriptionTimeoutSeconds: TimeInterval = 120
 
-    static var appSupportDirectory: String {
-        let base = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".config/voza", isDirectory: true)
-        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        return base.path
-    }
+    /// Back-compat read-only anchor for callers not yet migrated to injected
+    /// paths (V02 owns that migration). Never creates directories: the
+    /// side effect moved to `AppPaths` write-path preparation (plan-glm V01).
+    static var appSupportDirectory: String { AppPaths.default.appSupport.path }
 
     // MARK: - Stored config values
 
@@ -33,7 +31,14 @@ final class Config {
     private(set) var env: [String: String] = [:]
     private var raw: [String: String] = [:]
 
-    init() {
+    /// Injected dependencies (plan-glm V01). Defaults reproduce the exact
+    /// baseline production layout; tests inject a QA environment so nothing
+    /// outside it is read or written. No clock injected: Config performs no
+    /// time operations today (dead dependency omitted on purpose).
+    private let paths: AppPaths
+
+    init(paths: AppPaths = .default) {
+        self.paths = paths
         cleanupMode = "auto"
         ollamaModel = "qwen3:8b"
         language = "auto"
@@ -46,7 +51,7 @@ final class Config {
 
     private func load() {
         raw = [:]
-        let path = Self.appSupportDirectory + "/config.toml"
+        let path = paths.configFile.path
         if let text = try? String(contentsOfFile: path, encoding: .utf8) {
             for line in text.components(separatedBy: .newlines) {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -71,7 +76,7 @@ final class Config {
         playSound      = (raw["play_sound"] ?? "false") == "true"
 
         env = [:]
-        let envPath = Self.appSupportDirectory + "/.env"
+        let envPath = paths.envFile.path
         if let text = try? String(contentsOfFile: envPath, encoding: .utf8) {
             for line in text.components(separatedBy: .newlines) {
                 let trimmed = line.trimmingCharacters(in: .whitespaces)
@@ -112,8 +117,9 @@ final class Config {
         lines.append("play_sound = \(playSound ? "true" : "false")")
         lines.append("gumroad_permalink = \"\(gumroadPermalink)\"")
         let text = lines.joined(separator: "\n") + "\n"
-        let path = Self.appSupportDirectory + "/config.toml"
-        try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        // Write path: prepare the tree right before persisting (reads never create).
+        guard paths.prepareAppSupport() else { return }
+        try? text.write(toFile: paths.configFile.path, atomically: true, encoding: .utf8)
     }
 
     // MARK: - Resolved values
@@ -131,10 +137,10 @@ final class Config {
         }
     }
     var resolvedModelsDirectory: String {
-        modelsDirectory ?? (Self.appSupportDirectory + "/models")
+        modelsDirectory ?? paths.models.path
     }
     var resolvedLogDirectory: String {
-        logDirectory ?? (FileManager.default.homeDirectoryForCurrentUser.path + "/Dictation")
+        logDirectory ?? paths.history.path
     }
     var resolvedWhisperBinary: String { whisperBinary ?? "/opt/homebrew/bin/whisper-cli" }
 

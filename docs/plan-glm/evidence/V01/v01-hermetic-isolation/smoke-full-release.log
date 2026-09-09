@@ -1,0 +1,11 @@
+Building for production...
+[0/3] Write swift-version--1AB21518FC5DEDBE.txt
+[2/4] Compiling VozaSmoke main.swift
+~/Developer/voza/Sources/VozaSmoke/main.swift:2:18: error: module 'VozaKit' was not compiled for testing [#ModuleNotTestable]
+  1 | import Foundation
+  2 | @testable import VozaKit
+    |                  `- error: module 'VozaKit' was not compiled for testing [#ModuleNotTestable]
+  3 | 
+  4 | // Lightweight verification suite — runs with the CommandLineTools toolchain
+
+[#ModuleNotTestable]: <https://docs.swift.org/compiler/documentation/diagnostics/module-not-testable>
