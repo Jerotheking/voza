@@ -35,7 +35,9 @@ final class Transcriber {
     }
 
     /// Blocking transcription; call from a background queue.
-    func transcribe(wavURL: URL, modelPath: String, language: String) throws -> String {
+    /// `initialPrompt` (learned vocabulary) biases decoding toward the user's
+    /// real terms via whisper.cpp's `--prompt` — optional for existing callers.
+    func transcribe(wavURL: URL, modelPath: String, language: String, initialPrompt: String? = nil) throws -> String {
         guard let binary = Self.locateBinary() else { throw TranscriptionError.binaryNotFound }
         guard FileManager.default.fileExists(atPath: modelPath) else { throw TranscriptionError.modelNotFound }
 
@@ -48,6 +50,9 @@ final class Transcriber {
             "-sow",                   // split on word
             "-l", language,
         ]
+        if let prompt = initialPrompt, !prompt.isEmpty {
+            args.append(contentsOf: ["--prompt", prompt])
+        }
         if language == "en" { args.append("-bs"); args.append("1") }
 
         let result = try runProcess(launchPath: args[0], arguments: Array(args.dropFirst()), timeout: Config.transcriptionTimeoutSeconds)

@@ -126,9 +126,12 @@ final class AppState: ObservableObject {
                                     es: "Usando modelo de respaldo \(resolved.model.id)")
             }
             let modelPath = resolved.path
+            // Learned vocabulary biases decoding BEFORE the model runs; captured
+            // OUTSIDE the timed block so it never pollutes the RTF measurement.
+            let prompt = CorrectionStore.shared.initialPrompt()
             let startedAt = Date()
             text = try await Task.detached(priority: .userInitiated) {
-                try Transcriber().transcribe(wavURL: wavURL, modelPath: modelPath, language: language)
+                try Transcriber().transcribe(wavURL: wavURL, modelPath: modelPath, language: language, initialPrompt: prompt)
             }.value
             let rtf = Date().timeIntervalSince(startedAt) / max(recordedSeconds, 0.5)
             PerformanceMonitor.shared.record(rtf: rtf, model: resolved.model.id)
@@ -138,6 +141,8 @@ final class AppState: ObservableObject {
             return
         }
         try? FileManager.default.removeItem(at: wavURL) // audio deleted right after transcription
+        // Learned corrections are the source of truth for what gets pasted.
+        text = CorrectionStore.apply(text)
 
         // 2. Optional AI cleanup — result carries what ACTUALLY happened.
         var cleanupApplied = false
@@ -161,6 +166,9 @@ final class AppState: ObservableObject {
         }
         Paster.paste(text)
         TranscriptStore.shared.add(text: text, cleaned: cleanupApplied)
+        if cfg.autoLearn, let session = Paster.lastSession {
+            CorrectionWatcher.shared.start(for: session)
+        }
         if cfg.playSound {
             NSSound(named: "Tink")?.play()
         }
@@ -247,6 +255,28 @@ final class AppState: ObservableObject {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         statusMessage = L.t("Copied", es: "Copiado")
+    }
+
+    /// Learns from a user-corrected history row (✏️) and re-pastes the fixed
+    /// text at the cursor, so fixing a row doubles as "redo the paste".
+    func learnCorrection(entry: TranscriptEntry, corrected: String) {
+        if let pair = CorrectionStore.diffCorrection(original: entry.text, corrected: corrected) {
+            CorrectionStore.shared.record(heard: pair.heard, said: pair.said)
+            statusMessage = L.t("Learned — I'll write it right next time", es: "Aprendido — la próxima vez lo escribiré bien")
+        }
+        repaste(corrected)
+    }
+
+    /// Pastes given text at the current cursor location (history fixes).
+    func repaste(_ text: String) {
+        guard Permissions.accessibilityGranted else {
+            phase = .failed(L.t("Accessibility permission needed for paste", es: "Falta permiso de Accesibilidad para pegar"))
+            return
+        }
+        Paster.paste(text)
+        if config.playSound {
+            NSSound(named: "Tink")?.play()
+        }
     }
 
     func openLogFolder() {

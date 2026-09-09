@@ -475,6 +475,14 @@ struct AdvancedSettings: View {
                 get: { appState.config.playSound },
                 set: { appState.config.setPlaySound($0) }
             ))
+            Toggle(L.t("Learn from my corrections automatically", es: "Aprender de mis correcciones automáticamente"), isOn: Binding(
+                get: { appState.config.autoLearn },
+                set: { appState.config.setAutoLearn($0) }
+            ))
+            Text(L.t("After each dictation, Voza briefly re-reads only the text it just pasted. If you fix it by typing, Voza learns the correction — on your Mac, never recorded, never sent anywhere.", es: "Después de cada dictado, Voza relee por unos segundos únicamente el texto que acaba de pegar. Si lo corriges tecleando, Voza aprende la corrección — en tu Mac, sin grabar nada, sin enviar nada."))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 4)
         }
         .padding(20)
     }

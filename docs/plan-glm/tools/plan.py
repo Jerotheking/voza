@@ -11,6 +11,7 @@ import argparse
 import copy
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import datetime
@@ -244,6 +245,11 @@ def check_links():
             if target.startswith(("https://", "http://", "app://", "#", "mailto:")):
                 continue
             target = re.sub(r":\d+$", "", target.split("#", 1)[0])
+            if target.startswith("~"):
+                # FIX 2026-09-08: privacy scrub rewrote /Users/<name> → ~ inside
+                # the plan package, but check_links never expanded ~, so links to
+                # existing repo files reported as broken. Expand like any shell.
+                target = os.path.expanduser(target)
             resolved = Path(target) if target.startswith("/") else p.parent / target
             checked += 1
             if not resolved.exists():

@@ -26,6 +26,11 @@ final class Config {
     var ollamaModel: String
     var language: String         // auto | en | es
     var playSound: Bool
+    /// Wispr-style auto-learn (owner decision 2026-09-08): after each paste,
+    /// watch ONLY the pasted element briefly to catch typed corrections.
+    /// On by default — zero-effort learning is the product decision; the
+    /// Settings toggle turns it off for users who prefer manual-only.
+    var autoLearn: Bool
     var gumroadPermalink: String
 
     private(set) var env: [String: String] = [:]
@@ -43,6 +48,7 @@ final class Config {
         ollamaModel = "qwen3:8b"
         language = "auto"
         playSound = false
+        autoLearn = true
         gumroadPermalink = "voza"
         load()
     }
@@ -74,6 +80,7 @@ final class Config {
         ollamaModel    = raw["ollama_model"] ?? "qwen3:8b"
         language       = raw["language"] ?? "auto"
         playSound      = (raw["play_sound"] ?? "false") == "true"
+        autoLearn      = (raw["auto_learn"] ?? "true") == "true"
 
         env = [:]
         let envPath = paths.envFile.path
@@ -103,6 +110,7 @@ final class Config {
     func setOllamaModel(_ v: String)       { ollamaModel = v;    raw["ollama_model"] = v; persist() }
     func setLanguage(_ v: String)          { language = v;       raw["language"] = v; persist() }
     func setPlaySound(_ v: Bool)           { playSound = v;      raw["play_sound"] = v ? "true" : "false"; persist() }
+    func setAutoLearn(_ v: Bool)           { autoLearn = v;      raw["auto_learn"] = v ? "true" : "false"; persist() }
     func setGumroadPermalink(_ v: String)  { gumroadPermalink = v; raw["gumroad_permalink"] = v; persist() }
 
     private func persist() {
@@ -115,6 +123,7 @@ final class Config {
         lines.append("ollama_model = \"\(ollamaModel)\"")
         lines.append("language = \"\(language)\"")
         lines.append("play_sound = \(playSound ? "true" : "false")")
+        lines.append("auto_learn = \(autoLearn ? "true" : "false")")
         lines.append("gumroad_permalink = \"\(gumroadPermalink)\"")
         let text = lines.joined(separator: "\n") + "\n"
         // Write path: prepare the tree right before persisting (reads never create).

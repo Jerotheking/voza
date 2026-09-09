@@ -153,9 +153,10 @@
       "lines": 49
     }
   },
-  "audit_sha256": "38120c8b3bab1d6fc99f651d648a4bfd23cbb33bb45215f6fce34a2fe3e06390",
-  "audit_chars": 104964,
+  "audit_sha256": "ebf39bfcfa740acf1838003e4f5e3f2a7ecedbc5a1b27435a7b05f9eb83f0645",
+  "audit_chars": 104097,
   "current_turn_scope": "documentation_only",
   "app_tests_run_this_turn": false,
-  "build_run_this_turn": false
+  "build_run_this_turn": false,
+  "audit_provenance_note": "2026-09-08 privacy scrub replaced /Users/<owner> with ~ in AUDITORIA-ORIGINAL.md (public repo; 51 occurrences, -867 chars). Hash re-registered over the scrubbed document. Pre-scrub: chars=104964 sha=38120c8b3bab1d6f… (full: see git history fcc8d9b baseline.json)."
 }

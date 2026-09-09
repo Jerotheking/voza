@@ -103,6 +103,8 @@ struct PopoverView: View {
                         ForEach(appState.recent.prefix(10)) { entry in
                             TranscriptRow(entry: entry) {
                                 appState.copyToClipboard(entry.text)
+                            } onEdit: { corrected in
+                                appState.learnCorrection(entry: entry, corrected: corrected)
                             }
                             Divider().padding(.leading, 12)
                         }
@@ -149,15 +151,41 @@ struct PopoverView: View {
 struct TranscriptRow: View {
     let entry: TranscriptEntry
     let onCopy: () -> Void
+    var onEdit: ((String) -> Void)? = nil
     @State private var copied = false
+    @State private var isEditing = false
+    @State private var draft = ""
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(entry.text)
-                    .font(.system(size: 11))
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                if isEditing {
+                    TextField(L.t("Corrected text — Voza learns from this", es: "Texto corregido — Voza aprende de esto"), text: $draft, axis: .vertical)
+                        .font(.system(size: 11))
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { commitEdit() }
+                    HStack(spacing: 8) {
+                        Button {
+                            commitEdit()
+                        } label: {
+                            Label(L.t("Save & teach", es: "Guardar y enseñar"), systemImage: "checkmark.circle.fill")
+                                .font(.system(size: 10, weight: .semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        Button(role: .cancel) {
+                            isEditing = false
+                        } label: {
+                            Text(L.t("Cancel", es: "Cancelar")).font(.system(size: 10))
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                } else {
+                    Text(entry.text)
+                        .font(.system(size: 11))
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                 HStack(spacing: 4) {
                     Text("\(entry.dayLabel) \(entry.timeLabel)")
                     if entry.cleaned {
@@ -167,18 +195,40 @@ struct TranscriptRow: View {
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
             }
-            Button {
-                onCopy()
-                copied = true
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
-            } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                    .foregroundStyle(copied ? Color.green : Color.secondary)
+            HStack(spacing: 6) {
+                if !isEditing, let onEdit {
+                    Button {
+                        draft = entry.text
+                        isEditing = true
+                    } label: {
+                        Image(systemName: "pencil")
+                            .foregroundStyle(Color.secondary)
+                    }
+                    .buttonStyle(.borderless)
+                    .help(L.t("Fix and teach Voza", es: "Corrige y enseña a Voza"))
+                }
+                Button {
+                    onCopy()
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+                } label: {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .foregroundStyle(copied ? Color.green : Color.secondary)
+                }
+                .buttonStyle(.borderless)
             }
-            .buttonStyle(.borderless)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
+    }
+
+    /// Records the learned correction and pastes the fixed text immediately,
+    /// so fixing a row doubles as "redo the paste" — no hotkey needed.
+    private func commitEdit() {
+        let fixed = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        isEditing = false
+        guard !fixed.isEmpty, fixed != entry.text else { return }
+        onEdit?(fixed)
     }
 }

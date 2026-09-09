@@ -1,4 +1,5 @@
 import Foundation
+import ApplicationServices
 @testable import VozaKit
 
 // Lightweight verification suite — runs with the CommandLineTools toolchain
@@ -88,6 +89,262 @@ if CommandLine.arguments.contains("v01") {
 
     print("[INFO] v01: original smoke suites intentionally NOT executed (real-profile protection, V01-AC05)")
     print("\nV01 hermetic checks passed.")
+    exit(0)
+}
+
+// ===== Corrections learned corrections (plan-glm promoted work) — hermetic like v01:
+// QA root + fixed clock, exits BEFORE any real-profile suite. Covers
+// CorrectionStore persistence, replacement semantics, diff extraction and
+// prompt generation.
+if CommandLine.arguments.contains("corrections") {
+    let root = FileManager.default.temporaryDirectory
+        .appendingPathComponent("voza-tests", isDirectory: true)
+        .appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let paths = AppPaths.qa(root: root)
+    let clock = FixedClock(wall: Date(timeIntervalSince1970: 1_700_000_000))
+
+    // AC-doctrine (V01-AC01): construction and reads create nothing.
+    let store = CorrectionStore(paths: paths, clock: clock)
+    check("corrections construct+read creates nothing", !FileManager.default.fileExists(atPath: root.path))
+    check("corrections empty store applies unchanged", CorrectionStore.apply("hola mundo", corrections: []) == "hola mundo")
+    check("corrections empty prompt is nil", CorrectionStore.initialPrompt(from: []) == nil)
+
+    // Recording writes inside the QA root only.
+    clock.advance(seconds: 1)
+    let first = store.record(heard: "tiago", said: "Tiago")
+    check("corrections record returns entry", first != nil)
+    check("corrections file inside qa root", FileManager.default.fileExists(atPath: paths.appSupport.appendingPathComponent("corrections.json").path))
+    check("corrections nothing outside qa root", !FileManager.default.fileExists(atPath: AppPaths.default.appSupport.appendingPathComponent("corrections.json").path))
+
+    // Invalid inputs rejected.
+    check("corrections rejects empty heard", store.record(heard: "  ", said: "x") == nil)
+    check("corrections rejects identical pair", store.record(heard: "ok", said: "ok") == nil)
+
+    // Re-recording the same heard updates in place (no duplicates).
+    clock.advance(seconds: 1)
+    _ = store.record(heard: "tiago", said: "Tiago Rey")
+    check("corrections re-record updates not duplicates", store.count == 1, "count=\(store.count)")
+    check("corrections re-record keeps said", store.all().first?.said == "Tiago Rey")
+
+    // Persistence roundtrip (iso8601 dates must survive decoder+encoder parity).
+    let reloaded = CorrectionStore(paths: paths, clock: clock)
+    check("corrections persistence roundtrip", reloaded.all().first?.said == "Tiago Rey")
+
+    // Exact replacement: whole-word, case-insensitive, case-mirroring,
+    // substring-safe.
+    let corr = [Correction(id: UUID(), heard: "tiago", said: "Tiago", createdAt: Date(timeIntervalSince1970: 0))]
+    check("corrections apply whole word", CorrectionStore.apply("tiago va a la tienda", corrections: corr) == "Tiago va a la tienda")
+    check("corrections apply substring safe", CorrectionStore.apply("el tiagorro", corrections: corr) == "el tiagorro")
+    check("corrections apply case mirror upper", CorrectionStore.apply("TIAGO", corrections: corr) == "TIAGO")
+    check("corrections apply longest first", CorrectionStore.apply("tiago rey",
+          corrections: [Correction(id: UUID(), heard: "tiago", said: "T", createdAt: Date(timeIntervalSince1970: 0)),
+                        Correction(id: UUID(), heard: "tiago rey", said: "Tiago Rey", createdAt: Date(timeIntervalSince1970: 0))]) == "Tiago Rey")
+
+    // Diff extraction: word-level swap, char-level case fix, non-learnables.
+    let wordPair = CorrectionStore.diffCorrection(original: "hola tiago como estas", corrected: "hola Tiago como estas")
+    check("corrections diff word level", wordPair?.heard == "tiago" && wordPair?.said == "Tiago", "\(String(describing: wordPair))")
+    let casePair = CorrectionStore.diffCorrection(original: "tiago rey", corrected: "Tiago Rey")
+    check("corrections diff case fix", casePair?.heard.lowercased() == "tiago rey", "\(String(describing: casePair))")
+    check("corrections diff identical nil", CorrectionStore.diffCorrection(original: "a", corrected: "a") == nil)
+    check("corrections diff empty corrected nil", CorrectionStore.diffCorrection(original: "a", corrected: "") == nil)
+    check("corrections diff pure deletion nil", CorrectionStore.diffCorrection(original: "hola mundo", corrected: "hola") == nil)
+    // End-to-end pure: the diff feeds apply and changes the text.
+    if let p = wordPair {
+        let fixed = CorrectionStore.apply("hola tiago como estas",
+                                          corrections: [Correction(id: UUID(), heard: p.heard, said: p.said, createdAt: Date(timeIntervalSince1970: 0))])
+        check("corrections diff feeds apply", fixed == "hola Tiago como estas", fixed)
+    }
+
+    // Prompt: newest-first, comma-joined, respects the character budget.
+    let many = (0..<10).map { i in
+        Correction(id: UUID(), heard: "h\(i)", said: "termino-numero-\(i)", createdAt: Date(timeIntervalSince1970: Double(i)))
+    }
+    let prompt = CorrectionStore.initialPrompt(from: many, maxCharacters: 40)
+    check("corrections prompt respects budget", (prompt?.count ?? 0) <= 40, "\(prompt ?? "nil")")
+    check("corrections prompt newest first", prompt?.hasPrefix("termino-numero-9") == true, "\(prompt ?? "nil")")
+
+    // Deletion.
+    if let id = store.all().first?.id { store.delete(id: id) }
+    check("corrections delete removes", store.count == 0)
+
+    // --- Wispr-style auto-learn (CorrectionWatcher): pure logic only, the
+    // watch loop itself NEVER runs in tests (no AX, no timers, no real store). ---
+    check("watcher tuning sane", CorrectionWatcher.pollIntervalSeconds >= 0.3
+        && CorrectionWatcher.windowSeconds <= 60
+        && CorrectionWatcher.stabilitySamples >= 1
+        && CorrectionWatcher.minSimilarity > 0.3 && CorrectionWatcher.minSimilarity < 0.9)
+
+    // Config roundtrip: auto_learn defaults ON, persists, and reloads (QA paths only).
+    do {
+        let cfgA = Config(paths: paths)
+        check("config auto_learn default true", cfgA.autoLearn)
+        cfgA.setAutoLearn(false)
+        let cfgB = Config(paths: paths)
+        check("config auto_learn persists false", cfgB.autoLearn == false)
+        let toml = try String(contentsOf: paths.configFile, encoding: .utf8)
+        check("config auto_learn line written", toml.contains("auto_learn = false"))
+    }
+
+    check("paster similarity identical", Paster.similarity("abc", "abc") == 1.0)
+    check("paster similarity disjoint", Paster.similarity("abc", "xyz") == 0.0)
+    check("paster substring bounds", Paster.substring("hola mundo", nsRange: NSRange(location: 5, length: 5)) == "mundo")
+    check("paster substring out-of-bounds nil", Paster.substring("corto", nsRange: NSRange(location: 0, length: 99)) == nil)
+
+    let sess = Paster.Session(element: nil, pastedText: "esto es una prueva",
+                              selectedRange: NSRange(location: 6, length: 0),
+                              fieldBefore: "Hola, ", startedAt: Date())
+    let exp = CorrectionWatcher.expectedField(after: sess)
+    check("watcher expected field exact", exp == "Hola, esto es una prueva", exp ?? "nil")
+
+    // Word fix INSIDE the pasted text → minimal pair, not the whole field.
+    let fix1 = CorrectionWatcher.extractPair(pasted: "esto es una prueva",
+                                             typed: "Hola, esto es una prueba",
+                                             expected: "Hola, esto es una prueva")
+    check("watcher learns minimal word fix", fix1?.heard == "prueva" && fix1?.said == "prueba", "\(String(describing: fix1))")
+
+    // Mid-word single-letter substitution → expanded to the containing word.
+    let fix2 = CorrectionWatcher.extractPair(pasted: "hola prueva",
+                                             typed: "hola prueba mundo",
+                                             expected: "hola prueva mundo")
+    check("watcher expands mid-word cut", fix2?.heard == "prueva" && fix2?.said == "prueba", "\(String(describing: fix2))")
+
+    // Guards that refuse false lessons:
+    check("watcher refuses unrelated rewrite",
+          CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "https://ejemplo.com/x", expected: "Hola, esto es una prueva") == nil)
+    check("watcher refuses case-only edit",
+          CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "HOLA, ESTO ES UNA PRUEVA", expected: "Hola, esto es una prueva") == nil)
+    check("watcher refuses too-short",
+          CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "Hola, ok", expected: "Hola, esto es una prueva") == nil)
+    check("watcher refuses insertion-only",
+          CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "Hola, esto es unaa prueva", expected: "Hola, esto es una prueva") == nil)
+    check("watcher refuses nothing-changed",
+          CorrectionWatcher.extractPair(pasted: "hola", typed: "hola", expected: "hola") == nil)
+    // Edits to the user's OWN surrounding context are never attributed to the model.
+    check("watcher refuses outside-paste edit",
+          CorrectionWatcher.extractPair(pasted: "hola", typed: "queridísimo diario: hola", expected: "querido diario: hola") == nil)
+
+    // --- Adversarial round 2 (full test pass): Unicode ES, boundaries, live-loop logic ---
+    // Accented vowel substitution inside ONE word must learn the accented word.
+    let fixAcc = CorrectionWatcher.extractPair(pasted: "cancion",
+                                               typed: "canción",
+                                               expected: "cancion")
+    check("watcher learns accented fix", fixAcc?.heard == "cancion" && fixAcc?.said == "canción", "\(String(describing: fixAcc))")
+
+    // Paste at position 0 of an EMPTY field (common: fresh message box).
+    let sessEmpty = Paster.Session(element: nil, pastedText: "hola prueva",
+                                   selectedRange: NSRange(location: 0, length: 0),
+                                   fieldBefore: "", startedAt: Date())
+    check("watcher expected empty field", CorrectionWatcher.expectedField(after: sessEmpty) == "hola prueva")
+    let fixEmpty = CorrectionWatcher.extractPair(pasted: "hola prueva", typed: "hola prueba", expected: "hola prueva")
+    check("watcher fixes in empty field", fixEmpty?.heard == "prueva" && fixEmpty?.said == "prueba", "\(String(describing: fixEmpty))")
+
+    // Corrupt snapshot (selection location beyond the field length) → nil, never crash.
+    let sessBad = Paster.Session(element: nil, pastedText: "x",
+                                 selectedRange: NSRange(location: 50, length: 0),
+                                 fieldBefore: "corto", startedAt: Date())
+    check("watcher corrupt snapshot nil", CorrectionWatcher.expectedField(after: sessBad) == nil)
+
+    // Paste REPLACING an existing selection: expected field is paste over the selection.
+    let sessRepl = Paster.Session(element: nil, pastedText: "PRUEVA",
+                                  selectedRange: NSRange(location: 0, length: 5),
+                                  fieldBefore: "error", startedAt: Date())
+    check("watcher expected replaces selection", CorrectionWatcher.expectedField(after: sessRepl) == "PRUEVA", "\(CorrectionWatcher.expectedField(after: sessRepl) ?? "nil")")
+    // Case-only fix over that replacement (app autocapitalize) must be refused.
+    check("watcher refuses case-only over selection",
+          CorrectionWatcher.extractPair(pasted: "PRUEVA", typed: "prueba", expected: "PRUEVA") == nil)
+
+    // Multi-lesson max-length guard.
+    let longFix = CorrectionWatcher.extractPair(pasted: String(repeating: "a", count: 500),
+                                                typed: String(repeating: "a", count: 499) + "b",
+                                                expected: String(repeating: "a", count: 500))
+    check("watcher refuses oversized fix", longFix == nil)
+
+    // Live-loop decision logic: undoes (field back to expected) RESET stability.
+    // Mirrors watch() without AX/timers: expected → continue; changed → count.
+    do {
+        let expected = "Hola, esto es una prueva"
+        var lastValue: String?? = nil // nil outer = never observed; inner nil = unreadable
+        var stable = 0
+        var learned = false
+        let samples: [String?] = [expected, "Hola, esto es una prueba", "Hola, esto es una prueba"]
+        for s in samples {
+            if s == expected { stable = 0; continue }   // user undid back to our text
+            if s == lastValue { stable += 1 } else { stable = 1 }
+            lastValue = s
+            if stable >= CorrectionWatcher.stabilitySamples,
+               let v = s,
+               CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: v, expected: expected) != nil {
+                learned = true
+                break
+            }
+        }
+        check("watcher loop two-stable-samples then learn", learned)
+        // Undo-back-to-expected then re-edit must NOT learn from the stale sample:
+        var stable2 = 0
+        var learned2 = false
+        var last2: String?? = nil
+        for s in [expected, "Hola, esto es una prueba", expected, "Hola, esto es una prueba"] as [String?] {
+            if s == expected { stable2 = 0; continue }
+            if s == last2 { stable2 += 1 } else { stable2 = 1 }
+            last2 = s
+            if stable2 >= CorrectionWatcher.stabilitySamples, let v = s,
+               CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: v, expected: expected) != nil {
+                learned2 = true
+                break
+            }
+            // second occurrence of the same edit only reaches stability on the NEXT sample
+        }
+        check("watcher loop undo resets stability", !learned2, "learned2=\(learned2)")
+    }
+
+    // --- matt-tdd: live watch() loop at the injection seam. Integration tests
+    // of the REAL loop — fake field reader, QA sink, fake sleep, deterministic,
+    // zero AX calls (the reader closure ignores the element). Red first: these
+    // failed to compile until watch() grew injectable dependencies.
+    do {
+        let cfg = CorrectionWatcher.WatchConfig(pollIntervalSeconds: 0.8, windowSeconds: 10, stabilitySamples: 2)
+        let expected = "Hola, esto es una prueva"
+        let samples = [expected, expected, "Hola, esto es una prueba", "Hola, esto es una prueba", "Hola, esto es una prueba"]
+        let liveElement = AXUIElementCreateSystemWide() // never read for real: the fake reader ignores it
+
+        func reader(for clock: FixedClock) -> (AXUIElement) -> String? {
+            { _ in samples[min(Int(clock.uptimeSeconds / cfg.pollIntervalSeconds), samples.count - 1)] }
+        }
+
+        // A: element unreadable the whole window → no lesson, sink untouched.
+        let sinkA = CorrectionWatcher.QASink()
+        let clockA = FixedClock()
+        let a = CorrectionWatcher.watch(session: sess, clock: clockA, readField: { _ in nil },
+                                        sleep: { clockA.advance(seconds: $0) }, sink: sinkA, config: cfg)
+        check("watch integration unreadable element no lesson", a == false && sinkA.pairs.isEmpty)
+
+        // B: user types the fix and pauses → learned exactly once, minimal pair,
+        // into the QA sink ONLY (the real store is never touched by tests).
+        let sinkB = CorrectionWatcher.QASink()
+        let clockB = FixedClock()
+        let sessLive = Paster.Session(element: liveElement, pastedText: "esto es una prueva",
+                                      selectedRange: NSRange(location: 6, length: 0),
+                                      fieldBefore: "Hola, ", startedAt: Date())
+        let b = CorrectionWatcher.watch(session: sessLive, clock: clockB, readField: reader(for: clockB),
+                                        sleep: { clockB.advance(seconds: $0) }, sink: sinkB, config: cfg)
+        check("watch integration learns after stability", b == true, "\(sinkB.pairs)")
+        check("watch integration sink got minimal pair", sinkB.pairs.first?.heard == "prueva" && sinkB.pairs.first?.said == "prueba", "\(sinkB.pairs)")
+        check("watch integration one lesson only", sinkB.pairs.count == 1)
+
+        // C: unrelated rewrite (URL over the paste) → window expires, no lesson.
+        let sinkC = CorrectionWatcher.QASink()
+        let clockC = FixedClock()
+        let c = CorrectionWatcher.watch(session: sessLive, clock: clockC, readField: { _ in "https://ejemplo.com/x" },
+                                        sleep: { clockC.advance(seconds: $0) }, sink: sinkC, config: cfg)
+        check("watch integration refuses rewrite", c == false && sinkC.pairs.isEmpty)
+    }
+
+    // Teardown: remove only what this run owns.
+    try? FileManager.default.removeItem(at: root)
+    check("corrections qa root removed", !FileManager.default.fileExists(atPath: root.path))
+
+    print("[INFO] corrections: original smoke suites intentionally NOT executed (real-profile protection, V01-AC05)")
+    print("\nCorrections learned-correction checks passed.")
     exit(0)
 }
 
