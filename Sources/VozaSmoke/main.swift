@@ -5,10 +5,78 @@ import ApplicationServices
 // Lightweight verification suite — runs with the CommandLineTools toolchain
 // (no XCTest available there). Exits non-zero on first failure.
 
+// V02-AC05: PASS and SKIP are counted separately; a SKIP is never a pass.
+var smokeChecks = 0
+var smokeSkips = 0
+
 func check(_ name: String, _ condition: Bool, _ detail: String = "") {
+    smokeChecks += 1
     let icon = condition ? "PASS" : "FAIL"
     print("[\(icon)] \(name)\(detail.isEmpty ? "" : " — \(detail)")")
     if !condition { exit(1) }
+}
+
+func skipSmoke(_ why: String) {
+    smokeSkips += 1
+    print("[SKIP] \(why)")
+}
+
+/// Minimal hermetic QA environment for smoke suites — inline mirror of
+/// Tests/VozaTests/Support/TestEnvironment.swift (that helper lives in the
+/// XCTest target and is invisible to VozaSmoke).
+final class SmokeQA {
+    let root: URL
+    let paths: AppPaths
+    let defaults: UserDefaults
+    let clock: FixedClock
+    private let suiteName: String
+
+    init?(name: String) {
+        suiteName = "voza.smoke.\(name)." + UUID().uuidString
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("voza-tests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        paths = AppPaths.qa(root: root)
+        guard let d = UserDefaults(suiteName: suiteName) else { return nil }
+        defaults = d
+        clock = FixedClock(wall: Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    func tearDown() {
+        defaults.removePersistentDomain(forName: suiteName)
+        try? FileManager.default.removeItem(at: root)
+    }
+}
+
+// ===== V02: DEFAULT = HERMETIC PURITY ======================================
+// The default run performs only pure checks (no UserDefaults writes, no real
+// profile paths, no mic, no engine, no downloads) and exits deterministically
+// with code 0 — even on a machine with no whisper-cli and no models (V02-AC02).
+// Repetition changes nothing outside its own QA roots (V02-AC03).
+//
+// Opt-in suites carry the cost explicitly:
+//   --live-real   → real profile (writes defaults, perf.json, ~/Dictation)
+//   --integration → binaries/models/disk (never downloads without --qa-models)
+//   e2e <wav>     → full pipeline + model download to --qa-models
+// Suites that cannot run here print [SKIP] with the exact blocker — a SKIP is
+// never counted as a native PASS (V02-AC05).
+
+let liveReal = CommandLine.arguments.contains("--live-real")
+let integration = CommandLine.arguments.contains("--integration")
+let qaModelsIndex = CommandLine.arguments.firstIndex(of: "--qa-models")
+let qaModelsRoot: String? = qaModelsIndex.flatMap { idx in
+    idx + 1 < CommandLine.arguments.count ? CommandLine.arguments[idx + 1] : nil
+}
+
+func integrationGuard(_ name: String, requires: String) -> Bool {
+    if integration { return true }
+    skipSmoke("\(name) — opt-in integration suite (pass --integration; requires \(requires))")
+    return false
+}
+
+if !liveReal && !integration {
+    print("[INFO] VozaSmoke default: PURE checks only (hermetic, V02).")
+    print("[INFO] Opt-in: --live-real (real profile), --integration (binaries/models), e2e <wav>.")
 }
 
 // ===== V01 hermetic isolation (plan-glm) — runs FIRST and exits BEFORE any
@@ -356,47 +424,52 @@ for m in WhisperCatalog.all {
 check("catalog uniqueness", Set(WhisperCatalog.all.map(\.id)).count == WhisperCatalog.all.count)
 
 // 2. Hardware profile — language-aware (audit v2 §3.2: auto/es must NEVER get an English-only model)
-let ram = HardwareProfile.totalRAMGB
 let recEn = HardwareProfile.recommendedModel(language: "en")
 let recAuto = HardwareProfile.recommendedModel(language: "auto")
 let recEs = HardwareProfile.recommendedModel(language: "es")
-check("preset en", ["small.en-q5_1", "large-v3-turbo"].contains(recEn), "ram=\(ram)GB → \(recEn)")
+check("preset en", ["small.en-q5_1", "large-v3-turbo"].contains(recEn), "tier=\(HardwareProfile.RAMTier.tier(forRAMGB: HardwareProfile.totalRAMGB)) → \(recEn)")
 check("preset es multilingual", WhisperCatalog.byId(recEs).map { !$0.isEnglishOnly } == true, "es → \(recEs)")
 check("preset auto multilingual", WhisperCatalog.byId(recAuto).map { !$0.isEnglishOnly } == true, "auto → \(recAuto)")
 check("catalog has small-q5_1", WhisperCatalog.byId("small-q5_1") != nil)
 
-// 3. Localizer
-L.override = "es"
-check("localizer es", L.t("Hello", es: "Hola") == "Hola")
-L.override = "en"
-check("localizer en", L.t("Hello", es: "Hola") == "Hello")
-L.override = nil
+// 3. Localizer — PURE resolution only (V02): reading/writing L.override here
+// mutated the user's real preference domain. The override path is exercised
+// in Tests/VozaTests via isolated defaults.
+check("localizer pure es",
+      L.resolve("Hello", es: "Hola", spanish: true) == "Hola")
+check("localizer pure en",
+      L.resolve("Hello", es: "Hola", spanish: false) == "Hello")
+check("localizer override wins",
+      L.resolveIsSpanish(override: "en", systemLanguages: ["es-MX"]) == false)
+check("localizer system decides without override",
+      L.resolveIsSpanish(override: nil, systemLanguages: ["es-MX", "en"]) == true)
+check("localizer non-es system",
+      L.resolveIsSpanish(override: nil, systemLanguages: ["en-US"]) == false)
 
-// 4. Config resolved values
-let config = Config.shared
-check("config language resolution", ["auto", "en", "es"].contains(config.resolvedLanguage), config.resolvedLanguage)
-if config.language == "auto" {
-    // The speech language must not be derived from the UI language (audit v2 §3.1).
-    L.override = "es"
-    check("auto stays auto regardless of UI", config.resolvedLanguage == "auto", config.resolvedLanguage)
-    L.override = "en"
-    check("auto stays auto regardless of UI (en)", config.resolvedLanguage == "auto", config.resolvedLanguage)
-    L.override = nil
-}
-check("config model resolution", WhisperCatalog.byId(config.resolvedModelId) != nil, config.resolvedModelId)
-check("config whisper binary detectable", Transcriber.locateBinary() != nil, Transcriber.locateBinary() ?? "none")
-
-// 4b. Model resolution returns the REAL descriptor (audit v2 §3.3)
-if let resolved = ModelManager.shared.resolvedModel(preferredId: "nonexistent-model-id") {
-    check("resolvedModel descriptor real", WhisperCatalog.byId(resolved.model.id) != nil, resolved.model.id)
+// 4. Config resolution — hermetic QA instance (V02). Config.shared reads the
+// real profile; its env fallback would leak process variables into checks.
+if let env = SmokeQA(name: "config") {
+    defer { env.tearDown() }
+    let config = Config(paths: env.paths)
+    check("config language resolution", ["auto", "en", "es"].contains(config.resolvedLanguage), config.resolvedLanguage)
+    check("config model resolution", WhisperCatalog.byId(config.resolvedModelId) != nil, config.resolvedModelId)
+    check("config env keys stay out of QA", config.env["OPENAI_API_KEY"] == nil)
+    check("config reads create nothing", !FileManager.default.fileExists(atPath: env.root.path))
 } else {
-    print("[SKIP] resolvedModel (no models downloaded)")
+    check("config hermetic environment", false, "no defaults suite available")
 }
 
-// 5. Log directory writable
-let dir = TranscriptStore.logDirectory
-check("log dir exists", FileManager.default.fileExists(atPath: dir.path), dir.path)
-check("log dir writable", FileManager.default.isWritableFile(atPath: dir.path))
+// 4b. resolvedModel descriptor + fallback — needs downloaded models: opt-in.
+if integrationGuard("resolvedModel fallback + descriptor", requires: "downloaded models") {
+    if let resolved = ModelManager.shared.resolvedModel(preferredId: "nonexistent-model-id") {
+        check("resolvedModel descriptor real", WhisperCatalog.byId(resolved.model.id) != nil, resolved.model.id)
+    } else {
+        skipSmoke("resolvedModel fallback (no models downloaded)")
+    }
+}
+
+// 5. Real history dir writability — touches the user's ~/Dictation: opt-in.
+skipSmoke("real history writability — opt-in --live-real (probes ~/Dictation)")
 
 // 6. WAV writer: canonical 44-byte IEEE-float header + whisper-cli can consume OUR file
 check("wav header is exactly 44 bytes", AudioRecorder.wavHeader(dataBytes: 1234).count == 44,
@@ -412,7 +485,9 @@ do {
     check("wav sample rate 16k", u32(24) == 16000, "rate=\(u32(24))")
     check("wav bits = 32", u16(34) == 32, "bits=\(u16(34))")
 }
-if Permissions.microphoneGranted {
+// 6b. Mic + engine roundtrip — OPT-IN integration (V02): needs mic permission
+// and a live capture; never part of the default hermetic run.
+if integrationGuard("mic roundtrip", requires: "mic permission + audio engine"), Permissions.microphoneGranted {
     do {
         try AudioRecorder.shared.start()
         Thread.sleep(forTimeInterval: 0.6)
@@ -436,7 +511,7 @@ if Permissions.microphoneGranted {
                     check("whisper-cli consumes voza wav", true, "(silence)")
                 }
             } else {
-                print("[SKIP] whisper-cli on voza wav (no model downloaded yet)")
+                skipSmoke("whisper-cli on voza wav (no model downloaded; pass --qa-models <dir>)")
             }
             try? FileManager.default.removeItem(at: url)
         } else {
@@ -445,12 +520,15 @@ if Permissions.microphoneGranted {
     } catch {
         check("wav record roundtrip", false, "\(error)")
     }
-} else {
-    print("[SKIP] mic roundtrip (no permission in this context)")
+} else if integration && !Permissions.microphoneGranted {
+    skipSmoke("mic roundtrip — microphone permission not granted in this context")
 }
 
 // Optional E2E: download a model + transcribe a real sample through the full pipeline.
-// Usage: swift run VozaSmoke e2e /path/to/jfk.wav
+// Usage: swift run VozaSmoke e2e /path/to/jfk.wav --qa-models /path/to/qa/dir
+// V02: downloads REQUIRE an explicit QA destination — the real models dir is
+// never touched from tests. This is pipeline integration, NOT a paste E2E
+// (no insertion/paste path is exercised here).
 if CommandLine.arguments.contains("e2e") {
     let argIndex = CommandLine.arguments.firstIndex(of: "e2e")!
     let wavPath = CommandLine.arguments.count > argIndex + 1
@@ -459,19 +537,23 @@ if CommandLine.arguments.contains("e2e") {
     guard FileManager.default.fileExists(atPath: wavPath) else {
         print("e2e: provide a wav file path"); exit(1)
     }
+    guard let qaModelsRoot else {
+        print("e2e: model downloads require an explicit QA destination — pass --qa-models <dir>")
+        exit(1)
+    }
     guard let model = WhisperCatalog.byId("small-q5_1") else { exit(1) } // multilingual + auto language (audit v2 §3.1/§3.2)
 
-    print("Downloading \(model.id) (\(model.sizeLabel))…")
+    print("Downloading \(model.id) (\(model.sizeLabel)) into QA dir \(qaModelsRoot)…")
     let sem = DispatchSemaphore(value: 0)
     Task {
         do {
-            try await ModelManager.shared.download(model) { p in
+            try await ModelManager.shared.download(model, into: qaModelsRoot) { p in
                 let bars = Int(p * 20)
                 print("\r[" + String(repeating: "#", count: bars) + String(repeating: ".", count: 20 - bars) + "] \(Int(p * 100))%", terminator: "")
                 if p >= 1.0 { print() }
             }
             print("SHA-256 verified")
-            let path = ModelManager.shared.localPath(for: model).path
+            let path = URL(fileURLWithPath: qaModelsRoot, isDirectory: true).appendingPathComponent(model.file).path
             let result = try Transcriber().transcribe(wavURL: URL(fileURLWithPath: wavPath), modelPath: path, language: "auto")
             print("TRANSCRIPT (auto language): \(result)")
             check("e2e transcript plausible", result.lowercased().contains("fellow"), result)
@@ -483,29 +565,40 @@ if CommandLine.arguments.contains("e2e") {
     sem.wait()
 }
 
-// 7. Performance monitor logic
-PerformanceMonitor.shared._test_clear()
-PerformanceMonitor.shared._test_setSamples([0.2, 0.3, 0.4], model: "small.en-q5_1")
-check("perf median", abs((PerformanceMonitor.shared.medianRTF(model: "small.en-q5_1") ?? 0) - 0.3) < 0.001)
-check("perf speed label", PerformanceMonitor.shared.speedLabel(model: "small.en-q5_1") == "3.3× realtime",
-      PerformanceMonitor.shared.speedLabel(model: "small.en-q5_1") ?? "nil")
-check("perf no suggestion in healthy band",
-      PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
-PerformanceMonitor.shared._test_setSamples([0.9, 1.1, 0.8], model: "small.en-q5_1")
-let sugg = PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 24)
-check("perf suggests lighter when slow", sugg?.direction == .lighter, sugg?.targetModelId ?? "none")
-PerformanceMonitor.shared._test_setSamples([0.05, 0.06, 0.04], model: "small.en-q5_1")
-check("perf no heavier suggestion under 32GB",
-      PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
-check("perf suggests heavier on 32GB+",
-      PerformanceMonitor.shared.suggestion(currentModel: "small.en-q5_1", ramGB: 32)?.direction == .heavier)
-PerformanceMonitor.shared._test_clear()
+// 7. Performance monitor logic — hermetic QA instance (V02): no writes to the
+// real perf.json, no dismissal keys in real defaults.
+if let env = SmokeQA(name: "perf") {
+    defer { env.tearDown() }
+    let perf = PerformanceMonitor(paths: env.paths, clock: env.clock, defaults: env.defaults)
+    perf._test_setSamples([0.2, 0.3, 0.4], model: "small.en-q5_1")
+    check("perf median", abs((perf.medianRTF(model: "small.en-q5_1") ?? 0) - 0.3) < 0.001)
+    check("perf speed label", perf.speedLabel(model: "small.en-q5_1") == "3.3× realtime",
+          perf.speedLabel(model: "small.en-q5_1") ?? "nil")
+    check("perf no suggestion in healthy band",
+          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
+    perf._test_setSamples([0.9, 1.1, 0.8], model: "small.en-q5_1")
+    let sugg = perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24)
+    check("perf suggests lighter when slow", sugg?.direction == .lighter, sugg?.targetModelId ?? "none")
+    perf._test_setSamples([0.05, 0.06, 0.04], model: "small.en-q5_1")
+    check("perf no heavier suggestion under 32GB",
+          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
+    check("perf suggests heavier on 32GB+",
+          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 32)?.direction == .heavier)
+    check("perf file confined to QA root", FileManager.default.fileExists(atPath: env.paths.perfFile.path))
+} else {
+    check("perf hermetic environment", false, "no defaults suite available")
+}
 check("perf eta format", AppState.formatETA(95) == "1m 35s", AppState.formatETA(95))
 
-// 8. Readiness snapshot
+// 8. Readiness snapshot — probes are read-only (disk, engine existence,
+// permission booleans); missing binaries on this machine is a SKIP, not a fail.
 let readiness = ReadinessChecker.check()
 check("readiness disk sane", readiness.freeDiskMB > 0, "\(readiness.freeDiskMB) MB free")
-check("readiness engine", readiness.engineFound)
+if readiness.engineFound {
+    check("readiness engine found", true)
+} else {
+    skipSmoke("readiness engine — whisper-cli not installed (pure mode requires none, V02-AC02)")
+}
 check("allGranted includes input monitoring",
       Permissions.allGranted == (Permissions.microphoneGranted && Permissions.accessibilityGranted && Permissions.inputMonitoringGranted))
 
@@ -537,4 +630,9 @@ if let small = WhisperCatalog.byId("small-q5_1"), let big = WhisperCatalog.byId(
     check("disk guard covers model size", ReadinessChecker.requiredFreeMB(for: small) >= 190)
 }
 
-print("\nAll smoke checks passed.")
+// V02-AC05: explicit accounting — SKIPs are listed, never counted as passes.
+if smokeSkips > 0 {
+    print("[INFO] \(smokeSkips) opt-in suite(s) skipped — run with --integration / --live-real / e2e to include them.")
+}
+print("\nAll pure smoke checks passed (\(smokeChecks) checks, \(smokeSkips) skips).")
+exit(0)

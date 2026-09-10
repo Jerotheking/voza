@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_on": "2026-09-08",
+  "updated_on": "2026-09-09",
   "canonical_checkout": "~/Developer/voza",
   "implementation_started": true,
   "product_gates": "NOT_RUN",
@@ -66,8 +66,8 @@
       "reviewed_at": "2026-09-09T01:30:00Z"
     },
     "V02": {
-      "status": "todo",
-      "owner": null,
+      "status": "in_progress",
+      "owner": "buffy",
       "session": null,
       "branch": null,
       "base_commit": null,

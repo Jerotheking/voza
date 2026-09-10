@@ -97,6 +97,10 @@ final class PerformanceMonitor {
     // MARK: - Persistence + test hooks
 
     private func save() {
+        // Write path prepares its tree first (same contract as TranscriptStore):
+        // a first-run record() with no AppSupport yet used to drop perf.json
+        // silently (caught by the V02 hermetic smoke).
+        guard paths.prepareAppSupport() else { return }
         if let data = try? JSONEncoder().encode(records) {
             try? data.write(to: paths.perfFile, options: .atomic)
         }
@@ -104,11 +108,6 @@ final class PerformanceMonitor {
 
     func _test_setSamples(_ rtfs: [Double], model: String) {
         records.byModel[model] = rtfs
-        save()
-    }
-
-    func _test_clear() {
-        records = Records()
         save()
     }
 }

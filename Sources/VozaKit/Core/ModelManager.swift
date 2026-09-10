@@ -50,18 +50,38 @@ enum HardwareProfile {
     /// - Parameter language: resolved speech language ("auto", "en", "es", ...).
     ///   "en" may get the English-only build (slightly better on English);
     ///   everything else — including "auto" — must get a multilingual model.
-    static func recommendedModel(language: String) -> String {
-        // Hardware-adaptive tiers. large-v3-turbo needs only ~1–1.5 GB RAM at
-        // runtime (Metal) — every Mac with ≥16 GB runs it comfortably and it is
-        // VASTLY better for non-English (the old 30 GB threshold handed 24 GB
-        // Macs the 181 MB quantized small, which degrades badly on Spanish —
-        // owner QA 2026-09-08). 8–16 GB gets fp16 small (better than q5_1);
-        // only sub-8 GB machines get the quantized build.
-        switch totalRAMGB {
-        case 16...: return "large-v3-turbo"
-        case 8..<16: return language == "en" ? "small.en" : "small"
-        default:     return language == "en" ? "small.en-q5_1" : "small-q5_1"
+    ///
+    /// V02: pure tier policy over an injected RAM tier. `tier` is "16+" | "8"
+    /// | "low" (inverted range so tests can assert every branch without
+    /// constructing fictitious RAMs). The production wrapper reads the real
+    /// machine; tests inject the tier — no `totalRAMGB` mutation, ever.
+    static func recommendedModel(language: String, tier: RAMTier) -> String {
+        switch tier {
+        case .highRAM:   return "large-v3-turbo"
+        case .midRAM:    return language == "en" ? "small.en" : "small"
+        case .lowRAM:    return language == "en" ? "small.en-q5_1" : "small-q5_1"
         }
+    }
+
+    /// RAM tiers (V02): explicit cases instead of scattered thresholds.
+    enum RAMTier {
+        case highRAM   // ≥ 16 GB — large-v3-turbo fits comfortably (Metal ~1–1.5 GB)
+        case midRAM    // 8..<16 GB — fp16 small (better than q5_1)
+        case lowRAM    // < 8 GB — quantized builds only
+
+        static func tier(forRAMGB ram: Int) -> RAMTier {
+            switch ram {
+            case 16...: return .highRAM
+            case 8..<16: return .midRAM
+            default: return .lowRAM
+            }
+        }
+    }
+
+    /// Production wrapper: reads the real machine's RAM, then delegates to the
+    /// pure policy. Callers unchanged.
+    static func recommendedModel(language: String) -> String {
+        recommendedModel(language: language, tier: RAMTier.tier(forRAMGB: totalRAMGB))
     }
 }
 
@@ -116,8 +136,18 @@ final class ModelManager: Sendable {
     }
 
     /// Async download with progress callback (0...1). Verifies size + SHA-256 before success.
-    func download(_ model: WhisperModel, progress: @escaping @Sendable (Double) -> Void) async throws {
-        let dest = localPath(for: model)
+    /// `directory` overrides the destination (V02): the smoke e2e mode MUST pass a
+    /// QA path — downloads never land in the real models dir from tests.
+    func download(_ model: WhisperModel,
+                  into directory: String? = nil,
+                  progress: @escaping @Sendable (Double) -> Void) async throws {
+        let dest: URL
+        if let directory {
+            try? FileManager.default.createDirectory(atPath: directory, withIntermediateDirectories: true)
+            dest = URL(fileURLWithPath: directory, isDirectory: true).appendingPathComponent(model.file)
+        } else {
+            dest = localPath(for: model)
+        }
         let partial = dest.appendingPathExtension("part")
         let fm = FileManager.default
         let url = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(model.file)")!

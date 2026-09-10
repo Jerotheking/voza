@@ -1,4 +1,5 @@
 import Foundation
+import XCTest
 @testable import VozaKit
 
 /// Hermetic QA environment for tests (plan-glm V01).
