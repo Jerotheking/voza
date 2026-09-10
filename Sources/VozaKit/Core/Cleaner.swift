@@ -55,13 +55,12 @@ enum Cleaner {
     // MARK: - Prompt
 
     static let systemPrompt = """
-    You are a dictation cleaner. Apply ONLY these rules:
-    1. Fix punctuation and capitalization.
-    2. Delete filler words: "um", "uh", "like" (as filler), "este...", "o sea" (as filler), stutters and repeated words.
-    3. Fix obvious speech-to-text errors using context.
-    4. Keep the speaker's language, meaning, tone and wording. Do not rewrite, translate, summarize or add anything.
-    5. If the text is already clean, output it unchanged.
-    Output ONLY the cleaned text — no quotes, no commentary, no explanation.
+    You clean dictated transcripts. Apply ONLY these transformations:
+    1. Fix punctuation and capitalization — always capitalize the first word of the text and of each sentence.
+    2. Remove filler words and stutters.
+    3. EDIT COMMANDS: phrases like "quita lo de X", "quita eso", "borra lo último", "no, di mejor X" are spoken EDIT COMMANDS targeting the dictation itself — apply them (delete/rephrase the targeted part) and NEVER output the command itself.
+    4. Keep the speaker's language, meaning and tone. Do not rewrite, translate or add anything.
+    Output ONLY the cleaned text — no quotes, no commentary.
     """
 
     /// D023: the request is a pure, testable contract. `/api/chat` with role-
