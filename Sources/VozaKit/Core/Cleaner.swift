@@ -39,7 +39,7 @@ enum Cleaner {
         for provider in providerChain(for: config.resolvedCleanupMode) {
             let result: String?
             switch provider {
-            case "ollama":    result = await ollamaClean(trimmed, model: config.resolvedOllamaModel)
+            case "ollama":    result = await ollamaClean(trimmed, model: config.resolvedOllamaModel, keepAlive: config.resolvedOllamaKeepAlive)
             case "openai":    result = await openAIClean(trimmed, config: config)
             case "anthropic": result = await anthropicClean(trimmed, config: config)
             default:          result = nil
@@ -55,36 +55,67 @@ enum Cleaner {
     // MARK: - Prompt
 
     static let systemPrompt = """
-    You are a dictation cleaner. Fix punctuation and capitalization, remove filler words \
-    ("um", "uh", "like" as filler, "este...", "o sea" when filler, repeated words), and fix \
-    obvious speech-to-text errors. Preserve the speaker's language, meaning, tone and wording. \
-    Never answer, never add commentary. Output ONLY the cleaned text.
+    You are a dictation cleaner. Apply ONLY these rules:
+    1. Fix punctuation and capitalization.
+    2. Delete filler words: "um", "uh", "like" (as filler), "este...", "o sea" (as filler), stutters and repeated words.
+    3. Fix obvious speech-to-text errors using context.
+    4. Keep the speaker's language, meaning, tone and wording. Do not rewrite, translate, summarize or add anything.
+    5. If the text is already clean, output it unchanged.
+    Output ONLY the cleaned text — no quotes, no commentary, no explanation.
     """
+
+    /// D023: the request is a pure, testable contract. `/api/chat` with role-
+    /// separated messages (generate+system concatenation invites meta-commentary),
+    /// `think: false` for hybrid models (qwen3), `keep_alive` bounds RAM
+    /// residency, `num_predict` caps generation (latency ceiling).
+    static func ollamaRequestBody(text: String, model: String, keepAlive: String) -> [String: Any] {
+        return [
+            "model": model,
+            "messages": [
+                ["role": "system", "content": systemPrompt],
+                ["role": "user", "content": text],
+            ],
+            "stream": false,
+            "think": false,
+            "keep_alive": keepAlive,
+            "options": ["temperature": 0.2, "num_predict": 400],
+        ]
+    }
+
+    /// Safety net: if a thinking model ever slips into the config, its
+    /// reasoning must never reach the paste (measured: qwen3 emitted entire
+    /// responses as reasoning with empty content).
+    static func stripThinkingJunk(_ text: String) -> String {
+        guard let start = text.range(of: "<think>") else { return text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        // Unclosed block (truncated by num_predict): no answer exists after it —
+        // the entire remainder is reasoning. Return empty → caller falls back
+        // to the raw transcript instead of ever pasting reasoning.
+        guard let end = text.range(of: "</think>", range: start.upperBound..<text.endIndex) else { return "" }
+        let out = text.replacingCharacters(in: text.startIndex..<end.upperBound, with: "")
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 
     // MARK: - Ollama (local)
 
-    private static func ollamaClean(_ text: String, model: String) async -> String? {
-        guard let url = URL(string: "http://127.0.0.1:11434/api/generate") else { return nil }
+    private static func ollamaClean(_ text: String, model: String, keepAlive: String) async -> String? {
+        guard let url = URL(string: "http://127.0.0.1:11434/api/chat") else { return nil }
         var req = URLRequest(url: url, timeoutInterval: 90)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        // /no_think keeps qwen3 from emitting reasoning tokens.
-        let body: [String: Any] = [
-            "model": model,
-            "prompt": "\(text)\n\n/no_think",
-            "system": systemPrompt,
-            "stream": false,
-            "options": ["temperature": 0.2, "num_predict": 2048],
-        ]
+        let body = ollamaRequestBody(text: text, model: model, keepAlive: keepAlive)
         guard let data = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         req.httpBody = data
 
         guard let (respData, response) = try? await URLSession.shared.data(for: req),
               (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
 
-        struct OllamaResp: Decodable { let response: String }
-        guard let decoded = try? JSONDecoder().decode(OllamaResp.self, from: respData) else { return nil }
-        let out = decoded.response.trimmingCharacters(in: .whitespacesAndNewlines)
+        struct OllamaResp: Decodable {
+            struct Message: Decodable { let content: String? }
+            let message: Message?
+        }
+        guard let decoded = try? JSONDecoder().decode(OllamaResp.self, from: respData),
+              let raw = decoded.message?.content else { return nil }
+        let out = stripThinkingJunk(raw)
         return out.isEmpty ? nil : out
     }
 

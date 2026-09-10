@@ -24,6 +24,10 @@ final class Config {
     var logDirectory: String?
     var cleanupMode: String      // auto | ollama | cloud | plain
     var ollamaModel: String
+    /// Ollama keep_alive (D023): how long the cleanup model stays resident in
+    /// RAM after a request. Default "5m" — a dictation cleaner must never be a
+    /// permanent RAM tenant (owner saw 6.8 GB RSS with qwen3:8b resident).
+    var ollamaKeepAlive: String
     var language: String         // auto | en | es
     var playSound: Bool
     /// Wispr-style auto-learn (owner decision 2026-09-08): after each paste,
@@ -45,7 +49,11 @@ final class Config {
     init(paths: AppPaths = .default) {
         self.paths = paths
         cleanupMode = "auto"
-        ollamaModel = "qwen3:8b"
+        // D023 (measured 2026-09-10): qwen3 is a thinking model — even with the
+        // no-think soft-switch it burned 1024 tokens before any output (16 s
+        // cleanups). gemma3 has no thinking phase: 30 tokens, 0.5 s warm.
+        ollamaModel = "gemma3:4b"
+        ollamaKeepAlive = "5m"
         language = "auto"
         playSound = false
         autoLearn = true
@@ -77,7 +85,8 @@ final class Config {
         modelsDirectory = raw["models_dir"]
         logDirectory   = raw["log_dir"]
         cleanupMode    = raw["cleanup"] ?? "auto"
-        ollamaModel    = raw["ollama_model"] ?? "qwen3:8b"
+        ollamaModel    = raw["ollama_model"] ?? "gemma3:4b"
+        ollamaKeepAlive = raw["ollama_keep_alive"] ?? "5m"
         language       = raw["language"] ?? "auto"
         playSound      = (raw["play_sound"] ?? "false") == "true"
         autoLearn      = (raw["auto_learn"] ?? "true") == "true"
@@ -108,6 +117,9 @@ final class Config {
     func setLogDirectory(_ v: String?)     { logDirectory = v;   if let v { raw["log_dir"] = v }; persist() }
     func setCleanupMode(_ v: String)       { cleanupMode = v;    raw["cleanup"] = v; persist() }
     func setOllamaModel(_ v: String)       { ollamaModel = v;    raw["ollama_model"] = v; persist() }
+    func setOllamaKeepAlive(_ v: String)   { ollamaKeepAlive = v; raw["ollama_keep_alive"] = v; persist() }
+    /// Test seam: inject a synthetic env entry without touching process env.
+    func setenvOverride(_ key: String, _ value: String) { env[key] = value }
     func setLanguage(_ v: String)          { language = v;       raw["language"] = v; persist() }
     func setPlaySound(_ v: Bool)           { playSound = v;      raw["play_sound"] = v ? "true" : "false"; persist() }
     func setAutoLearn(_ v: Bool)           { autoLearn = v;      raw["auto_learn"] = v ? "true" : "false"; persist() }
@@ -121,6 +133,7 @@ final class Config {
         if let v = logDirectory {     lines.append("log_dir = \"\(v)\"") }
         lines.append("cleanup = \"\(cleanupMode)\"")
         lines.append("ollama_model = \"\(ollamaModel)\"")
+        lines.append("ollama_keep_alive = \"\(ollamaKeepAlive)\"")
         lines.append("language = \"\(language)\"")
         lines.append("play_sound = \(playSound ? "true" : "false")")
         lines.append("auto_learn = \(autoLearn ? "true" : "false")")
@@ -135,6 +148,7 @@ final class Config {
 
     var resolvedModelId: String { modelId ?? HardwareProfile.recommendedModel(language: resolvedLanguage) }
     var resolvedOllamaModel: String { env["OLLAMA_MODEL"] ?? ollamaModel }
+    var resolvedOllamaKeepAlive: String { env["OLLAMA_KEEP_ALIVE"] ?? ollamaKeepAlive }
     var resolvedCleanupMode: String { cleanupMode }
     /// "auto" means the SPEECH language is auto-detected by the engine (whisper.cpp -l auto).
     /// It must never be inferred from the UI language — a Spanish speaker with an English UI

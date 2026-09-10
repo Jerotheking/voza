@@ -120,6 +120,50 @@ final class ConfigTests: XCTestCase {
         XCTAssertLessThan(AudioRecorder.meterLevel(rms: 0.01), AudioRecorder.meterLevel(rms: 0.1))
     }
 
+    // MARK: - D023: Ollama RAM/latency budget (pure seams)
+
+    func testOllamaRequestBodyBoundsRAMAndLatency() {
+        let body = Cleaner.ollamaRequestBody(text: "hola", model: "gemma3:4b", keepAlive: "5m")
+        // RAM: keep_alive must travel in every request — the server-side
+        // default (5m) kept qwen3:8b resident at 6.8 GB RSS on the owner's Mac.
+        XCTAssertEqual(body["keep_alive"] as? String, "5m",
+                       "missing keep_alive re-extends residency to server default on every call")
+        // Latency ceiling: 400 tokens ≈ 0.5 s warm for a 4B non-thinking model.
+        // (Numeric literals in an [String: Any] dict unify to Double; use NSNumber.)
+        let opts = try! XCTUnwrap(body["options"] as? [String: Any])
+        XCTAssertEqual((opts["num_predict"] as? NSNumber)?.intValue, 400)
+        XCTAssertEqual(opts["temperature"] as? Double, 0.2)
+        // Role-separated chat (D023): generate+system concatenation invited
+        // meta-commentary ("We are given a text...") into the paste.
+        XCTAssertEqual(body["stream"] as? Bool, false)
+        XCTAssertNil(body["prompt"], "must use /api/chat messages, not raw prompt")
+        XCTAssertNotNil(body["messages"])
+        // Hybrid models (qwen3): thinking explicitly off at API level.
+        XCTAssertEqual(body["think"] as? Bool, false)
+    }
+
+    func testStripThinkingJunk() {
+        // Full think block → removed.
+        XCTAssertEqual(Cleaner.stripThinkingJunk("<think>blah blah</think>\nTexto limpio."), "Texto limpio.")
+        // Unclosed block (truncated reasoning) → drop everything from the tag.
+        XCTAssertEqual(Cleaner.stripThinkingJunk("<think>razonamiento sin cerrar"), "")
+        // Clean text → untouched.
+        XCTAssertEqual(Cleaner.stripThinkingJunk("Hola mundo."), "Hola mundo.")
+    }
+
+    func testConfigRoundtripsOllamaKeepAlive() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        let config = Config(paths: env.paths)
+        XCTAssertEqual(config.resolvedOllamaKeepAlive, "5m", "default: model unloads 5m after last use")
+        config.setOllamaKeepAlive("2m")
+        XCTAssertEqual(Config(paths: env.paths).resolvedOllamaKeepAlive, "2m")
+        // Env override wins (hosting setups may want 0 to keep it resident).
+        let withEnv = Config(paths: env.paths)
+        withEnv.setenvOverride("OLLAMA_KEEP_ALIVE", "0")
+        XCTAssertEqual(withEnv.resolvedOllamaKeepAlive, "0")
+    }
+
     func testLevelBarsGeometry() {
         // Silence: near-minimum but never below 3pt (D022 compact HUD).
         for bar in 0..<4 {
