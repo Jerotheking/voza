@@ -121,13 +121,27 @@ final class ConfigTests: XCTestCase {
     }
 
     func testLevelBarsGeometry() {
-        // Silence: near-minimum but never below 5pt.
+        // Silence: near-minimum but never below 3pt (D022 compact HUD).
         for bar in 0..<4 {
-            XCTAssertGreaterThanOrEqual(LevelBars.height(bar: bar, level: 0), 5)
-            XCTAssertLessThanOrEqual(LevelBars.height(bar: bar, level: 1), 22)
+            XCTAssertGreaterThanOrEqual(LevelBars.height(bar: bar, level: 0), 3)
+            XCTAssertLessThanOrEqual(LevelBars.height(bar: bar, level: 1), 17)
         }
         // Level changes the output (reactivity contract).
         XCTAssertNotEqual(LevelBars.height(bar: 0, level: 0.2), LevelBars.height(bar: 0, level: 0.9))
+    }
+
+    func testHUDLevelDynamics() {
+        // Fast attack: big jump toward a loud target.
+        let attacked = HUDLevelModel.next(display: 0.0, target: 0.8)
+        XCTAssertGreaterThan(attacked, 0.4)
+        // Slow release: decays gently toward silence, never overshoots.
+        let released = HUDLevelModel.next(display: 0.8, target: 0.0)
+        XCTAssertGreaterThan(released, 0.6)
+        XCTAssertLessThan(released, 0.8)
+        // Converges to target.
+        var d = 0.0
+        for _ in 0..<200 { d = HUDLevelModel.next(display: d, target: 0.5) }
+        XCTAssertEqual(d, 0.5, accuracy: 0.001)
     }
 
     // MARK: - Localizer (pure + injected defaults; never the real domain)

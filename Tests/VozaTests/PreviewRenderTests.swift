@@ -67,11 +67,11 @@ final class PreviewRenderTests: XCTestCase {
         let state = AppState.shared
         for phase in [VozaPhase.recording(cleanup: false), .recording(cleanup: true), .transcribing, .cleaning] {
             state.phase = phase
-            // Mirror the production panel: the HUD lives in a fixed 190×58
-            // frame, so assert against that imposed geometry, not intrinsic.
+            // Mirror the production panel: the HUD lives in a fixed 148×42
+            // frame (D022 compact size), so assert against that geometry.
             let framed = DictationHUDView().environmentObject(state)
-                .frame(width: 190, height: 58)
-            assertRenders(framed, name: "DictationHUDView(\(phase))", minWidth: 150, minHeight: 45)
+                .frame(width: 148, height: 42)
+            assertRenders(framed, name: "DictationHUDView(\(phase))", minWidth: 110, minHeight: 32)
         }
     }
 
