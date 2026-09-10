@@ -7,7 +7,7 @@ Baseline `44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf`. Líneas y hashes en [eviden
 | Archivo / líneas | Símbolos y lectura | Destino / responsabilidad | Tickets dueños |
 |---|---|---|---|
 | [Sources/VozaSmoke/main.swift](../../Sources/VozaSmoke/main.swift) · 202 l | check/top-level smoke/E2E | Reescribir hermeticidad; integración manual opt-in; no borrar datos reales. | V02, V05 |
-| [Sources/Voza/main.swift](../../Sources/Voza/main.swift) · 8 l | entrypoint | Conservar entrypoint mínimo; ningún pipeline nuevo aquí. | Sin cambios previstos |
+| [Sources/Voza/VozaEntryPoint.swift](../../Sources/Voza/VozaEntryPoint.swift) · 8 l | entrypoint | Conservar entrypoint mínimo; ningún pipeline nuevo aquí. | Sin cambios previstos |
 | [Sources/VozaKit/UI/SettingsView.swift](../../Sources/VozaKit/UI/SettingsView.swift) · 571 l | SettingsView/StatusView/DictationSettings/ModelSettings/AdvancedSettings/LicenseSettings/AboutSettings | Separar vistas en UI/Settings según UX; composición observando estado real. | V17, V18 |
 | [Sources/VozaKit/UI/PopoverView.swift](../../Sources/VozaKit/UI/PopoverView.swift) · 177 l | PopoverView/TranscriptRow | Dos modos, controles accesibles, estado y recuperación; settings siempre disponible. | V18, V20, V25 |
 | [Sources/VozaKit/UI/Theme.swift](../../Sources/VozaKit/UI/Theme.swift) · 11 l | Theme | Tokens nativos; conservar marca mientras D012 pendiente; no hardcode para ocultar clipping. | V20 |
