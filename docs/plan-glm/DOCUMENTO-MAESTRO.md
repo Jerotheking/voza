@@ -210,6 +210,7 @@ Fecha inicial: 2026-09-07. No editar retrospectivamente una decisión aceptada; 
 | D016 | PROPOSED | Si Pulido falla, usar Literal con indicador explícito cuando el destino siga siendo seguro y válido. | Nunca mostrar Pulido aplicado cuando no lo fue; recuperación sin diálogos rutinarios. |
 | D017 | PROPOSED | Con foco desconocido, resultado a RAM; con campo seguro/bloqueo, no capturar. | Preservar utilidad sin pegar a ciegas. |
 | D018 | PROPOSED | No streaming externo, Windows, control general ni comandos destructivos en el primer compromiso. | V31/V32 son backlog condicionado a evidencia. |
+| D019 | ACCEPTED_OWNER | Xcode 26.6 es el toolchain local del proyecto (instalado y autorizado por el propietario 2026-09-09); `xcode-select` global apunta a /Applications/Xcode.app. XCTest disponible en máquina; el CI mantiene su propio pin de Xcode. No se usa el IDE: todo fluye por CLI (swift build/test, xcodebuild, xcrun). | swift test/xcodebuild funcionan en cualquier sesión sin DEVELOPER_DIR. V28 (Developer ID + notarización) sigue requiriendo autorización específica; este registro NO la otorga. |
 
 ## Cómo proponer una decisión
 
