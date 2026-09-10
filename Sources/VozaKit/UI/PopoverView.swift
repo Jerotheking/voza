@@ -29,34 +29,26 @@ struct PopoverView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 4) {
-            switch appState.phase {
-            case .idle:
-                Label(L.t("Hold Option to talk", es: "Mantén Option para hablar"),
-                      systemImage: "mic").font(.system(size: 12, weight: .medium))
-                Text(L.t("Right ⌘ = AI cleanup", es: "⌘ derecha = limpieza IA"))
-                    .font(.caption2).foregroundStyle(.secondary)
-            case .recording(let cleanup):
-                Label(L.t(cleanup ? "Recording — cleanup mode" : "Recording…",
-                          es: cleanup ? "Grabando — con limpieza" : "Grabando…"),
-                      systemImage: "mic.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.red)
-                Text(String(format: "%.0f s", appState.elapsedSeconds))
-                    .font(.caption2).foregroundStyle(.secondary)
-            case .transcribing:
-                Label(L.t("Transcribing…", es: "Transcribiendo…"), systemImage: "waveform")
-                    .font(.system(size: 12, weight: .medium))
-                Text(L.t("100% on your Mac", es: "100% en tu Mac"))
-                    .font(.caption2).foregroundStyle(.secondary)
-            case .cleaning:
-                Label(L.t("Polishing text…", es: "Puliendo texto…"), systemImage: "sparkles")
-                    .font(.system(size: 12, weight: .medium))
-            case .failed(let msg):
-                Label(msg, systemImage: "exclamationmark.triangle")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.orange)
+        VStack(spacing: 8) {
+            HStack(spacing: 10) {
+                PhaseIcon(phase: appState.phase)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(phaseTitle).font(.system(size: 13, weight: .semibold))
+                    Text(phaseDetail)
+                        .font(.caption)
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
             }
+            .padding(.horizontal, 12)
+
+            if showsBusyBar {
+                ProgressView()
+                    .progressViewStyle(.linear)
+                    .padding(.horizontal, 12)
+            }
+
             if let model = appState.downloadingModelId, let p = appState.downloadProgress {
                 VStack(spacing: 2) {
                     ProgressView(value: p)
@@ -81,8 +73,69 @@ struct PopoverView: View {
                 .buttonStyle(.borderless)
             }
         }
-        .padding(12)
+        .padding(.vertical, 12)
         .frame(maxWidth: .infinity)
+    }
+
+    private var phaseTitle: String {
+        switch appState.phase {
+        case .idle: return L.t("Hold Option to talk", es: "Mantén Option para hablar")
+        case .recording(let cleanup):
+            return L.t(cleanup ? "Recording — cleanup mode" : "Recording…",
+                       es: cleanup ? "Grabando — con limpieza" : "Grabando…")
+        case .transcribing: return L.t("Transcribing…", es: "Transcribiendo…")
+        case .cleaning: return L.t("Polishing text…", es: "Puliendo texto…")
+        case .failed(let msg): return msg
+        }
+    }
+
+    private var phaseDetail: String {
+        switch appState.phase {
+        case .idle: return L.t("Right ⌘ = AI cleanup", es: "⌘ derecha = limpieza IA")
+        case .recording: return String(format: "%.0f s", appState.elapsedSeconds)
+        case .transcribing: return L.t("100% on your Mac", es: "100% en tu Mac")
+        case .cleaning: return L.t("Almost there", es: "Casi listo")
+        case .failed: return L.t("Hold Option to try again", es: "Mantén Option para intentar de nuevo")
+        }
+    }
+
+    private var showsBusyBar: Bool {
+        switch appState.phase {
+        case .transcribing, .cleaning: return true
+        default: return false
+        }
+    }
+
+    /// Colored capsule glyph for the header; pulses while recording.
+    private struct PhaseIcon: View {
+        let phase: VozaPhase
+        @State private var pulse = false
+
+        var body: some View {
+            switch phase {
+            case .idle:
+                glyph("mic", tint: .secondary, bg: Color.primary.opacity(0.06))
+            case .recording:
+                glyph("mic.fill", tint: .red, bg: Color.red.opacity(0.14))
+                    .opacity(pulse ? 0.45 : 1)
+                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: pulse)
+                    .onAppear { pulse = true }
+            case .transcribing:
+                glyph("waveform", tint: Theme.accent, bg: Theme.accent.opacity(0.14))
+            case .cleaning:
+                glyph("sparkles", tint: Theme.accent, bg: Theme.accent.opacity(0.14))
+            case .failed:
+                glyph("exclamationmark.triangle", tint: .orange, bg: Color.orange.opacity(0.14))
+            }
+        }
+
+        private func glyph(_ system: String, tint: Color, bg: Color) -> some View {
+            Image(systemName: system)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(tint)
+                .frame(width: 32, height: 32)
+                .background(Circle().fill(bg))
+        }
     }
 
     private var historySection: some View {

@@ -72,4 +72,25 @@ private enum PreviewFixtures {
         .environmentObject(state)
         .frame(width: 340, height: 420)
 }
+
+// MARK: - Floating dictation HUD (D020)
+
+#Preview("HUD · recording") {
+    let state = AppState.shared
+    state.phase = .recording(cleanup: false)
+    state.elapsedSeconds = 7.0
+    return DictationHUDView()
+        .environmentObject(state)
+        .frame(width: 190, height: 58)
+        .background(Color(nsColor: .windowBackgroundColor))
+}
+
+#Preview("HUD · transcribing") {
+    let state = AppState.shared
+    state.phase = .transcribing
+    return DictationHUDView()
+        .environmentObject(state)
+        .frame(width: 190, height: 58)
+        .background(Color(nsColor: .windowBackgroundColor))
+}
 #endif

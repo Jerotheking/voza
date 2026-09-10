@@ -23,6 +23,7 @@ Fecha inicial: 2026-09-07. No editar retrospectivamente una decisión aceptada; 
 | D017 | PROPOSED | Con foco desconocido, resultado a RAM; con campo seguro/bloqueo, no capturar. | Preservar utilidad sin pegar a ciegas. |
 | D018 | PROPOSED | No streaming externo, Windows, control general ni comandos destructivos en el primer compromiso. | V31/V32 son backlog condicionado a evidencia. |
 | D019 | ACCEPTED_OWNER | Xcode 26.6 es el toolchain local del proyecto (instalado y autorizado por el propietario 2026-09-09); `xcode-select` global apunta a /Applications/Xcode.app. XCTest disponible en máquina; el CI mantiene su propio pin de Xcode. No se usa el IDE: todo fluye por CLI (swift build/test, xcodebuild, xcrun). | swift test/xcodebuild funcionan en cualquier sesión sin DEVELOPER_DIR. V28 (Developer ID + notarización) sigue requiriendo autorización específica; este registro NO la otorga. |
+| D020 | ACCEPTED_OWNER | HUD flotante de dictado estilo TypeWhisper (pedido explícito del propietario 2026-09-09): panel pequeño no activador abajo-centro que hace visible la fase recording→transcribing→cleaning sin abrir el popover. No estaba en el plan (verificado: 0 hits en tickets/ROADMAP/UX); se integra fuera de ticket como el ciclo de aprendizaje. | El HUD no captura foco ni teclado (nonactivatingPanel, statusBar level, canJoinAllSpaces); es solo presentación, consume AppState publicado; no lógica de pipeline. |
 
 ## Cómo proponer una decisión
 

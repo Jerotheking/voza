@@ -13,6 +13,12 @@ public struct VozaApp: App {
             MenuBarLabel(phase: appState.phase)
         }
         .menuBarExtraStyle(.window)
+        .onChange(of: appState.phase) { _, newPhase in
+            // Floating HUD (D020): the lifecycle is glanceable without opening
+            // the popover. Sync must also run when this window is closed, so
+            // it lives on the scene, not inside the popover content.
+            DictationHUDController.shared.update(phase: newPhase)
+        }
 
         Settings {
             SettingsView()
@@ -80,6 +86,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.onPressCleanup = { appState.startDictation(cleanup: true) }
         HotKeyManager.shared.onRelease = { appState.stopDictation() }
         appState.refresh()
+        // HUD may need to hide if the app relaunches mid-busy-phase (D020).
+        DictationHUDController.shared.update(phase: appState.phase)
         LicenseManager.shared.refreshIfNeeded()
         if !Permissions.allGranted {
             appState.showOnboarding = true
