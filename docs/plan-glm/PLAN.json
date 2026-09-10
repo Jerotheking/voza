@@ -94,7 +94,9 @@
         "Tests/VozaTests/SmokeIsolationTests.swift",
         ".github/workflows/ci.yml",
         "Sources/VozaKit/Core/ModelManager.swift",
-        "Sources/VozaKit/App/Localizer.swift"
+        "Sources/VozaKit/App/Localizer.swift",
+        "Sources/VozaKit/Core/PerformanceMonitor.swift",
+        "Tests/VozaTests/Support/TestEnvironment.swift"
       ],
       "reads": [
         "Package.swift",
@@ -154,7 +156,8 @@
         "PRODUCT.md",
         "ARCHITECTURE.md",
         "QA.md"
-      ]
+      ],
+      "files_justification": "Extension registered 2026-09-09 (buffy): (1) PerformanceMonitor.swift — step 3 requires removing _test_clear (dead code), and the new hermetic perf suite exposed a real first-run bug (save() dropped perf.json when AppSupport did not exist yet; fixed with prepareAppSupport, same contract as TranscriptStore). (2) Tests/VozaTests/Support/TestEnvironment.swift — file used XCTAssertTrue without importing XCTest; swift test (V02-AC01) cannot compile without the one-line import fix."
     },
     {
       "id": "V03",
