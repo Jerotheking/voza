@@ -37,23 +37,37 @@ final class Transcriber {
     /// Blocking transcription; call from a background queue.
     /// `initialPrompt` (learned vocabulary) biases decoding toward the user's
     /// real terms via whisper.cpp's `--prompt` — optional for existing callers.
-    func transcribe(wavURL: URL, modelPath: String, language: String, initialPrompt: String? = nil) throws -> String {
-        guard let binary = Self.locateBinary() else { throw TranscriptionError.binaryNotFound }
-        guard FileManager.default.fileExists(atPath: modelPath) else { throw TranscriptionError.modelNotFound }
-
+    /// Pure argument construction (V02-style seam): testable without
+    /// spawning whisper-cli. Flags documented inline.
+    static func transcriptionArguments(modelPath: String, wavPath: String,
+                                       language: String, initialPrompt: String?) -> [String] {
         var args = [
-            binary, "-m", modelPath,
-            "-f", wavURL.path,
+            "-m", modelPath,
+            "-f", wavPath,
             "-nt",                    // no timestamps
             "-np",                    // no prints
             "-ml", "1",               // single-line segments → clean paste
-            "-sow",                   // split on word
+            "-sow",                    // split on word
             "-l", language,
         ]
         if let prompt = initialPrompt, !prompt.isEmpty {
             args.append(contentsOf: ["--prompt", prompt])
         }
-        if language == "en" { args.append("-bs"); args.append("1") }
+        // D021 quality lever: beam search 5 for every language. The previous
+        // greedy decode (-bs 1) was measurably worse than competitors' output;
+        // -bs 5 is whisper.cpp's recommended accuracy/latency balance.
+        args.append(contentsOf: ["-bs", "5"])
+        return args
+    }
+
+    func transcribe(wavURL: URL, modelPath: String, language: String, initialPrompt: String? = nil) throws -> String {
+        guard let binary = Self.locateBinary() else { throw TranscriptionError.binaryNotFound }
+        guard FileManager.default.fileExists(atPath: modelPath) else { throw TranscriptionError.modelNotFound }
+
+        let args = [binary] + Self.transcriptionArguments(modelPath: modelPath,
+                                                          wavPath: wavURL.path,
+                                                          language: language,
+                                                          initialPrompt: initialPrompt)
 
         let result = try runProcess(launchPath: args[0], arguments: Array(args.dropFirst()), timeout: Config.transcriptionTimeoutSeconds)
         guard result.exitCode == 0 else {

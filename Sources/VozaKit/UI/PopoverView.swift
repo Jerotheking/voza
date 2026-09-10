@@ -91,7 +91,7 @@ struct PopoverView: View {
 
     private var phaseDetail: String {
         switch appState.phase {
-        case .idle: return L.t("Right ⌘ = AI cleanup", es: "⌘ derecha = limpieza IA")
+        case .idle: return L.t("Left Option = AI cleanup", es: "Option izquierda = limpieza IA")
         case .recording: return String(format: "%.0f s", appState.elapsedSeconds)
         case .transcribing: return L.t("100% on your Mac", es: "100% en tu Mac")
         case .cleaning: return L.t("Almost there", es: "Casi listo")

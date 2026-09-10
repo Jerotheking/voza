@@ -27,6 +27,33 @@ final class AudioRecorder {
     private(set) var isRecording = false
     private var startedAt: Date?
 
+    // MARK: - Level meter (D021: audio-reactive HUD)
+
+    private let levelLock = NSLock()
+    private var _level: Double = 0
+
+    /// Normalized 0...1 mic loudness (dB-mapped, -60 dB floor), written on the
+    /// capture thread, read from the main thread via the lock. 0 when idle.
+    var level: Double {
+        levelLock.lock()
+        defer { levelLock.unlock() }
+        return _level
+    }
+
+    private func setLevel(_ v: Double) {
+        levelLock.lock()
+        _level = v
+        levelLock.unlock()
+    }
+
+    /// Pure RMS → meter mapping: −60 dB floor maps to 0, −6 dB to 1.
+    /// Testable without any audio hardware.
+    static func meterLevel(rms: Double) -> Double {
+        let clamped = min(max(rms, 1e-7), 1.0)
+        let db = 20 * log10(clamped)
+        return max(0, min(1, (db + 60) / 54))
+    }
+
     var elapsedSeconds: Double {
         guard let startedAt, isRecording else { return 0 }
         return Date().timeIntervalSince(startedAt)
@@ -84,6 +111,7 @@ final class AudioRecorder {
     func stop() -> URL? {
         guard isRecording else { return nil }
         isRecording = false
+        setLevel(0)
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
@@ -110,6 +138,7 @@ final class AudioRecorder {
             engine?.stop()
         }
         isRecording = false
+        setLevel(0)
         engine = nil
         converter = nil
         try? fileHandle?.close()
@@ -144,6 +173,12 @@ final class AudioRecorder {
         guard error == nil, result == .haveData, let channel = converted.floatChannelData?[0] else { return }
         let frames = Int(converted.frameLength)
         guard frames > 0 else { return }
+
+        // Level meter: RMS over this converted chunk (capture thread).
+        var sum: Float = 0
+        for i in 0..<frames { let s = channel[i]; sum += s * s }
+        setLevel(Self.meterLevel(rms: Double(sqrt(sum / Float(frames)))))
+
         let bytes = Data(buffer: UnsafeBufferPointer(start: channel, count: frames))
         fileHandle?.write(bytes)
         pcmBytes += UInt64(bytes.count)

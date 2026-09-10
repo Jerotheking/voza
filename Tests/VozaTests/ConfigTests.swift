@@ -83,6 +83,53 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(config.cleanupMode, "auto")
     }
 
+    // MARK: - D021: transcriber arguments + level meter (pure seams)
+
+    func testTranscriptionArgumentsIncludeBeamSearchAndPrompt() {
+        var args = Transcriber.transcriptionArguments(
+            modelPath: "/m.bin", wavPath: "/a.wav", language: "auto", initialPrompt: "Tiago")
+        args = Array(args.dropFirst()) // drop leading "-m"
+        // Beam search 5 always present (D021 quality lever).
+        if let i = args.firstIndex(of: "-bs") {
+            XCTAssertEqual(args[args.index(after: i)], "5")
+        } else {
+            XCTFail("-bs 5 missing: Literal quality would regress to greedy decode")
+        }
+        // Learned-vocab prompt still forwarded.
+        if let i = args.firstIndex(of: "--prompt") {
+            XCTAssertEqual(args[args.index(after: i)], "Tiago")
+        } else {
+            XCTFail("--prompt missing: learned corrections would stop biasing decode")
+        }
+    }
+
+    func testTranscriptionArgumentsOmitEmptyPrompt() {
+        let args = Transcriber.transcriptionArguments(
+            modelPath: "/m.bin", wavPath: "/a.wav", language: "es", initialPrompt: nil)
+        XCTAssertFalse(args.contains("--prompt"))
+    }
+
+    func testMeterLevelMapping() {
+        // −60 dB floor → 0; silence (0) → 0; loud (−6 dB ≈ 0.5 RMS) → 1.
+        XCTAssertEqual(AudioRecorder.meterLevel(rms: 0), 0, accuracy: 0.0001)
+        XCTAssertEqual(AudioRecorder.meterLevel(rms: 0.0001), 0, accuracy: 0.02)
+        XCTAssertEqual(AudioRecorder.meterLevel(rms: 0.5), 1, accuracy: 0.001)
+        // Scale midpoint: −33 dB ≈ 0.0224 RMS → 0.5 (−60 dB..−6 dB span 54 dB).
+        XCTAssertEqual(AudioRecorder.meterLevel(rms: 0.0224), 0.5, accuracy: 0.02)
+        // Monotonicity: louder input never yields a smaller bar.
+        XCTAssertLessThan(AudioRecorder.meterLevel(rms: 0.01), AudioRecorder.meterLevel(rms: 0.1))
+    }
+
+    func testLevelBarsGeometry() {
+        // Silence: near-minimum but never below 5pt.
+        for bar in 0..<4 {
+            XCTAssertGreaterThanOrEqual(LevelBars.height(bar: bar, level: 0), 5)
+            XCTAssertLessThanOrEqual(LevelBars.height(bar: bar, level: 1), 22)
+        }
+        // Level changes the output (reactivity contract).
+        XCTAssertNotEqual(LevelBars.height(bar: 0, level: 0.2), LevelBars.height(bar: 0, level: 0.9))
+    }
+
     // MARK: - Localizer (pure + injected defaults; never the real domain)
 
     func testLocalizerPureResolution() {

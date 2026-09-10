@@ -2,22 +2,26 @@ import AppKit
 import CoreGraphics
 
 /// Global push-to-talk hotkeys via CGEventTap.
-/// Hold Option (either side) → normal dictation; hold Right ⌘ → cleanup.
+/// Hold Right Option → dictation; hold Left Option → cleanup (D021 temporary).
 ///
 /// KEYCODE GROUND TRUTH (verified against Apple's HIToolbox Events.h, SDK 15.2):
 /// kVK_Option=0x3A(58, LEFT), kVK_RightOption=0x3D(61), kVK_Control=0x3B(59, LEFT),
 /// kVK_RightCommand=0x36(54), kVK_RightControl=0x3E(62).
-/// HARDWARE CONSTRAINT (owner QA 2026-09-08, MacBook Pro M4): laptops have NO
-/// right Control — the bottom row is fn ⌃ ⌥ ⌘ [space] ⌘ ⌥. Cleanup therefore
-/// binds to Right ⌘ (0x36), which exists on every Mac and has no system function
-/// when held alone. Left ⌘/⌃/⌥ remain untouched for real shortcuts.
+///
+/// BINDING HISTORY: cleanup lived on Right ⌘ (0x36) until 2026-09-09, when the
+/// owner asked to move it to LEFT OPTION for testing (D021) — Right ⌘ collides
+/// with their Wispr Flow shortcut. Owner's stated end-state: ONE button only,
+/// mode chosen some other way — the rebind is explicitly TEMPORARY.
+/// Trade-off accepted for the test phase: holding Left Option bare now starts
+/// a cleanup dictation, so real ⌥-shortcuts where Option is pressed FIRST can
+/// trigger a stray session start. Right Option (dictation) is unaffected.
 enum VozaKeyCodes {
     /// Right Option only (owner decision 2026-09-08): ONE dedicated physical
-    /// key for dictation — no ambiguity, no ergonomic split. Left Option
-    /// remains free for real Option shortcuts.
+    /// key for dictation — no ambiguity, no ergonomic split.
     static let dictation: Set<Int64> = [0x3D] // kVK_RightOption
-    /// Right ⌘ only — exists on 100% of Macs (laptops lack right Control).
-    static let cleanup: Int64 = 0x36 // kVK_RightCommand
+    /// TEMPORARY (D021, owner request 2026-09-09): Left Option for cleanup
+    /// while testing — Right ⌘ collided with the owner's Wispr binding.
+    static let cleanup: Int64 = 0x3A // kVK_Option (LEFT)
 }
 final class HotKeyManager {
     static let shared = HotKeyManager()
@@ -114,13 +118,14 @@ final class HotKeyManager {
             }
         }
         if isCleanupKey {
-            // Right ⌘ raises .maskCommand (not .maskControl) — the flag must
-            // match the physical key we bound, or the press never fires.
-            // Same bare-modifier rule: ⌃/⌥/⇧ already held → it's a shortcut.
-            if cmd && !ctrl && !alt && !shift && !cleanupDown {
+            // Cleanup is bound to an OPTION key (D021), so its flag is
+            // .maskAlternate — the flag must match the physical key we bound,
+            // or the press never fires. Same bare-modifier rule applies:
+            // ⌃/⌘/⇧ already held → it's a real shortcut, not a hotkey press.
+            if alt && !ctrl && !cmd && !shift && !cleanupDown {
                 cleanupDown = true
                 onPressCleanup?()
-            } else if !cmd {
+            } else if !alt {
                 cleanupDown = false
             }
         }

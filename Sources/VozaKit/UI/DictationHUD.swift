@@ -70,12 +70,7 @@ struct DictationHUDView: View {
         HStack(spacing: 10) {
             switch appState.phase {
             case .recording(let cleanup):
-                Circle()
-                    .fill(Color.red)
-                    .frame(width: 10, height: 10)
-                    .opacity(pulse ? 0.25 : 1)
-                    .animation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: pulse)
-                    .onAppear { pulse = true }
+                LevelBars(tint: cleanup ? Theme.accent : .red)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(L.t(cleanup ? "Recording · cleanup" : "Recording",
                              es: cleanup ? "Grabando · limpieza" : "Grabando"))
@@ -113,5 +108,34 @@ struct DictationHUDView: View {
                 .strokeBorder(.white.opacity(0.12))
         )
         .shadow(color: .black.opacity(0.28), radius: 10, y: 3)
+    }
+}
+
+/// Audio-reactive bars (D021): driven by the recorder's real RMS level,
+/// sampled at ~20 Hz via TimelineView. Move when you speak, rest when you
+/// don't — TypeWhisper-style feedback that the mic hears YOU.
+struct LevelBars: View {
+    var tint: Color = .red
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 0.05, paused: false)) { _ in
+            HStack(spacing: 2.5) {
+                ForEach(0..<4, id: \.self) { i in
+                    Capsule()
+                        .fill(tint)
+                        .frame(width: 3, height: Self.height(bar: i, level: AudioRecorder.shared.level))
+                }
+            }
+            .frame(height: 24, alignment: .center)
+        }
+    }
+
+    /// Pure mapping so tests can pin it: each bar samples a different sine
+    /// phase of the level, so bars move unevenly (natural look) and never
+    /// fall below 5 pt or above 22 pt.
+    static func height(bar: Int, level: Double) -> CGFloat {
+        let phase = Double(bar) * .pi / 2
+        let jitter = 0.7 + 0.3 * sin(phase + level * 6)
+        return min(22, max(5, 5 + CGFloat(level * 17 * jitter)))
     }
 }
