@@ -2,13 +2,14 @@ import Foundation
 
 /// AI cleanup of transcripts: punctuation, capitalization, filler removal.
 ///
-/// PRIVACY POLICY (hardened per external audit v2, §3.8):
-/// - "auto"  → local only (Ollama). If Ollama is unavailable the raw transcript is
-///   used — text NEVER silently crosses to the cloud.
+/// PRIVACY POLICY (hardened per external audit v2, §3.8; updated D024):
+/// - "auto"  → local only, in-process MLX first, then Ollama IF already
+///   installed (never required). Raw transcript otherwise — text NEVER
+///   silently crosses to the cloud.
 /// - "cloud" → explicit user choice: OpenAI-compatible → Anthropic.
-/// - "ollama" → local only. "plain" → no processing at all.
-/// STT never leaves the Mac; only already-transcribed text goes to the cloud when
-/// the user explicitly picks a cloud mode.
+/// - "ollama" → local only via Ollama. "plain" → no processing at all.
+/// STT never leaves the Mac; only already-transcribed text goes to the cloud
+/// when the user explicitly picks a cloud mode.
 enum Cleaner {
 
     /// What actually happened during cleanup. `applied` is true only when a
@@ -17,17 +18,20 @@ enum Cleaner {
     struct CleaningOutcome: Sendable {
         let text: String
         let applied: Bool
-        let provider: String?   // "ollama" | "openai" | "anthropic" | nil
+        let provider: String?   // "mlx" | "ollama" | "openai" | "anthropic" | nil
     }
 
     /// The exact provider chain for a mode — pure, so tests can prove the
     /// privacy boundary: mode "auto" must never contain a cloud provider.
+    /// D024: in-process MLX leads "auto"; Ollama is a fallback for owners who
+    /// already run it (Tier C), never an adoption requirement.
     static func providerChain(for mode: String) -> [String] {
         switch mode {
         case "cloud":   return ["openai", "anthropic"]
         case "ollama":  return ["ollama"]
-        case "auto":    return ["ollama"]          // local-first; cloud is opt-in only
-        default:        return []                  // "plain" — passthrough
+        case "auto":    return ["mlx", "ollama"]     // local-first; cloud is opt-in only
+        case "mlx":     return ["mlx"]               // explicit local in-process
+        default:        return []                    // "plain" — passthrough
         }
     }
 
@@ -39,6 +43,7 @@ enum Cleaner {
         for provider in providerChain(for: config.resolvedCleanupMode) {
             let result: String?
             switch provider {
+            case "mlx":       result = await mlxClean(trimmed)
             case "ollama":    result = await ollamaClean(trimmed, model: config.resolvedOllamaModel, keepAlive: config.resolvedOllamaKeepAlive)
             case "openai":    result = await openAIClean(trimmed, config: config)
             case "anthropic": result = await anthropicClean(trimmed, config: config)
@@ -94,7 +99,19 @@ enum Cleaner {
         return out.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    // MARK: - Ollama (local)
+    // MARK: - MLX in-process (D024, local default)
+
+    /// In-process engine call: same prompt, same hygiene (stripThinkingJunk
+    /// applied here because MLXEngine returns raw output by contract). The
+    /// first call on a fresh install downloads the QAT 4B (~2.5 GB) through
+    /// the Hub cache; later calls reuse the resident weights (0.8 s warm).
+    private static func mlxClean(_ text: String) async -> String? {
+        guard let outcome = await MLXEngine.complete(text, systemPrompt: systemPrompt) else { return nil }
+        let out = stripThinkingJunk(outcome.rawText)
+        return out.isEmpty ? nil : out
+    }
+
+    // MARK: - Ollama (local fallback, Tier C)
 
     private static func ollamaClean(_ text: String, model: String, keepAlive: String) async -> String? {
         guard let url = URL(string: "http://127.0.0.1:11434/api/chat") else { return nil }

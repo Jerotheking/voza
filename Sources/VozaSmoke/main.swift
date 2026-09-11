@@ -616,9 +616,11 @@ do {
     check("history cleaned survives", parsed.contains { $0.cleaned && $0.text == "cleaned entry text" })
 }
 
-// 10. Cleaner privacy boundary (audit v2 §3.8): "auto" must NEVER chain to cloud
+// 10. Cleaner privacy boundary (audit v2 §3.8 + D024): "auto" must NEVER chain
+// to cloud; local-first is in-process MLX, then Ollama IF already installed.
 let autoChain = Cleaner.providerChain(for: "auto")
-check("cleanup auto = local only", autoChain == ["ollama"], "\(autoChain)")
+check("cleanup auto = local only (mlx, ollama)", autoChain == ["mlx", "ollama"], "\(autoChain)")
+check("cleanup mlx = local only", Cleaner.providerChain(for: "mlx") == ["mlx"])
 check("cleanup ollama = local only", Cleaner.providerChain(for: "ollama") == ["ollama"])
 check("cleanup plain = none", Cleaner.providerChain(for: "plain").isEmpty)
 check("cleanup cloud explicit", Cleaner.providerChain(for: "cloud") == ["openai", "anthropic"])
