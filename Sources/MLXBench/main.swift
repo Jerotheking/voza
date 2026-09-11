@@ -1,32 +1,59 @@
 import Foundation
-import VozaKit
+@testable import VozaKit
 
-// D024 bench: real prompt v3, real engine, same M4 Pro. Temporary harness.
-let prompt = """
-You clean dictated transcripts. Apply ONLY these transformations:
-1. Fix punctuation and capitalization — always capitalize the first word of the text and of each sentence.
-2. Remove filler words and stutters.
-3. EDIT COMMANDS: phrases like "quita lo de X", "quita eso", "borra lo último", "no, di mejor X" are spoken EDIT COMMANDS targeting the dictation itself — apply them (delete/rephrase the targeted part) and NEVER output the command itself.
-4. Keep the speaker's language, meaning and tone. Do not rewrite, translate or add anything.
-Output ONLY the cleaned text — no quotes, no commentary.
+// D024 acceptance: long dictation through the REAL production chain
+// (Cleaner.clean, mode "auto" = [mlx, ollama]) with Ollama DEAD.
+// Proves: mlx-first, Ollama never contacted, quality, cold vs warm latency,
+// eviction. Cleaner.clean returns non-optional CleaningOutcome (D016-safe).
+
+let longRawDictation = """
+ok entonces este... vamos a ver um la propuesta tiene tres partes la primera es el análisis de competencia que ya está listo y la segunda parte es el diseño del pipeline de audio o sea como entra el sonido como se graba con ffmpeg y como sale el transcript y la tercera parte es el plan de distribución con gumroad quita lo de la tercera parte porque eso ya lo decidimos con jero y bueno ahí lo dejamos para después
 """
-let raw = "es que a ver te estoy hablando ahorita de mi reflexión y está interesante solamente me gustaría checar cómo funciona y quita lo de cómo funciona y me gustaría checar si vale la pena hacer el producto checando lo que yo tengo en type whisper porque type whisper es muy rápido"
 
 let sem = DispatchSemaphore(value: 0)
+
+func ollamaAlive() -> Bool {
+    let proc = Process()
+    proc.executableURL = URL(fileURLWithPath: "/usr/bin/curl")
+    proc.arguments = ["-s", "--max-time", "2", "http://127.0.0.1:11434/api/version"]
+    let pipe = Pipe()
+    proc.standardOutput = pipe
+    proc.standardError = Pipe()
+    try? proc.run()
+    proc.waitUntilExit()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return (String(data: data, encoding: .utf8) ?? "").contains("version")
+}
+
 Task {
-    print("COLD: descargando/cargando \(MLXEngine.config.model.rawValue)…")
-    let c0 = Date()
-    let out = await MLXEngine.complete(raw, systemPrompt: prompt)
-    print("COLD total (descarga+load+gen): \(String(format: "%.1f", Date().timeIntervalSince(c0)))s | gen only: \(String(format: "%.2f", out?.generateSeconds ?? -1))s")
-    if let o = out { print("→", o.rawText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(320)) }
-    else { print("NIL RESULT") }
-    let w0 = Date()
-    let out2 = await MLXEngine.complete(raw, systemPrompt: prompt)
-    print("WARM total: \(String(format: "%.2f", Date().timeIntervalSince(w0)))s | gen: \(String(format: "%.2f", out2?.generateSeconds ?? -1))s")
-    if let o = out2 { print("→", o.rawText.trimmingCharacters(in: .whitespacesAndNewlines).prefix(320)) }
-    print("isLoaded:", MLXEngine.isLoaded)
+    print("Ollama reachable before test:", ollamaAlive() ? "YES (bad)" : "NO (good)")
+    print("Engine resident before:", MLXEngine.isLoaded)
+
+    let config = Config()
+    print("cleanupMode:", config.resolvedCleanupMode, "| chain:", Cleaner.providerChain(for: config.resolvedCleanupMode))
+
+    let t0 = Date()
+    let outcome = await Cleaner.clean(longRawDictation, config: config)
+    print(String(format: "COLD ELAPSED: %.2fs", Date().timeIntervalSince(t0)))
+    print("applied:", outcome.applied, "| provider:", outcome.provider ?? "nil")
+    print("--- RESULT ---")
+    print(outcome.text)
+    print("--------------")
+    let hasCommand = outcome.text.lowercased().contains("quita")
+    let hasMarker = outcome.text.contains("end_of_turn") || outcome.text.contains("<think>")
+    print("edit-command correctly dropped:", !hasCommand ? "YES" : "NO")
+    print("markers leaked:", hasMarker ? "YES (BAD)" : "NO")
+
+    // Warm pass: resident weights — the steady state users live in.
+    let t1 = Date()
+    let warm = await Cleaner.clean(longRawDictation, config: config)
+    print(String(format: "WARM ELAPSED: %.2fs", Date().timeIntervalSince(t1)))
+    print("WARM provider:", warm.provider ?? "nil")
+
+    print("Ollama reachable after test:", ollamaAlive() ? "YES (bad)" : "NO (good)")
+    print("Engine resident after:", MLXEngine.isLoaded)
     MLXEngine.unloadNow()
-    print("isLoaded tras unload:", MLXEngine.isLoaded)
+    print("Engine resident after unload:", MLXEngine.isLoaded)
     sem.signal()
 }
 sem.wait()
