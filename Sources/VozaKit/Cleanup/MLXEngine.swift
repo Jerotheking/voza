@@ -41,6 +41,10 @@ public enum MLXEngine {
         /// Latency ceiling per generation (D023: num_predict 400).
         public var maxTokens: Int = 400
         public var temperature: Float = 0.2
+        /// D026 — TypeWhisper-style warm start: load weights from disk at
+        /// launch (utility QoS) so the first Pulido costs generation time
+        /// only, never the ~12 s cold load. Cached models only, never network.
+        public var preloadOnLaunch = true
         public init() {}
     }
 
@@ -118,14 +122,18 @@ public enum MLXEngine {
     }
 
     /// Frees weights immediately (idle timer, memory pressure, Settings).
+    /// Skips the GPU call when nothing is resident — clearing an empty cache
+    /// must not initialize Metal (test runners have no metallib colocated).
     public static func unloadNow() {
         lock.lock()
+        let hadWeights = container != nil
         container = nil
         loadedID = nil
         idleTask?.cancel()
         idleTask = nil
         lock.unlock()
         // Release the Metal buffer pool, not just the Swift references.
+        guard hadWeights else { return }
         GPU.clearCache()
     }
 
@@ -133,6 +141,35 @@ public enum MLXEngine {
     public static var isLoaded: Bool {
         lock.lock(); defer { lock.unlock() }
         return container != nil
+    }
+
+    /// D026 — TypeWhisper-style warm start. Loads weights from disk into the
+    /// GPU at launch so the first Pulido pays generation time only (~0.8 s
+    /// warm), never the ~12 s cold load. Contract: NEVER touches the network
+    /// — a model not present in the MLXLMCommon cache is skipped and the
+    /// first cleanup downloads as before. Fire-and-forget; the idle-eviction
+    /// clock is NOT started here (a user who never dictes must not pay RAM).
+    public static func preloadNow(modelExists: ((String) -> Bool)? = nil) async {
+        guard config.preloadOnLaunch, !isLoaded else { return }
+        let id = config.model.rawValue
+        let exists = modelExists.map { $0(id) } ?? defaultCachedModelExists(id)
+        guard exists else { return }
+        _ = try? await acquire(modelID: id)
+    }
+
+    /// Mirrors MLXLMCommon's `defaultHubApi` layout: cachesDirectory/models/
+    /// {org}/{repo}. Present only if the weights file exists — a metadata-only
+    /// directory is not loadable and must not count as cached.
+    public static func defaultCachedModelExists(_ modelID: String) -> Bool {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return false }
+        let parts = modelID.split(separator: "/").map(String.init)
+        guard parts.count == 2 else { return false }
+        let weights = caches
+            .appendingPathComponent("models", isDirectory: true)
+            .appendingPathComponent(parts[0], isDirectory: true)
+            .appendingPathComponent(parts[1], isDirectory: true)
+            .appendingPathComponent("model.safetensors")
+        return FileManager.default.fileExists(atPath: weights.path)
     }
 
     // MARK: - Internals

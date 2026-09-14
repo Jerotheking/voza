@@ -35,6 +35,8 @@ final class Config {
     /// On by default — zero-effort learning is the product decision; the
     /// Settings toggle turns it off for users who prefer manual-only.
     var autoLearn: Bool
+    /// D026 — preload Pulido weights at launch (TypeWhisper-style warm start).
+    var mlxPreload: Bool
     var gumroadPermalink: String
 
     private(set) var env: [String: String] = [:]
@@ -57,6 +59,7 @@ final class Config {
         language = "auto"
         playSound = false
         autoLearn = true
+        mlxPreload = true
         gumroadPermalink = "voza"
         load()
     }
@@ -90,6 +93,7 @@ final class Config {
         language       = raw["language"] ?? "auto"
         playSound      = (raw["play_sound"] ?? "false") == "true"
         autoLearn      = (raw["auto_learn"] ?? "true") == "true"
+        mlxPreload     = (raw["mlx_preload"] ?? "true") == "true"
 
         env = [:]
         let envPath = paths.envFile.path
@@ -123,6 +127,7 @@ final class Config {
     func setLanguage(_ v: String)          { language = v;       raw["language"] = v; persist() }
     func setPlaySound(_ v: Bool)           { playSound = v;      raw["play_sound"] = v ? "true" : "false"; persist() }
     func setAutoLearn(_ v: Bool)           { autoLearn = v;      raw["auto_learn"] = v ? "true" : "false"; persist() }
+    func setMlxPreload(_ v: Bool)          { mlxPreload = v;     raw["mlx_preload"] = v ? "true" : "false"; persist() }
     func setGumroadPermalink(_ v: String)  { gumroadPermalink = v; raw["gumroad_permalink"] = v; persist() }
 
     private func persist() {
@@ -137,6 +142,7 @@ final class Config {
         lines.append("language = \"\(language)\"")
         lines.append("play_sound = \(playSound ? "true" : "false")")
         lines.append("auto_learn = \(autoLearn ? "true" : "false")")
+        lines.append("mlx_preload = \(mlxPreload ? "true" : "false")")
         lines.append("gumroad_permalink = \"\(gumroadPermalink)\"")
         let text = lines.joined(separator: "\n") + "\n"
         // Write path: prepare the tree right before persisting (reads never create).

@@ -89,6 +89,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // HUD may need to hide if the app relaunches mid-busy-phase (D020).
         DictationHUDController.shared.update(phase: appState.phase)
         LicenseManager.shared.refreshIfNeeded()
+        // D026 — warm start: Pulido weights load from disk at launch so the
+        // first cleanup costs ~0.8 s instead of ~12 s. Cached-only (no
+        // network), background QoS, user-disabled via mlx_preload = false,
+        // and only when permissions are already granted — onboarding takes
+        // priority for fresh installs.
+        if Permissions.allGranted, Config.shared.mlxPreload {
+            Task.detached(priority: .background) { await MLXEngine.preloadNow() }
+        }
         if !Permissions.allGranted {
             appState.showOnboarding = true
             OnboardingWindowController.shared.show(appState: appState)

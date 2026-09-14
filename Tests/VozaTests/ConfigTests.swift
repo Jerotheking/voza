@@ -151,6 +151,51 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(Cleaner.stripThinkingJunk("Hola mundo."), "Hola mundo.")
     }
 
+    /// D026 — warm-start knob: default ON (TypeWhisper-style preload at
+    /// launch), persists, roundtrips.
+    func testConfigRoundtripsMlxPreload() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        let config = Config(paths: env.paths)
+        XCTAssertTrue(config.mlxPreload, "default: preload Pulido weights at launch")
+        config.setMlxPreload(false)
+        XCTAssertEqual(Config(paths: env.paths).mlxPreload, false)
+        let toml = try String(contentsOf: env.paths.configFile, encoding: .utf8)
+        XCTAssertTrue(toml.contains("mlx_preload = false"))
+    }
+
+    /// preloadNow's two guards: flag off → no-op; model not cached → no-op.
+    /// No Metal load happens in either (isLoaded stays false) — the network
+    /// contract is exactly "cached models only".
+    func testPreloadNowGuards() async {
+        defer { MLXEngine.unloadNow() }
+        MLXEngine.config.preloadOnLaunch = false
+        await MLXEngine.preloadNow()
+        XCTAssertFalse(MLXEngine.isLoaded)
+
+        MLXEngine.config.preloadOnLaunch = true
+        await MLXEngine.preloadNow(modelExists: { _ in false })
+        XCTAssertFalse(MLXEngine.isLoaded, "uncached model must not trigger a Hub download")
+    }
+
+    /// defaultCachedModelExists mirrors MLXLMCommon's cache layout
+    /// (cachesDirectory/models/{org}/{repo}) and requires the weights file.
+    func testCachedModelDetectionLayout() throws {
+        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        let org = caches.appendingPathComponent("models")
+            .appendingPathComponent("voza-tests-\(UUID().uuidString)", isDirectory: true)
+        let repo = org.appendingPathComponent("repo", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: org) }
+        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
+
+        XCTAssertFalse(MLXEngine.defaultCachedModelExists("\(org.lastPathComponent)/repo"),
+                       "metadata-only directory is not cached")
+        try Data("x".utf8).write(to: repo.appendingPathComponent("model.safetensors"))
+        XCTAssertTrue(MLXEngine.defaultCachedModelExists("\(org.lastPathComponent)/repo"))
+        XCTAssertFalse(MLXEngine.defaultCachedModelExists("no-slash"),
+                       "malformed model id is never 'cached'")
+    }
+
     func testConfigRoundtripsOllamaKeepAlive() throws {
         let env = try TestEnvironment()
         defer { env.tearDown() }
