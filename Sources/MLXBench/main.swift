@@ -80,7 +80,11 @@ Task {
 
     if mode == "stress" {
         // --- Scenario 1: 3 back-to-back generations, pressure injected DURING ---
+        // D029: stress deliberately tests EXTREME slowdown (pressure flood),
+        // so the live wall-clock budget is disabled here — otherwise the
+        // tripwire cuts every slow round and the crash-guards go untested.
         MLXEngine.config.preloadOnLaunch = true
+        MLXEngine.config.maxGenerationSeconds = nil
         await MLXEngine.preloadNow()
         require(MLXEngine.isLoaded, "preload resident before stress")
         print(String(format: "RSS after preload: %.0f MB", rssMB()))
@@ -145,7 +149,12 @@ Task {
         require(!outcome.text.lowercased().contains("quita"), "edit command dropped")
         let t1 = Date()
         _ = await Cleaner.clean(longRawDictation, config: config)
-        print(String(format: "WARM ELAPSED: %.2fs", Date().timeIntervalSince(t1)))
+        let warm = Date().timeIntervalSince(t1)
+        print(String(format: "WARM ELAPSED: %.2fs", warm))
+        // D029: a healthy warm generation must fit inside the live budget.
+        // (Budget is 15 s; warm is ~2 s on this machine — 4× headroom.)
+        require(warm < MLXEngine.config.maxGenerationSeconds ?? 15,
+                "warm clean fits the D029 wall-clock budget")
         MLXEngine.unloadNow()
         require(!MLXEngine.isLoaded, "unload evicts")
     }

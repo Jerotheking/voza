@@ -54,7 +54,13 @@ public enum MLXEngine {
         /// runs (observed live 2026-09-14: 3 min truncated polish). The
         /// in-loop visitor enforces this ceiling and the engine falls back
         /// to raw (D016). nil disables (bench/bench-stress use).
-        public var maxGenerationSeconds: Double? = 15
+        /// D030: 15 → 30 s. First live diagnosis showed cold generation
+        /// AFTER load crawling (~33 s, 2 tokens — cold weight pages under
+        /// heavy swap with another MLX model resident) while warm ran at
+        /// ~8 s. 30 s keeps the never-hangs guarantee with 3.7× headroom
+        /// over the degraded-warm baseline; the prewarm (below) targets
+        /// the true cause of the cold crawl.
+        public var maxGenerationSeconds: Double? = 30
         public init() {}
     }
 
@@ -153,16 +159,34 @@ public enum MLXEngine {
             final class TripwireBox: @unchecked Sendable {
                 private let lock = NSLock()
                 private var tripped = false
-                var isTripped: Bool {
+                /// Which arm fired — wall-clock (slow/stuck) vs echo (loop at
+                /// speed). Recorded at trip time so the log line is exact.
+                private var reason = "unknown"
+                var tripReason: (tripped: Bool, reason: String) {
                     lock.lock(); defer { lock.unlock() }
-                    return tripped
+                    return (tripped, reason)
                 }
-                func trip() {
-                    lock.lock(); tripped = true; lock.unlock()
+                func trip(_ why: String) {
+                    lock.lock()
+                    if !tripped { reason = why }
+                    tripped = true
+                    lock.unlock()
                 }
             }
             let box = TripwireBox()
-            let startedAt = Date()
+            /// D029 amendment (first live diagnosis): the clock starts AFTER
+            /// acquire — the budget governs GENERATION, not load. A cold
+            /// first-install cleanup (download + ~12 s load) must not false-trip
+            /// the 15 s budget the moment its tokens flow; contention like a
+            /// competitor model resident on the same GPU slows the token stream
+            /// itself, which is exactly what the budget exists to cut (observed:
+            /// tripwall, 34.5 s, 2 tokens). Box-carried because the closure
+            /// hierarchy crosses @Sendable boundaries.
+            final class StartBox: @unchecked Sendable {
+                let startedAt = Date()
+                var elapsed: Double { Date().timeIntervalSince(startedAt) }
+            }
+            let clock = StartBox()
             let result = try await withEngineSlot {
                 let container = try await acquire(modelID: cfg.model.rawValue)
                 // perform() serializes against load/evict inside the container's actor.
@@ -181,16 +205,20 @@ public enum MLXEngine {
                         parameters.repetitionPenalty = cfg.repetitionPenalty
                         return try MLXLMCommon.generate(
                             input: lmInput, parameters: parameters, context: context) { tokens in
-                            if !box.isTripped {
-                                let tail = context.tokenizer.decode(tokens: Array(tokens.suffix(256)))
+                            let state = box.tripReason
+                            if !state.tripped {
                                 if MLXEngine.generationTimedOut(
-                                    elapsedSeconds: Date().timeIntervalSince(startedAt),
-                                    maxSeconds: cfg.maxGenerationSeconds)
-                                    || MLXEngine.echoLoopDetected(tail) {
-                                    box.trip()
+                                    elapsedSeconds: clock.elapsed,
+                                    maxSeconds: cfg.maxGenerationSeconds) {
+                                    box.trip("wall")
+                                } else {
+                                    let tail = context.tokenizer.decode(tokens: Array(tokens.suffix(256)))
+                                    if MLXEngine.echoLoopDetected(tail) {
+                                        box.trip("echo")
+                                    }
                                 }
                             }
-                            return box.isTripped ? .stop : .more
+                            return state.tripped ? .stop : .more
                         }
                     }
                     try error.check()
@@ -202,10 +230,16 @@ public enum MLXEngine {
             // (wall-clock budget or verbatim echo loop). The partial output is
             // by definition unfinished: nil → D016 raw fallback, never a cut
             // paste. Logged for diagnosis.
-            if box.isTripped {
+            if box.tripReason.tripped {
+                let elapsed = clock.elapsed
+                // D029: which arm fired matters — wall-clock means slow/stuck,
+                // echo means a loop even at speed. Both fall back to raw.
+                let state = box.tripReason
+                let event = state.reason == "wall" ? "tripwall" : "tripecho"
                 print("[MLXEngine] tripwire: stopped at \(result.tokens.count) tokens, " +
-                      String(format: "%.1fs", Date().timeIntervalSince(startedAt)) +
-                      " — falling back to raw")
+                      String(format: "%.1fs", elapsed) + " — falling back to raw")
+                CleanupLog.write("mlx", event, seconds: elapsed,
+                                 detail: "tokens=\(result.tokens.count) fallback=raw")
                 return nil
             }
             // Defensive: never let a turn marker leak into the paste even if
@@ -217,8 +251,11 @@ public enum MLXEngine {
             // output is cut mid-sentence. Return nil so the caller pastes the
             // raw transcript (D016) instead of a truncated "cleanup".
             if hitTokenCeiling(tokenCount: result.tokens.count, maxTokens: cfg.maxTokens) {
-                print("[MLXEngine] ceiling hit: \(result.tokens.count) tokens in " +
-                      String(format: "%.1fs — treating as truncated", result.generateTime))
+                let msg = "ceiling hit: \(result.tokens.count) tokens in " +
+                          String(format: "%.1fs — treating as truncated", result.generateTime)
+                print("[MLXEngine] \(msg)")
+                CleanupLog.write("mlx", "ceiling", seconds: result.generateTime,
+                                 detail: "tokens=\(result.tokens.count) fallback=raw")
                 return nil
             }
             return Outcome(rawText: cut, generateSeconds: result.generateTime)
@@ -226,6 +263,7 @@ public enum MLXEngine {
             // D027: errors from MLX land here (withError). Logged, never
             // pasted; the caller falls back to the raw transcript.
             print("[MLXEngine] error: \(error)")
+            CleanupLog.write("mlx", "error", detail: "\(error) — fallback=raw")
             return nil
         }
     }
@@ -312,6 +350,8 @@ public enum MLXEngine {
     /// — a model not present in the MLXLMCommon cache is skipped and the
     /// first cleanup downloads as before. Fire-and-forget; the idle-eviction
     /// clock is NOT started here (a user who never dictes must not pay RAM).
+    /// D030: additionally runs a mini-generation so the first real cleanup
+    /// is warm-speed (see warmupGeneration).
     public static func preloadNow(modelExists: ((String) -> Bool)? = nil) async {
         guard config.preloadOnLaunch, !isLoaded else { return }
         let id = config.model.rawValue
@@ -325,10 +365,38 @@ public enum MLXEngine {
         _ = try? await withEngineSlot {
             try await withError { error -> ModelContainer in
                 let c = try await acquire(modelID: id)
+                // D030 prewarm: touching every weight page ONCE at launch
+                // (background, user is not waiting) converts the first real
+                // cleanup from ~33 s cold-crawl to warm speed. A warmup
+                // failure must never fail the preload itself.
+                if let warmSeconds = try? await warmupGeneration(container: c) {
+                    CleanupLog.write("mlx", "prewarm", seconds: warmSeconds,
+                                     detail: "launch warmup")
+                }
                 try error.check()
                 return c
             }
         }
+    }
+
+    /// D030 — mini-generation that exercises every layer at preload time.
+    /// The first token pass sweeps ALL weights (plus shader compilation),
+    /// which is exactly the work the first real cleanup was paying under
+    /// memory pressure (observed: tripwall at 33 s for 2 tokens, then warm
+    /// at 7.9 s). Budget intentionally disabled: this is launch-time
+    /// background work, not user-facing latency.
+    private static func warmupGeneration(container: ModelContainer) async throws -> Double {
+        let t0 = Date()
+        let input = UserInput(chat: [.system("Warmup."), .user("hi")])
+        _ = try await container.perform { context -> GenerateResult in
+            let lmInput = try await context.processor.prepare(input: input)
+            var parameters = GenerateParameters(temperature: 0.0)
+            parameters.maxTokens = 4
+            parameters.repetitionPenalty = nil
+            return try MLXLMCommon.generate(
+                input: lmInput, parameters: parameters, context: context) { _ in .more }
+        }
+        return Date().timeIntervalSince(t0)
     }
 
     /// Mirrors MLXLMCommon's `defaultHubApi` layout: cachesDirectory/models/

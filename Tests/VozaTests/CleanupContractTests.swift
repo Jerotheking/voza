@@ -216,18 +216,23 @@ final class CleanupContractTests: XCTestCase {
     /// The live wall-clock budget is on by default: the D028 guards only run
     /// AFTER generation returns, but the observed failure was a generation
     /// stuck INSIDE the loop for minutes. Someone must stop it mid-flight.
+    /// D030: raised to 30 s after the first live diagnosis — cold generation
+    /// under swap+GPU-contention crawled at ~33 s/2 tokens while warm ran
+    /// ~8 s; 15 s false-tripped degraded-but-working machines.
     func testLiveGenerationBudgetDefault() {
         let cfg = MLXEngine.Config()
-        XCTAssertEqual(cfg.maxGenerationSeconds ?? 0, 15, accuracy: 0.0001,
+        XCTAssertEqual(cfg.maxGenerationSeconds ?? 0, 30, accuracy: 0.0001,
                        "hard wall-clock budget must be the default")
     }
 
     /// Wall-clock arm: past budget → stop. This is the arm that kills the
     /// observed 3-minute stuck polish: it fires WHILE the generation runs,
-    /// not after it finally returns.
+    /// not after it finally returns. (Boundary is >: budget-exact is not
+    /// tripped — a machine at exactly 30 s of honest work still pastes.)
     func testTripwireWallClock() {
-        XCTAssertTrue(MLXEngine.generationTimedOut(elapsedSeconds: 15.1, maxSeconds: 15))
-        XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 5, maxSeconds: 15))
+        XCTAssertTrue(MLXEngine.generationTimedOut(elapsedSeconds: 30.1, maxSeconds: 30))
+        XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 29.9, maxSeconds: 30))
+        XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 30, maxSeconds: 30))
         // Disabled budget (nil) never trips on time alone (bench mode).
         XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 10_000, maxSeconds: nil))
     }

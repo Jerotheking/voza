@@ -41,6 +41,7 @@ enum Cleaner {
               !trimmed.isEmpty else { return CleaningOutcome(text: text, applied: false, provider: nil) }
 
         for provider in providerChain(for: config.resolvedCleanupMode) {
+            let t0 = Date()
             let result: String?
             switch provider {
             case "mlx":       result = await mlxClean(trimmed)
@@ -49,11 +50,21 @@ enum Cleaner {
             case "anthropic": result = await anthropicClean(trimmed, config: config)
             default:          result = nil
             }
+            let dt = Date().timeIntervalSince(t0)
             if let cleanedText = result {
+                // D029: success lines are the latency baseline — the next
+                // "it feels slow" report is answered with numbers, not samples.
+                CleanupLog.write(provider, "ok", seconds: dt,
+                                 detail: "chars=\(cleanedText.count)")
                 return CleaningOutcome(text: cleanedText, applied: true, provider: provider)
             }
+            // D029: every provider failure is one grep-able line. Slow-
+            // failure (timeout/tripwire) vs instant-failure (no server) is
+            // visible in the seconds column alone.
+            CleanupLog.write(provider, "fail", seconds: dt, detail: "chain continues")
         }
         // Every provider in the chain failed → raw transcript, honestly reported.
+        CleanupLog.write("chain", "fallback", detail: "all providers failed — raw pasted")
         return CleaningOutcome(text: text, applied: false, provider: nil)
     }
 
