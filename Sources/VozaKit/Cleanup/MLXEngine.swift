@@ -66,6 +66,12 @@ public enum MLXEngine {
     private nonisolated(unsafe) static var container: ModelContainer?
     private nonisolated(unsafe) static var loadedID: String?
     private nonisolated(unsafe) static var idleTask: Task<Void, Never>?
+    /// In-flight generate/load count and a deferred-unload flag. Clearing the
+    /// GPU cache under a running generation crashes Metal (observed live:
+    /// EXC_BREAKPOINT via MLX's fatal default error handler), so unloads are
+    /// deferred until the slot drains.
+    private nonisolated(unsafe) static var inFlight = 0
+    private nonisolated(unsafe) static var pendingUnload = false
 
     private static let pressureSource = DispatchSource.makeMemoryPressureSource(
         eventMask: [.warning, .critical], queue: .global(qos: .utility))
@@ -98,14 +104,22 @@ public enum MLXEngine {
         ])
 
         do {
-            let container = try await acquire(modelID: cfg.model.rawValue)
-            // perform() serializes against load/evict inside the container's actor.
-            let result = try await container.perform { context -> GenerateResult in
-                let lmInput = try await context.processor.prepare(input: prompt)
-                var parameters = GenerateParameters(temperature: cfg.temperature)
-                parameters.maxTokens = cfg.maxTokens
-                return try MLXLMCommon.generate(
-                    input: lmInput, parameters: parameters, context: context) { _ in .more }
+            let result = try await withEngineSlot {
+                let container = try await acquire(modelID: cfg.model.rawValue)
+                // perform() serializes against load/evict inside the container's actor.
+                // withError converts C++ MLX errors into Swift throws — without a
+                // scoped handler MLX's default handler calls fatalError (crash).
+                return try await withError { error -> GenerateResult in
+                    let r = try await container.perform { context -> GenerateResult in
+                        let lmInput = try await context.processor.prepare(input: prompt)
+                        var parameters = GenerateParameters(temperature: cfg.temperature)
+                        parameters.maxTokens = cfg.maxTokens
+                        return try MLXLMCommon.generate(
+                            input: lmInput, parameters: parameters, context: context) { _ in .more }
+                    }
+                    try error.check()
+                    return r
+                }
             }
             scheduleEviction(after: cfg.idleEvictionSeconds)
             // Defensive: never let a turn marker leak into the paste even if
@@ -124,17 +138,51 @@ public enum MLXEngine {
     /// Frees weights immediately (idle timer, memory pressure, Settings).
     /// Skips the GPU call when nothing is resident — clearing an empty cache
     /// must not initialize Metal (test runners have no metallib colocated).
+    /// NEVER clears the GPU cache while a generate/load is in flight — that
+    /// is the crash from 2026-09-14; the unload is deferred to slot exit.
     public static func unloadNow() {
         lock.lock()
         let hadWeights = container != nil
+        if inFlight > 0 {
+            if hadWeights { pendingUnload = true }
+            lock.unlock()
+            return
+        }
         container = nil
         loadedID = nil
         idleTask?.cancel()
         idleTask = nil
+        pendingUnload = false
         lock.unlock()
         // Release the Metal buffer pool, not just the Swift references.
         guard hadWeights else { return }
         GPU.clearCache()
+    }
+
+    /// Sync helpers: lock is never held across an await (Swift 6 safe).
+    private static func enterSlot() {
+        lock.lock(); inFlight += 1; lock.unlock()
+    }
+
+    /// Returns true when this exit must flush a deferred unload.
+    private static func exitSlot() -> Bool {
+        lock.lock(); inFlight -= 1
+        let flush = inFlight == 0 && pendingUnload
+        if flush { pendingUnload = false }
+        lock.unlock()
+        return flush
+    }
+
+    /// Marks an engine operation (generate/load) as in flight. Unload
+    /// requests arriving meanwhile are deferred and flushed on slot exit.
+    private static func withEngineSlot<T: Sendable>(
+        _ body: @Sendable () async throws -> T
+    ) async rethrows -> T {
+        enterSlot()
+        defer {
+            if exitSlot() { unloadNow() }
+        }
+        return try await body()
     }
 
     /// True when weights are resident (Status/Settings surface).
@@ -156,9 +204,16 @@ public enum MLXEngine {
         guard exists else { return }
         // Pressure handler must also cover preload-only residency: weights
         // loaded at launch are released under system memory pressure even
-        // if the user never dictates (D026 RAM contract).
+        // if the user never dictates (D026 RAM contract). unloadNow defers
+        // itself while a load is in flight (crash guard).
         installPressureHandlerIfNeeded()
-        _ = try? await acquire(modelID: id)
+        _ = try? await withEngineSlot {
+            try await withError { error -> ModelContainer in
+                let c = try await acquire(modelID: id)
+                try error.check()
+                return c
+            }
+        }
     }
 
     /// Mirrors MLXLMCommon's `defaultHubApi` layout: cachesDirectory/models/
