@@ -189,4 +189,25 @@ final class CleanupContractTests: XCTestCase {
                        "nothing was deferred")
         XCTAssertTrue(MLXEngine.slotExitFlush(inFlight: 0, pendingUnload: true))
     }
+
+    // MARK: - D028: truncation guards (the live 3-minute-truncated polish)
+
+    /// Generation consuming the whole budget = unfinished answer = truncated
+    /// paste. Must fall back to raw, never ship a half cleanup.
+    func testTokenCeilingDetection() {
+        XCTAssertTrue(MLXEngine.hitTokenCeiling(tokenCount: 400, maxTokens: 400))
+        XCTAssertTrue(MLXEngine.hitTokenCeiling(tokenCount: 401, maxTokens: 400))
+        XCTAssertFalse(MLXEngine.hitTokenCeiling(tokenCount: 399, maxTokens: 400))
+        XCTAssertFalse(MLXEngine.hitTokenCeiling(tokenCount: 0, maxTokens: 400))
+    }
+
+    /// The loop-breaker default is set (echo-prone task + low temperature =
+    /// loop risk, measured live) and the config knob remains overridable.
+    func testRepetitionPenaltyDefault() {
+        var cfg = MLXEngine.Config()
+        XCTAssertEqual(cfg.repetitionPenalty ?? 0, 1.15, accuracy: 0.0001,
+                       "mild penalty must be the default for the cleaning task")
+        cfg.repetitionPenalty = nil // power users can disable
+        XCTAssertNil(cfg.repetitionPenalty)
+    }
 }

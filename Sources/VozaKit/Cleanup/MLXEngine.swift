@@ -45,6 +45,9 @@ public enum MLXEngine {
         /// launch (utility QoS) so the first Pulido costs generation time
         /// only, never the ~12 s cold load. Cached models only, never network.
         public var preloadOnLaunch = true
+        /// D028 — mild loop-breaker for echo-prone cleaning tasks. nil keeps
+        /// library default (no penalty).
+        public var repetitionPenalty: Float? = 1.15
         public init() {}
     }
 
@@ -78,6 +81,13 @@ public enum MLXEngine {
     private nonisolated(unsafe) static var pressureInstalled = false
 
     // MARK: - Pure contract (hardening R4)
+
+    /// D028: generation consumed the ENTIRE token budget — the model never
+    /// finished its answer (loop or genuinely long input). The output is
+    /// truncated and must not be pasted as a "cleanup".
+    static func hitTokenCeiling(tokenCount: Int, maxTokens: Int) -> Bool {
+        tokenCount >= maxTokens
+    }
 
     /// Defensive cut of the Gemma turn marker. Registered-EOS should end
     /// generation there, but if a future checkpoint ignores it the marker must
@@ -114,6 +124,12 @@ public enum MLXEngine {
                         let lmInput = try await context.processor.prepare(input: prompt)
                         var parameters = GenerateParameters(temperature: cfg.temperature)
                         parameters.maxTokens = cfg.maxTokens
+                        // D028: a cleaning task that echoes the user's Spanish
+                        // phrases can fall into token loops at low temperature;
+                        // the loop grinds to the token ceiling and the paste
+                        // arrives truncated after minutes (observed live). A
+                        // mild penalty breaks loops without hurting fidelity.
+                        parameters.repetitionPenalty = cfg.repetitionPenalty
                         return try MLXLMCommon.generate(
                             input: lmInput, parameters: parameters, context: context) { _ in .more }
                     }
@@ -126,10 +142,19 @@ public enum MLXEngine {
             // a future model ignores the registered EOS (pure cut, tested).
             let cut = cutTurnMarker(result.output)
             guard !cut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            // D028: ceiling-hit truncation guard. If generation consumed the
+            // whole token budget, the model never finished its answer — the
+            // output is cut mid-sentence. Return nil so the caller pastes the
+            // raw transcript (D016) instead of a truncated "cleanup".
+            if hitTokenCeiling(tokenCount: result.tokens.count, maxTokens: cfg.maxTokens) {
+                print("[MLXEngine] ceiling hit: \(result.tokens.count) tokens in " +
+                      String(format: "%.1fs — treating as truncated", result.generateTime))
+                return nil
+            }
             return Outcome(rawText: cut, generateSeconds: result.generateTime)
         } catch {
-            // D024 debug visibility: a silent nil hides root causes. Logged,
-            // never pasted. (Remove once the engine is proven in production.)
+            // D027: errors from MLX land here (withError). Logged, never
+            // pasted; the caller falls back to the raw transcript.
             print("[MLXEngine] error: \(error)")
             return nil
         }

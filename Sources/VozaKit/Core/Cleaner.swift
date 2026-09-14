@@ -128,9 +128,17 @@ enum Cleaner {
         struct OllamaResp: Decodable {
             struct Message: Decodable { let content: String? }
             let message: Message?
+            let doneReason: String?
         }
         guard let decoded = try? JSONDecoder().decode(OllamaResp.self, from: respData),
               let raw = decoded.message?.content else { return nil }
+        // D028: done_reason "length" means the token budget was exhausted —
+        // the answer never finished (measured live: qwen3 burned 1024 tokens
+        // thinking; truncated output pasted mid-sentence). Nil → D016 fallback.
+        if decoded.doneReason == "length" {
+            print("[Cleaner] ollama done_reason=length — treating as truncated")
+            return nil
+        }
         let out = stripThinkingJunk(raw)
         return out.isEmpty ? nil : out
     }
