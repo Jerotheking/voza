@@ -210,4 +210,51 @@ final class CleanupContractTests: XCTestCase {
         cfg.repetitionPenalty = nil // power users can disable
         XCTAssertNil(cfg.repetitionPenalty)
     }
+
+    // MARK: - D029: live generation tripwire (the stuck-polish thread)
+
+    /// The live wall-clock budget is on by default: the D028 guards only run
+    /// AFTER generation returns, but the observed failure was a generation
+    /// stuck INSIDE the loop for minutes. Someone must stop it mid-flight.
+    func testLiveGenerationBudgetDefault() {
+        let cfg = MLXEngine.Config()
+        XCTAssertEqual(cfg.maxGenerationSeconds ?? 0, 15, accuracy: 0.0001,
+                       "hard wall-clock budget must be the default")
+    }
+
+    /// Wall-clock arm: past budget → stop. This is the arm that kills the
+    /// observed 3-minute stuck polish: it fires WHILE the generation runs,
+    /// not after it finally returns.
+    func testTripwireWallClock() {
+        XCTAssertTrue(MLXEngine.generationTimedOut(elapsedSeconds: 15.1, maxSeconds: 15))
+        XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 5, maxSeconds: 15))
+        // Disabled budget (nil) never trips on time alone (bench mode).
+        XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 10_000, maxSeconds: nil))
+    }
+
+    /// Echo arm: the tail overlaps itself verbatim — a token loop signature,
+    /// even when the machine is fast and the ceiling is far away.
+    func testTripwireEchoLoop() {
+        // Period 12 divides window 48 → halves align exactly, as a real token
+        // loop does after enough tokens.
+        let looped = String(repeating: "y te digo q ", count: 8) // 96 = 2×48
+        XCTAssertTrue(MLXEngine.echoLoopDetected(looped))
+        // Healthy prose: halves differ, no verbatim overlap.
+        XCTAssertFalse(MLXEngine.echoLoopDetected(
+            "Hola, esto es una prueba de dictado normal que avanza sin repetirse.",
+            window: 12))
+        // Too short to compare: no verdict.
+        XCTAssertFalse(MLXEngine.echoLoopDetected("corta", window: 48))
+        // Exactly 2×window with distinct halves: not a loop.
+        XCTAssertFalse(MLXEngine.echoLoopDetected(
+            String(repeating: "a", count: 47) + "b" + String(repeating: "c", count: 48),
+            window: 48))
+        // Pathological but real: pure repetition of one syllable IS a loop.
+        XCTAssertTrue(MLXEngine.echoLoopDetected(String(repeating: "ja", count: 60)))
+    }
+
+    /// Healthy generation never trips on time: normal speed, inside budget.
+    func testTripwireLeavesHealthyGenerationAlone() {
+        XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 2.1, maxSeconds: 15))
+    }
 }

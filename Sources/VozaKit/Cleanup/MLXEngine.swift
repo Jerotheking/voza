@@ -48,6 +48,13 @@ public enum MLXEngine {
         /// D028 — mild loop-breaker for echo-prone cleaning tasks. nil keeps
         /// library default (no penalty).
         public var repetitionPenalty: Float? = 1.15
+        /// D029 — hard wall-clock budget for ONE generation. The D028 guards
+        /// only evaluate AFTER generation returns; a token loop at ~2 tok/s
+        /// (or any stall) can grind for minutes before any post-hoc check
+        /// runs (observed live 2026-09-14: 3 min truncated polish). The
+        /// in-loop visitor enforces this ceiling and the engine falls back
+        /// to raw (D016). nil disables (bench/bench-stress use).
+        public var maxGenerationSeconds: Double? = 15
         public init() {}
     }
 
@@ -89,6 +96,29 @@ public enum MLXEngine {
         tokenCount >= maxTokens
     }
 
+    /// D029: wall-clock arm of the live tripwire — fired on EVERY generated
+    /// token, the only place a stuck generation can be stopped while it is
+    /// stuck. The D028 guards run only AFTER generation returns; the observed
+    /// failure (2026-09-14) was a generation INSIDE the loop for minutes
+    /// before any post-hoc check could run.
+    static func generationTimedOut(elapsedSeconds: Double, maxSeconds: Double?) -> Bool {
+        guard let maxSeconds else { return false }
+        return elapsedSeconds > maxSeconds
+    }
+
+    /// D029: echo arm — the decoded window ends with the same `window` chars
+    /// immediately repeated (verbatim overlap). A token loop signature, even
+    /// when the machine is fast. Fast loops that reach the token ceiling are
+    /// already caught post-hoc by `hitTokenCeiling`; this trips earlier and
+    /// independent of `maxTokens`. `window` must be big enough that healthy
+    /// prose (and short laughs) never overlaps verbatim with itself.
+    static func echoLoopDetected(_ decodedTail: String, window: Int = 48) -> Bool {
+        guard decodedTail.count >= 2 * window else { return false }
+        let start2 = decodedTail.index(decodedTail.endIndex, offsetBy: -window)
+        let start1 = decodedTail.index(start2, offsetBy: -window)
+        return decodedTail[start1..<start2] == decodedTail[start2...]
+    }
+
     /// Defensive cut of the Gemma turn marker. Registered-EOS should end
     /// generation there, but if a future checkpoint ignores it the marker must
     /// never leak into the paste. Pure so tests can pin it without Metal.
@@ -114,6 +144,25 @@ public enum MLXEngine {
         ])
 
         do {
+            // D029 live budget: the visitor runs on every token, so a loop or
+            // a stall is cut at ~`maxGenerationSeconds` wall-clock (or a
+            // verbatim echo overlap) instead of grinding for minutes before
+            // the post-hoc guards can look. The visitor is invoked from the
+            // generation loop inside a @Sendable closure — state crosses
+            // concurrency domains, hence the locked box (Swift 6 clean).
+            final class TripwireBox: @unchecked Sendable {
+                private let lock = NSLock()
+                private var tripped = false
+                var isTripped: Bool {
+                    lock.lock(); defer { lock.unlock() }
+                    return tripped
+                }
+                func trip() {
+                    lock.lock(); tripped = true; lock.unlock()
+                }
+            }
+            let box = TripwireBox()
+            let startedAt = Date()
             let result = try await withEngineSlot {
                 let container = try await acquire(modelID: cfg.model.rawValue)
                 // perform() serializes against load/evict inside the container's actor.
@@ -131,13 +180,34 @@ public enum MLXEngine {
                         // mild penalty breaks loops without hurting fidelity.
                         parameters.repetitionPenalty = cfg.repetitionPenalty
                         return try MLXLMCommon.generate(
-                            input: lmInput, parameters: parameters, context: context) { _ in .more }
+                            input: lmInput, parameters: parameters, context: context) { tokens in
+                            if !box.isTripped {
+                                let tail = context.tokenizer.decode(tokens: Array(tokens.suffix(256)))
+                                if MLXEngine.generationTimedOut(
+                                    elapsedSeconds: Date().timeIntervalSince(startedAt),
+                                    maxSeconds: cfg.maxGenerationSeconds)
+                                    || MLXEngine.echoLoopDetected(tail) {
+                                    box.trip()
+                                }
+                            }
+                            return box.isTripped ? .stop : .more
+                        }
                     }
                     try error.check()
                     return r
                 }
             }
             scheduleEviction(after: cfg.idleEvictionSeconds)
+            // D029: the live tripwire fired — generation was killed mid-flight
+            // (wall-clock budget or verbatim echo loop). The partial output is
+            // by definition unfinished: nil → D016 raw fallback, never a cut
+            // paste. Logged for diagnosis.
+            if box.isTripped {
+                print("[MLXEngine] tripwire: stopped at \(result.tokens.count) tokens, " +
+                      String(format: "%.1fs", Date().timeIntervalSince(startedAt)) +
+                      " — falling back to raw")
+                return nil
+            }
             // Defensive: never let a turn marker leak into the paste even if
             // a future model ignores the registered EOS (pure cut, tested).
             let cut = cutTurnMarker(result.output)
