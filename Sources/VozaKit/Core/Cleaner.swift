@@ -135,6 +135,67 @@ enum Cleaner {
         return out.isEmpty ? nil : out
     }
 
+    // MARK: - Cloud request contracts (pure, hermetically testable)
+
+    /// The pure part of a cloud call: URL, headers and JSON body. The network
+    /// itself stays in the private clean functions — these builders are what
+    /// tests pin (hardening R2): auth headers, prompt inclusion, defaults.
+    struct CloudRequest {
+        let url: URL
+        let headers: [String: String]
+        let body: [String: Any]
+    }
+
+    /// OpenAI-compatible (OpenAI, OpenRouter, Groq, LM Studio…). `baseURL` is
+    /// the raw OPENAI_BASE_URL env value (nil → default endpoint; a value of
+    /// only slashes falls back to the default too — saner than emitting a
+    /// broken relative URL).
+    static func openAIRequest(text: String, apiKey: String,
+                              baseURL: String?, model: String?) -> CloudRequest? {
+        let trimmed = baseURL?.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let base = (trimmed?.isEmpty == false) ? trimmed! : "https://api.openai.com/v1"
+        guard let url = URL(string: "\(base)/chat/completions") else { return nil }
+        return CloudRequest(
+            url: url,
+            headers: ["Content-Type": "application/json",
+                      "Authorization": "Bearer \(apiKey)"],
+            body: ["model": model ?? "gpt-4o-mini",
+                   "temperature": 0.2,
+                   "messages": [
+                       ["role": "system", "content": systemPrompt],
+                       ["role": "user", "content": text],
+                   ]])
+    }
+
+    /// Anthropic Messages API. Endpoint and version header are fixed contracts.
+    static func anthropicRequest(text: String, apiKey: String,
+                                 model: String?) -> CloudRequest? {
+        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
+        return CloudRequest(
+            url: url,
+            headers: ["Content-Type": "application/json",
+                      "x-api-key": apiKey,
+                      "anthropic-version": "2023-06-01"],
+            body: ["model": model ?? "claude-3-5-haiku-latest",
+                   "max_tokens": 2048,
+                   "system": systemPrompt,
+                   "messages": [["role": "user", "content": text]]])
+    }
+
+    static func parseOpenAIResponse(_ data: Data) -> String? {
+        guard let decoded = try? JSONDecoder().decode(ChatResponse.self, from: data),
+              let content = decoded.choices?.first?.message?.content?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !content.isEmpty else { return nil }
+        return content
+    }
+
+    static func parseAnthropicResponse(_ data: Data) -> String? {
+        guard let decoded = try? JSONDecoder().decode(AnthropicResp.self, from: data),
+              let out = decoded.content?.compactMap(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines),
+              !out.isEmpty else { return nil }
+        return out
+    }
+
     // MARK: - OpenAI-compatible (OpenAI, OpenRouter, Groq, LM Studio…)
 
     private struct ChatResponse: Decodable {
@@ -144,58 +205,37 @@ enum Cleaner {
 
     private static func openAIClean(_ text: String, config: Config) async -> String? {
         guard let key = config.env["OPENAI_API_KEY"], !key.isEmpty else { return nil }
-        let base = config.env["OPENAI_BASE_URL"]?.trimmingCharacters(in: CharacterSet(charactersIn: "/")) ?? "https://api.openai.com/v1"
-        guard let url = URL(string: "\(base)/chat/completions") else { return nil }
-        var req = URLRequest(url: url, timeoutInterval: 60)
+        guard let request = openAIRequest(text: text, apiKey: key,
+                                          baseURL: config.env["OPENAI_BASE_URL"],
+                                          model: config.env["CLEANUP_MODEL"]) else { return nil }
+        var req = URLRequest(url: request.url, timeoutInterval: 60)
         req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
-        let body: [String: Any] = [
-            "model": config.env["CLEANUP_MODEL"] ?? "gpt-4o-mini",
-            "temperature": 0.2,
-            "messages": [
-                ["role": "system", "content": systemPrompt],
-                ["role": "user", "content": text],
-            ],
-        ]
-        guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        for (field, value) in request.headers { req.setValue(value, forHTTPHeaderField: field) }
+        guard let payload = try? JSONSerialization.data(withJSONObject: request.body) else { return nil }
         req.httpBody = payload
         guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let decoded = try? JSONDecoder().decode(ChatResponse.self, from: data),
-              let content = decoded.choices?.first?.message?.content?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !content.isEmpty else { return nil }
-        return content
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return parseOpenAIResponse(data)
     }
 
     // MARK: - Anthropic
 
     private static func anthropicClean(_ text: String, config: Config) async -> String? {
         guard let key = config.env["ANTHROPIC_API_KEY"], !key.isEmpty else { return nil }
-        guard let url = URL(string: "https://api.anthropic.com/v1/messages") else { return nil }
-        var req = URLRequest(url: url, timeoutInterval: 60)
+        guard let request = anthropicRequest(text: text, apiKey: key,
+                                             model: config.env["CLEANUP_MODEL"]) else { return nil }
+        var req = URLRequest(url: request.url, timeoutInterval: 60)
         req.httpMethod = "POST"
-        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.setValue(key, forHTTPHeaderField: "x-api-key")
-        req.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-        let body: [String: Any] = [
-            "model": config.env["CLEANUP_MODEL"] ?? "claude-3-5-haiku-latest",
-            "max_tokens": 2048,
-            "system": systemPrompt,
-            "messages": [["role": "user", "content": text]],
-        ]
-        guard let payload = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        for (field, value) in request.headers { req.setValue(value, forHTTPHeaderField: field) }
+        guard let payload = try? JSONSerialization.data(withJSONObject: request.body) else { return nil }
         req.httpBody = payload
-
-        struct AnthropicResp: Decodable {
-            struct Block: Decodable { let text: String? }
-            let content: [Block]?
-        }
         guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200,
-              let decoded = try? JSONDecoder().decode(AnthropicResp.self, from: data),
-              let out = decoded.content?.compactMap(\.text).joined().trimmingCharacters(in: .whitespacesAndNewlines),
-              !out.isEmpty else { return nil }
-        return out
+              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        return parseAnthropicResponse(data)
+    }
+
+    private struct AnthropicResp: Decodable {
+        struct Block: Decodable { let text: String? }
+        let content: [Block]?
     }
 }

@@ -67,6 +67,16 @@ public enum MLXEngine {
         eventMask: [.warning, .critical], queue: .global(qos: .utility))
     private nonisolated(unsafe) static var pressureInstalled = false
 
+    // MARK: - Pure contract (hardening R4)
+
+    /// Defensive cut of the Gemma turn marker. Registered-EOS should end
+    /// generation there, but if a future checkpoint ignores it the marker must
+    /// never leak into the paste. Pure so tests can pin it without Metal.
+    static func cutTurnMarker(_ raw: String) -> String {
+        guard let cut = raw.range(of: "<end_of_turn>").map({ String(raw[..<$0.lowerBound]) }) else { return raw }
+        return cut
+    }
+
     // MARK: - Public API
 
     /// Generates a cleanup completion for `text` given the system prompt.
@@ -95,9 +105,8 @@ public enum MLXEngine {
             }
             scheduleEviction(after: cfg.idleEvictionSeconds)
             // Defensive: never let a turn marker leak into the paste even if
-            // a future model ignores the registered EOS.
-            let raw = result.output
-            let cut = raw.range(of: "<end_of_turn>").map { String(raw[..<$0.lowerBound]) } ?? raw
+            // a future model ignores the registered EOS (pure cut, tested).
+            let cut = cutTurnMarker(result.output)
             guard !cut.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return Outcome(rawText: cut, generateSeconds: result.generateTime)
         } catch {
