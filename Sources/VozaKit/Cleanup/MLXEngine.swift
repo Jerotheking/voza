@@ -154,6 +154,10 @@ public enum MLXEngine {
         let id = config.model.rawValue
         let exists = modelExists.map { $0(id) } ?? defaultCachedModelExists(id)
         guard exists else { return }
+        // Pressure handler must also cover preload-only residency: weights
+        // loaded at launch are released under system memory pressure even
+        // if the user never dictates (D026 RAM contract).
+        installPressureHandlerIfNeeded()
         _ = try? await acquire(modelID: id)
     }
 
