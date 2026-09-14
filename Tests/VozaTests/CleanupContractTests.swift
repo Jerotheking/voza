@@ -154,4 +154,39 @@ final class CleanupContractTests: XCTestCase {
             XCTAssertTrue(m.rawValue.hasPrefix("mlx-community/"), "unexpected hub org: \(m.rawValue)")
         }
     }
+
+    // MARK: - D027 stress contract: unload deferral state machine (pure)
+
+    /// The decision table that prevented the 2026-09-14 crash: the GPU cache
+    /// is NEVER cleared while a generate/load is in flight.
+    func testUnloadPlanDefersWhileEngineBusy() {
+        // Busy + resident: nothing cleared, unload intent recorded.
+        let busy = MLXEngine.unloadPlan(hasWeights: true, inFlight: 1)
+        XCTAssertFalse(busy.clearStore, "store must survive until the slot drains")
+        XCTAssertFalse(busy.clearGPU, "clearing Metal under running kernels is the crash")
+        XCTAssertTrue(busy.deferUnload)
+        // Busy + empty: nothing to do, nothing deferred.
+        let busyEmpty = MLXEngine.unloadPlan(hasWeights: false, inFlight: 2)
+        XCTAssertFalse(busyEmpty.deferUnload)
+        XCTAssertFalse(busyEmpty.clearGPU)
+        // Idle + resident: full clear (normal eviction path).
+        let idle = MLXEngine.unloadPlan(hasWeights: true, inFlight: 0)
+        XCTAssertTrue(idle.clearStore)
+        XCTAssertTrue(idle.clearGPU)
+        XCTAssertFalse(idle.deferUnload)
+        // Idle + empty: store reset is harmless, GPU untouched — Metal must
+        // never initialize just to unload nothing (test-runner contract).
+        let idleEmpty = MLXEngine.unloadPlan(hasWeights: false, inFlight: 0)
+        XCTAssertTrue(idleEmpty.clearStore)
+        XCTAssertFalse(idleEmpty.clearGPU)
+    }
+
+    /// A drained slot flushes exactly the deferred intent, nothing else.
+    func testSlotExitFlushRules() {
+        XCTAssertFalse(MLXEngine.slotExitFlush(inFlight: 1, pendingUnload: true),
+                       "other operations still in flight")
+        XCTAssertFalse(MLXEngine.slotExitFlush(inFlight: 0, pendingUnload: false),
+                       "nothing was deferred")
+        XCTAssertTrue(MLXEngine.slotExitFlush(inFlight: 0, pendingUnload: true))
+    }
 }

@@ -140,11 +140,31 @@ public enum MLXEngine {
     /// must not initialize Metal (test runners have no metallib colocated).
     /// NEVER clears the GPU cache while a generate/load is in flight — that
     /// is the crash from 2026-09-14; the unload is deferred to slot exit.
+    // MARK: - Unload deferral state machine (pure, stress-tested)
+
+    /// Pure decision table for `unloadNow` (D027): what may be cleared given
+    /// residency and engine activity. While a generate/load is in flight the
+    /// GPU cache must NEVER be touched — clearing Metal under running kernels
+    /// crashes (observed live 2026-09-14); the intent is recorded and the
+    /// engine slot flushes it on exit.
+    static func unloadPlan(hasWeights: Bool, inFlight: Int)
+        -> (clearStore: Bool, clearGPU: Bool, deferUnload: Bool) {
+        if inFlight > 0 {
+            return (false, false, hasWeights)
+        }
+        return (true, hasWeights, false)
+    }
+
+    /// Pure: whether a drained engine slot must flush a deferred unload.
+    static func slotExitFlush(inFlight: Int, pendingUnload: Bool) -> Bool {
+        inFlight == 0 && pendingUnload
+    }
+
     public static func unloadNow() {
         lock.lock()
-        let hadWeights = container != nil
-        if inFlight > 0 {
-            if hadWeights { pendingUnload = true }
+        let plan = unloadPlan(hasWeights: container != nil, inFlight: inFlight)
+        if plan.deferUnload {
+            pendingUnload = true
             lock.unlock()
             return
         }
@@ -155,7 +175,7 @@ public enum MLXEngine {
         pendingUnload = false
         lock.unlock()
         // Release the Metal buffer pool, not just the Swift references.
-        guard hadWeights else { return }
+        guard plan.clearGPU else { return }
         GPU.clearCache()
     }
 
@@ -167,7 +187,7 @@ public enum MLXEngine {
     /// Returns true when this exit must flush a deferred unload.
     private static func exitSlot() -> Bool {
         lock.lock(); inFlight -= 1
-        let flush = inFlight == 0 && pendingUnload
+        let flush = slotExitFlush(inFlight: inFlight, pendingUnload: pendingUnload)
         if flush { pendingUnload = false }
         lock.unlock()
         return flush
