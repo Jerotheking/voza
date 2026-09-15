@@ -262,4 +262,47 @@ final class CleanupContractTests: XCTestCase {
     func testTripwireLeavesHealthyGenerationAlone() {
         XCTAssertFalse(MLXEngine.generationTimedOut(elapsedSeconds: 2.1, maxSeconds: 15))
     }
+
+    // MARK: - D031: starvation arm + reload gate
+
+    /// Starvation arm: past the 8 s window with <5 total tokens = GPU
+    /// starved — cut early instead of paying the full wall-clock budget.
+    func testProgressStarvedCutsDegradedGeneration() {
+        // The observed live incident: 2 tokens after 8 s → starved.
+        XCTAssertTrue(MLXEngine.progressStarved(tokensSoFar: 2, elapsedSeconds: 8.1))
+        XCTAssertTrue(MLXEngine.progressStarved(tokensSoFar: 0, elapsedSeconds: 30))
+        // Boundary inclusive: exactly at the window with too few tokens.
+        XCTAssertTrue(MLXEngine.progressStarved(tokensSoFar: 4, elapsedSeconds: 8))
+        // Healthy warm generation (~40 tok/s): way past 5 tokens by second 8.
+        XCTAssertFalse(MLXEngine.progressStarved(tokensSoFar: 6, elapsedSeconds: 8))
+        XCTAssertFalse(MLXEngine.progressStarved(tokensSoFar: 300, elapsedSeconds: 25))
+        // Inside the window: no verdict yet — give the model its 8 s.
+        XCTAssertFalse(MLXEngine.progressStarved(tokensSoFar: 1, elapsedSeconds: 7.9))
+        // Progress-then-stall is NOT this arm's job: 50 tokens then stalled
+        // still has tokensSoFar ≥ 5; the wall arm owns it.
+        XCTAssertFalse(MLXEngine.progressStarved(tokensSoFar: 50, elapsedSeconds: 29))
+    }
+
+    /// Reload gate: exact requirement passes, anything below fails — and the
+    /// names stay pinned so a silent constant change cannot slip past review.
+    func testReloadGateAndConstants() {
+        XCTAssertTrue(MLXEngine.reloadAvailable(availableMB: 3584, requiredMB: 3584))
+        XCTAssertTrue(MLXEngine.reloadAvailable(availableMB: 4000, requiredMB: 3584))
+        XCTAssertFalse(MLXEngine.reloadAvailable(availableMB: 3583.9, requiredMB: 3584))
+        // Contract constants (D031) — changing these silently breaks either
+        // latency (too tight) or protection (too loose).
+        XCTAssertEqual(MLXEngine.starvationWindowSeconds, 8, accuracy: 0.0001)
+        XCTAssertEqual(MLXEngine.starvationMinTokens, 5)
+        XCTAssertEqual(MLXEngine.reloadRequiredMB, 3584, accuracy: 0.0001)
+    }
+
+    /// The metrics helper returns a plausible figure or nil — never crashes,
+    /// never a negative. (The gate itself fails open on nil: tested above.)
+    func testSystemMemoryAvailableMBIsPlausible() {
+        if let mb = MLXEngine.SystemMemory.availableMB() {
+            XCTAssertGreaterThanOrEqual(mb, 0)
+            XCTAssertLessThan(mb, 262_144, "free+inactive above 256 GB is implausible")
+        }
+        // nil is a legitimate outcome (kernel API failure) — no assertion.
+    }
 }

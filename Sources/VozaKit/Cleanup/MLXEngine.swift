@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import MLXLMCommon
 import MLXLLM
 import MLX
@@ -112,7 +113,32 @@ public enum MLXEngine {
         return elapsedSeconds > maxSeconds
     }
 
-    /// D029: echo arm — the decoded window ends with the same `window` chars
+    /// D031: starvation arm — after `starvationWindowSeconds` of generation,
+    /// fewer than `starvationMinTokens` produced means the GPU is starved
+    /// (cold weight pages under heavy swap, another MLX model resident on the
+    /// same GPU — observed live: 2 tokens in 30 s). At warm speed (~40 tok/s)
+    /// healthy generation has long produced 5 tokens by second 8, so this
+    /// never fires on a healthy run; on a starved one it cuts at ~8 s instead
+    /// of paying the full wall-clock budget. Deliberately uses TOTAL tokens
+    /// so-far, not a rolling window: progress-then-stall remains the wall
+    /// arm's job; this arm targets the common degrade-from-token-one case.
+    static func progressStarved(tokensSoFar: Int, elapsedSeconds: Double,
+                                windowSeconds: Double = MLXEngine.starvationWindowSeconds,
+                                minTokens: Int = MLXEngine.starvationMinTokens) -> Bool {
+        guard elapsedSeconds >= windowSeconds else { return false }
+        return tokensSoFar < minTokens
+    }
+
+    /// D031: reload gate — may the engine load ~2.8 GB of weights right now,
+    /// or is the machine too starved for that to be anything but a 30 s
+    /// crawl for the user? Pure predicate over an estimated available-RAM
+    /// figure (see SystemMemory). Boundary is inclusive: exactly the
+    /// requirement still allows the reload.
+    static func reloadAvailable(availableMB: Double, requiredMB: Double) -> Bool {
+        availableMB >= requiredMB
+    }
+
+    /// D031: echo arm — the decoded window ends with the same `window` chars
     /// immediately repeated (verbatim overlap). A token loop signature, even
     /// when the machine is fast. Fast loops that reach the token ceiling are
     /// already caught post-hoc by `hitTokenCeiling`; this trips earlier and
@@ -133,6 +159,41 @@ public enum MLXEngine {
         return cut
     }
 
+    // MARK: - Degradation contracts (D031)
+
+    /// Starvation thresholds: a healthy warm generation produces ≥5 tokens
+    /// in well under a second; 8 s is 4× the observed degraded-warm
+    /// whole-generation time, so crossing it with <5 tokens is conclusive.
+    static let starvationWindowSeconds: Double = 8
+    static let starvationMinTokens = 5
+
+    /// Free memory the reload gate demands before loading the 4B weights
+    /// (~2.8 GB GPU-resident) — the extra ~0.7 GB keeps the system from
+    /// sinking deeper into swap the moment we touch the pages. Tuned for the
+    /// default Tier A model; revisit if the catalog grows a bigger tier.
+    static let reloadRequiredMB: Double = 3584
+
+    /// Thin, read-only memory metrics for the reload gate. `availableMB` is
+    /// free + inactive pages — the best cheap estimate of memory macOS can
+    /// hand out without pushing live anonymous pages deeper into swap.
+    /// Returns nil when the kernel API fails: the gate FAILS OPEN (attempt
+    /// the reload) because the tripwire still bounds the time.
+    enum SystemMemory {
+        static func availableMB() -> Double? {
+            var stats = vm_statistics64()
+            var count = mach_msg_type_number_t(
+                UInt32(MemoryLayout<vm_statistics64_data_t>.size / MemoryLayout<integer_t>.size))
+            let kr = withUnsafeMutablePointer(to: &stats) {
+                $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                    host_statistics64(mach_host_self(), HOST_VM_INFO64, $0, &count)
+                }
+            }
+            guard kr == KERN_SUCCESS else { return nil }
+            return (Double(stats.free_count) + Double(stats.inactive_count))
+                * Double(vm_kernel_page_size) / 1_048_576
+        }
+    }
+
     // MARK: - Public API
 
     /// Generates a cleanup completion for `text` given the system prompt.
@@ -142,6 +203,22 @@ public enum MLXEngine {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         installPressureHandlerIfNeeded()
+
+        // D031 reload gate: a cold reload on a swap-starved machine is a
+        // guaranteed ~30 s crawl (observed live: 2 tokens / 33 s, kernel-load
+        // error under 8 GB swap). If the weights are NOT resident and free
+        // memory cannot absorb the model, fail fast to raw — instant paste,
+        // and the system keeps its RAM instead of us competing for it. The
+        // gate FAILS OPEN on metrics failure (tripwire still bounds time).
+        if !isLoaded {
+            let free = SystemMemory.availableMB()
+            if let free, !reloadAvailable(availableMB: free, requiredMB: reloadRequiredMB) {
+                CleanupLog.write("mlx", "skipreload", detail: String(
+                    format: "free=%.0fMB required=%.0fMB — raw pasted instantly",
+                    free, reloadRequiredMB))
+                return nil
+            }
+        }
 
         let cfg = config
         let prompt = UserInput(chat: [
@@ -211,6 +288,12 @@ public enum MLXEngine {
                                     elapsedSeconds: clock.elapsed,
                                     maxSeconds: cfg.maxGenerationSeconds) {
                                     box.trip("wall")
+                                } else if MLXEngine.progressStarved(
+                                    tokensSoFar: tokens.count,
+                                    elapsedSeconds: clock.elapsed) {
+                                    // D031: starved GPU — cut at ~8 s instead
+                                    // of paying the full 30 s budget.
+                                    box.trip("starve")
                                 } else {
                                     let tail = context.tokenizer.decode(tokens: Array(tokens.suffix(256)))
                                     if MLXEngine.echoLoopDetected(tail) {
@@ -235,7 +318,7 @@ public enum MLXEngine {
                 // D029: which arm fired matters — wall-clock means slow/stuck,
                 // echo means a loop even at speed. Both fall back to raw.
                 let state = box.tripReason
-                let event = state.reason == "wall" ? "tripwall" : "tripecho"
+                let event = "trip" + state.reason  // tripwall | tripstarve | tripecho
                 print("[MLXEngine] tripwire: stopped at \(result.tokens.count) tokens, " +
                       String(format: "%.1fs", elapsed) + " — falling back to raw")
                 CleanupLog.write("mlx", event, seconds: elapsed,
@@ -362,6 +445,16 @@ public enum MLXEngine {
         // if the user never dictates (D026 RAM contract). unloadNow defers
         // itself while a load is in flight (crash guard).
         installPressureHandlerIfNeeded()
+        // D031: same reload gate as the on-demand path — loading 2.8 GB into
+        // a swap-starved machine only invites immediate pressure-eviction
+        // churn. Skip quietly; a later dictation retries when RAM frees up.
+        if let free = SystemMemory.availableMB(),
+           !reloadAvailable(availableMB: free, requiredMB: reloadRequiredMB) {
+            CleanupLog.write("mlx", "skipreload", detail: String(
+                format: "preload — free=%.0fMB required=%.0fMB",
+                free, reloadRequiredMB))
+            return
+        }
         _ = try? await withEngineSlot {
             try await withError { error -> ModelContainer in
                 let c = try await acquire(modelID: id)
