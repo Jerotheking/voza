@@ -71,12 +71,30 @@ final class CorrectionWatcher {
     /// Begins watching the session's element. Cancels any previous watch
     /// (one session at a time — the newest paste wins).
     func start(for session: Paster.Session) {
-        guard session.element != nil else { return }
         lock.lock()
         generation += 1
         let gen = generation
         active = true
         lock.unlock()
+
+        LearningLog.shared.event(.start(hasElement: session.element != nil))
+
+        // No element → the paste landed in an app that doesn't expose text
+        // semantics yet (Electron/Chromium). Force its hidden AX support and
+        // capture a LIVE baseline after the paste (D034, the Sintelia case).
+        guard session.element != nil else {
+            queue.async { [weak self] in
+                let continueCheck: (() -> Bool)? = self.map { watcher in
+                    { watcher.lock.lock(); defer { watcher.lock.unlock() }; return watcher.generation == gen && watcher.active }
+                }
+                _ = Self.watchLateBaseline(session: session, shouldContinue: continueCheck)
+                guard let self else { return }
+                self.lock.lock()
+                if self.generation == gen { self.active = false }
+                self.lock.unlock()
+            }
+            return
+        }
 
         queue.async { [weak self] in
             let continueCheck: (() -> Bool)? = self.map { watcher in
@@ -240,6 +258,94 @@ final class CorrectionWatcher {
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
               let value = valueRef as? String else { return nil }
         return value
+    }
+
+    // MARK: - Late-baseline mode (Electron/Chromium, D034)
+
+    /// Watches a paste whose target app exposed no AX text at capture time.
+    /// Electron apps (Slack, VS Code, Discord, Chromium browsers…) gate their
+    /// accessibility tree behind VoiceOver detection — or the manual
+    /// `AXManualAccessibility` override, which is exactly what we set here
+    /// (same trick VO uses). The tree takes a moment to build, so we poll the
+    /// focused element for up to ~5 s until kAXValue reads our pasted text,
+    /// then diff the LIVE field against that baseline with the SAME guards as
+    /// the normal path. Difference rules: the baseline starts as `pasted` (it
+    /// IS what we pasted); if the app exposes a larger field, the paste is
+    /// contained within it — containment counts as "unchanged so far".
+    static func watchLateBaseline(session: Paster.Session,
+                                  clock: Clock = SystemClock(),
+                                  readFocused: (() -> String?)? = nil,
+                                  sleep: ((TimeInterval) -> Void)? = nil,
+                                  shouldContinue: (() -> Bool)? = nil,
+                                  sink: LearningSink = CorrectionStore.shared,
+                                  config: WatchConfig = .production) -> Bool {
+        let doSleep = sleep ?? { Thread.sleep(forTimeInterval: $0) }
+        let reader = readFocused ?? {
+            guard let el = Paster.focusedElementPublic else { return nil }
+            return readField(el)
+        }
+        let pollSeconds = config.pollIntervalSeconds
+        let settleSeconds = 1.0
+        let axWakeSeconds = 5.0
+
+        // 1) Wake the app's AX tree (manual override, the VO trick).
+        Paster.forceAccessibilityOnFocusedApp()
+
+        // 2) Wait until the field reflects our paste, or give up.
+        let pasted = session.pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
+        var baseline: String?
+        var waited = 0.0
+        while waited < axWakeSeconds {
+            if let shouldContinue, !shouldContinue() { return false }
+            doSleep(pollSeconds)
+            waited += pollSeconds
+            if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                baseline = current
+                break
+            }
+        }
+        guard let baseline else {
+            LearningLog.shared.event(.expired) // app never exposed the field
+            return false
+        }
+
+        // 3) Let the user's correction land (settle) and diff against baseline.
+        doSleep(settleSeconds)
+        let deadline = clock.now.addingTimeInterval(config.windowSeconds)
+        var lastValue: String?
+        var stableCount = 0
+        while clock.now < deadline {
+            if let shouldContinue, !shouldContinue() { return false }
+            doSleep(pollSeconds)
+            guard let current = reader() else { continue }
+            let unchanged = (current == baseline)
+                || (current as NSString).contains(pasted) // our text still intact
+            if unchanged {
+                stableCount = 0
+                lastValue = current
+                continue
+            }
+            if current == lastValue {
+                stableCount += 1
+            } else {
+                stableCount = 1
+            }
+            lastValue = current
+            if stableCount >= config.stabilitySamples {
+                // The learned pair must be about OUR text: reuse extractPair
+                // semantics with expected = baseline (what the field held with
+                // our paste inside).
+                if let pair = extractPair(pasted: session.pastedText, typed: current, expected: baseline) {
+                    _ = sink.record(heard: pair.heard, said: pair.said)
+                    LearningLog.shared.event(.learned(heard: pair.heard, said: pair.said))
+                    return true
+                }
+                LearningLog.shared.event(.expired) // change rejected by guards
+                return false
+            }
+        }
+        LearningLog.shared.event(.expired)
+        return false
     }
 }
 

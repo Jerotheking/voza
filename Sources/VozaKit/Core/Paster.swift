@@ -81,28 +81,69 @@ enum Paster {
     /// Captures the focused element + selected range at paste time. Returns
     /// nil (no session → auto-learn gracefully skipped for this paste) when
     /// Accessibility is off or the app does not expose text semantics.
-    private static func captureContext(pastedText: String) -> Session? {
+    /// Captures the focused element + selected range at paste time. When
+    /// Accessibility is off or the app does not expose text semantics
+    /// (Electron/Chromium until forced), returns a session with `element == nil`
+    /// — the watcher routes those to the late-baseline path instead of
+    /// dropping auto-learn silently (D034: the Sintelia case).
+    private static func captureContext(pastedText: String) -> Session {
+        guard AXIsProcessTrusted(),
+              let focusedEl = focusedElement() else {
+            return Session(element: nil, pastedText: pastedText,
+                           selectedRange: NSRange(location: 0, length: 0),
+                           fieldBefore: "", startedAt: Date())
+        }
+        let element = focusedEl
+
+        var rangeRef: CFTypeRef?
+        var valueRef: CFTypeRef?
+        let rangeStatus = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef)
+        let hasRange = rangeStatus == .success && rangeRef != nil
+            && CFGetTypeID(rangeRef!) == AXValueGetTypeID()
+        var selRange = CFRange()
+        let valueStatus = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef)
+        let value = valueRef as? String
+        let hasValue = valueStatus == .success && value != nil
+
+        guard hasRange, AXValueGetValue(rangeRef as! AXValue, .cfRange, &selRange), selRange.location >= 0,
+              hasValue, let fieldValue = value else {
+            return Session(element: nil, pastedText: pastedText,
+                           selectedRange: NSRange(location: 0, length: 0),
+                           fieldBefore: "", startedAt: Date())
+        }
+
+        return Session(element: element, pastedText: pastedText,
+                       selectedRange: NSRange(location: selRange.location, length: selRange.length),
+                       fieldBefore: fieldValue, startedAt: Date())
+    }
+
+    /// System-wide focused element, or nil when unavailable. Internal for
+    /// the watcher's late-baseline reader.
+    internal static var focusedElementPublic: AXUIElement? {
         guard AXIsProcessTrusted() else { return nil }
+        return focusedElement()
+    }
+
+    /// Wakes the focused app's hidden accessibility support by setting
+    /// `AXManualAccessibility` (the attribute VoiceOver itself sets; harmless
+    /// no-op on apps that already expose AX or ignore the attribute).
+    /// Chromium/Electron gates its AX tree behind this.
+    static func forceAccessibilityOnFocusedApp() {
+        guard let element = focusedElement() else { return }
+        var app: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(element, kAXFocusedApplicationAttribute as CFString, &app) == .success,
+              let appEl = app else { return }
+        let axApp = appEl as! AXUIElement
+        AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    }
+
+    /// System-wide focused element, or nil when unavailable.
+    private static func focusedElement() -> AXUIElement? {
         let sysWide = AXUIElementCreateSystemWide()
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(sysWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let focusedEl = focused else { return nil }
-        let element = focusedEl as! AXUIElement
-
-        var rangeRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &rangeRef) == .success,
-              let rangeValue = rangeRef,
-              CFGetTypeID(rangeValue) == AXValueGetTypeID() else { return nil }
-        var selRange = CFRange()
-        guard AXValueGetValue(rangeValue as! AXValue, .cfRange, &selRange), selRange.location >= 0 else { return nil }
-
-        var valueRef: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
-              let value = valueRef as? String else { return nil }
-
-        return Session(element: element, pastedText: pastedText,
-                       selectedRange: NSRange(location: selRange.location, length: selRange.length),
-                       fieldBefore: value, startedAt: Date())
+        return (focusedEl as! AXUIElement)
     }
 
     // MARK: - Pure helpers (smoke-tested)
