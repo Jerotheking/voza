@@ -1,5 +1,28 @@
 import SwiftUI
 
+extension NSApplication {
+    /// Opens the SwiftUI Settings scene and guarantees it lands in front.
+    /// Voza is an LSUIElement (accessory) app: macOS 14+ cooperative
+    /// activation routinely denies focus, so the settings window otherwise
+    /// opens BEHIND the frontmost app — looking exactly like "the button
+    /// does nothing". The activation opportunity is only valid while the
+    /// user's click is being handled, so activate FIRST, then open, then
+    /// force the window to front on the next run-loop turn.
+    func openSettingsInFront() {
+        if #available(macOS 14.0, *) {
+            activate()
+        } else {
+            activate(ignoringOtherApps: true)
+        }
+        guard sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) else { return }
+        DispatchQueue.main.async {
+            if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "com_apple_SwiftUI_Settings_window" }) {
+                w.makeKeyAndOrderFront(nil)
+            }
+        }
+    }
+}
+
 public struct VozaApp: App {
     public init() {}
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
