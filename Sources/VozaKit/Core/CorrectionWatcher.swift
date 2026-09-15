@@ -270,6 +270,36 @@ final class CorrectionWatcher {
         return value
     }
 
+    // MARK: - VoiceOver wake (the Chromium canary)
+
+    /// Chromium/Electron enables its accessibility tree when it detects a
+    /// screen reader; the manual AXManualAccessibility attribute is not
+    /// implemented by every Electron build (D034 field evidence: Freebuff
+    /// answers `attributeUnsupported`). The reliable wake is toggling
+    /// VoiceOver on→off: Chromium sees VO start and keeps AX enabled after it
+    /// stops. Voza sends ⌘F5 twice (VO on, then off) — net effect is a short
+    /// system blip, no speech content, and the tree stays awake for the
+    /// session. Requires Input Monitoring (same permission as the hotkey).
+    /// Returns false when the keystrokes could not be posted.
+    @discardableResult
+    static func wakeAccessibilityViaVoiceOverToggle() -> Bool {
+        func tapF5() -> Bool {
+            guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 96, keyDown: true),
+                  let up = CGEvent(keyboardEventSource: nil, virtualKey: 96, keyDown: false) else { return false }
+            down.flags = .maskCommand
+            up.flags = .maskCommand
+            down.post(tap: .cghidEventTap)
+            usleep(60_000)
+            up.post(tap: .cghidEventTap)
+            return true
+        }
+        guard tapF5() else { return false }
+        usleep(900_000) // let Chromium notice VO started
+        guard tapF5() else { return false }
+        LearningLog.shared.event(.voWake)
+        return true
+    }
+
     // MARK: - Late-baseline mode (Electron/Chromium, D034)
 
     /// Watches a paste whose target app exposed no AX text at capture time.
@@ -318,15 +348,26 @@ final class CorrectionWatcher {
                 break
             }
         }
-        guard let baseline else {
+        if baseline == nil {
             // Distinguish "AX never woke" (fixable later) from "woke but the
             // user made no approved edit" — different remediation paths.
             // accepted = the app ACKNOWLEDGED the override (tree just never
             // built); unsupported = the app rejected the attribute outright
             // (its Electron build doesn't implement the handler at all).
             LearningLog.shared.event(.axNeverWoke(accepted: forcedAccepted, unsupported: forcedUnsupported))
-            return false
+            // Last resort: the VoiceOver toggle wakes every real Chromium
+            // build (VO detection is compiled into the renderer, unlike the
+            // manual-override attribute, which Freebuff's build rejects).
+            if forcedUnsupported > 0, forcedAccepted == 0,
+               Self.wakeAccessibilityViaVoiceOverToggle() {
+                doSleep(1.5) // tree construction after VO detection
+                if let current = reader(),
+                   current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
+                    baseline = current
+                }
+            }
         }
+        guard let baseline else { return false }
 
         // 3) Let the user's correction land (settle) and diff against baseline.
         doSleep(settleSeconds)
