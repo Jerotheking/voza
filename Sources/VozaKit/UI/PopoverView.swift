@@ -80,30 +80,23 @@ struct PopoverView: View {
     private var phaseTitle: String {
         switch appState.phase {
         case .idle: return L.t("Hold Option to talk", es: "Mantén Option para hablar")
-        case .recording(let cleanup):
-            return L.t(cleanup ? "Recording — cleanup mode" : "Recording…",
-                       es: cleanup ? "Grabando — con limpieza" : "Grabando…")
+        case .recording: return L.t("Recording…", es: "Grabando…")
         case .transcribing: return L.t("Transcribing…", es: "Transcribiendo…")
-        case .cleaning: return L.t("Polishing text…", es: "Puliendo texto…")
         case .failed(let msg): return msg
         }
     }
 
     private var phaseDetail: String {
         switch appState.phase {
-        case .idle: return L.t("Left Option = AI cleanup", es: "Option izquierda = limpieza IA")
+        case .idle: return L.t("100% local · nothing leaves your Mac", es: "100% local · nada sale de tu Mac")
         case .recording: return String(format: "%.0f s", appState.elapsedSeconds)
         case .transcribing: return L.t("100% on your Mac", es: "100% en tu Mac")
-        case .cleaning: return L.t("Almost there", es: "Casi listo")
         case .failed: return L.t("Hold Option to try again", es: "Mantén Option para intentar de nuevo")
         }
     }
 
     private var showsBusyBar: Bool {
-        switch appState.phase {
-        case .transcribing, .cleaning: return true
-        default: return false
-        }
+        appState.phase == .transcribing
     }
 
     /// Colored capsule glyph for the header; pulses while recording.
@@ -122,8 +115,6 @@ struct PopoverView: View {
                     .onAppear { pulse = true }
             case .transcribing:
                 glyph("waveform", tint: Theme.accent, bg: Theme.accent.opacity(0.14))
-            case .cleaning:
-                glyph("sparkles", tint: Theme.accent, bg: Theme.accent.opacity(0.14))
             case .failed:
                 glyph("exclamationmark.triangle", tint: .orange, bg: Color.orange.opacity(0.14))
             }
@@ -249,7 +240,7 @@ struct TranscriptRow: View {
                 .foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
-                if !isEditing, let onEdit {
+                if !isEditing, onEdit != nil {
                     Button {
                         draft = entry.text
                         isEditing = true

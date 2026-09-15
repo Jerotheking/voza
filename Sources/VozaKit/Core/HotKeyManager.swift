@@ -2,37 +2,31 @@ import AppKit
 import CoreGraphics
 
 /// Global push-to-talk hotkeys via CGEventTap.
-/// Hold Right Option → dictation; hold Left Option → cleanup (D021 temporary).
+/// Hold Option (either side) → dictation; release → paste (D032).
 ///
 /// KEYCODE GROUND TRUTH (verified against Apple's HIToolbox Events.h, SDK 15.2):
-/// kVK_Option=0x3A(58, LEFT), kVK_RightOption=0x3D(61), kVK_Control=0x3B(59, LEFT),
-/// kVK_RightCommand=0x36(54), kVK_RightControl=0x3E(62).
+/// kVK_Option=0x3A(58, LEFT), kVK_RightOption=0x3D(61).
 ///
-/// BINDING HISTORY: cleanup lived on Right ⌘ (0x36) until 2026-09-09, when the
-/// owner asked to move it to LEFT OPTION for testing (D021) — Right ⌘ collides
-/// with their Wispr Flow shortcut. Owner's stated end-state: ONE button only,
-/// mode chosen some other way — the rebind is explicitly TEMPORARY.
-/// Trade-off accepted for the test phase: holding Left Option bare now starts
-/// a cleanup dictation, so real ⌥-shortcuts where Option is pressed FIRST can
-/// trigger a stray session start. Right Option (dictation) is unaffected.
+/// BINDING HISTORY: a second "cleanup" hotkey lived on Right ⌘, then LEFT
+/// Option (D021), until D032 (2026-09-15) removed the cleanup mode entirely —
+/// the owner measured that local-LLM polish could not win the latency war
+/// (D027-D031 guards kept tripping on a real machine). The owner's stated
+/// end-state — ONE behavior, ONE button — is now literal: both Options do
+/// the same thing, so muscle memory built on either key keeps working.
+/// Bare-modifier rule preserved: ⌥ held together with ⌃/⌘/⇧ is a real
+/// shortcut and never starts a dictation.
 enum VozaKeyCodes {
-    /// Right Option only (owner decision 2026-09-08): ONE dedicated physical
-    /// key for dictation — no ambiguity, no ergonomic split.
-    static let dictation: Set<Int64> = [0x3D] // kVK_RightOption
-    /// TEMPORARY (D021, owner request 2026-09-09): Left Option for cleanup
-    /// while testing — Right ⌘ collided with the owner's Wispr binding.
-    static let cleanup: Int64 = 0x3A // kVK_Option (LEFT)
+    /// Both Option keys (D032): one behavior, no mode ambiguity.
+    static let dictation: Set<Int64> = [0x3D, 0x3A] // kVK_RightOption, kVK_Option (LEFT)
 }
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
     var onPressNormal: (@MainActor () -> Void)?
-    var onPressCleanup: (@MainActor () -> Void)?
     var onRelease: (@MainActor () -> Void)?
 
     private var tap: CFMachPort?
     private var normalDown = false
-    private var cleanupDown = false
 
     func start() {
         installTap()
@@ -105,7 +99,6 @@ final class HotKeyManager {
 
     @MainActor private func handleFlagsChanged(keyCode: Int64, alt: Bool, ctrl: Bool, cmd: Bool, shift: Bool) {
         let isDictationKey = VozaKeyCodes.dictation.contains(keyCode)
-        let isCleanupKey = keyCode == VozaKeyCodes.cleanup
 
         if isDictationKey {
             // Fire only as a BARE modifier: if ⌃/⌘/⇧ is already held, this is
@@ -116,23 +109,10 @@ final class HotKeyManager {
             } else if !alt {
                 normalDown = false
             }
-        }
-        if isCleanupKey {
-            // Cleanup is bound to an OPTION key (D021), so its flag is
-            // .maskAlternate — the flag must match the physical key we bound,
-            // or the press never fires. Same bare-modifier rule applies:
-            // ⌃/⌘/⇧ already held → it's a real shortcut, not a hotkey press.
-            if alt && !ctrl && !cmd && !shift && !cleanupDown {
-                cleanupDown = true
-                onPressCleanup?()
-            } else if !alt {
-                cleanupDown = false
+            // Stop only when no hotkey is held anymore.
+            if !normalDown {
+                onRelease?()
             }
-        }
-        // Stop only when NO hotkey is held anymore: pressing the other hotkey
-        // mid-recording must not cut the current dictation short.
-        if (isDictationKey || isCleanupKey) && !normalDown && !cleanupDown {
-            onRelease?()
         }
     }
 
@@ -142,6 +122,5 @@ final class HotKeyManager {
         }
         tap = nil
         normalDown = false
-        cleanupDown = false
     }
 }

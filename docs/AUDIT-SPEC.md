@@ -1,5 +1,13 @@
 # Voza — Documento Maestro de Especificaciones para Auditoría Externa
 
+> ⚠️ **SUPERSEDED (2026-09-15, D032).** Este documento describe la arquitectura
+> con limpieza IA local (Ollama/MLX) vigente hasta el 2026-09-15. Esa arquitectura
+> fue REMOVIDA por decisión del dueño tras cuatro incidentes medidos en máquina
+> real (generaciones trabadas, fallos de kernel Metal bajo swap). Ver la autoridad
+> vigente: `docs/plan-glm/DECISIONS.md` → **D032**. Todo lo de este doc sobre
+> cleanup (`auto|ollama|mlx`, cadena local→cloud, fases `cleaning`) es histórico.
+> STT, historial, aprendizaje, licencias y el resto no cambian.
+
 > **ADDENDUM (2026-09-06, auditoría externa v2 — Sprint 0 ejecutado).** La segunda
 > pasada de auditoría externa (Voza_Auditoria_Integral_Roadmap_v2) levantó 14
 > hallazgos P0. Los 14 fueron verificados contra el código (14/14 confirmados) y

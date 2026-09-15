@@ -68,8 +68,6 @@ struct MenuBarLabel: View {
             Image(systemName: "mic.fill").foregroundStyle(.red)
         case .transcribing:
             Image(systemName: "waveform")
-        case .cleaning:
-            Image(systemName: "sparkles")
         }
     }
 }
@@ -80,23 +78,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         HotKeyManager.shared.start()
         TranscriptStore.shared.loadRecent(limit: 10)
 
-        // Wire push-to-talk to the shared AppState.
+        // Wire push-to-talk to the shared AppState. D032: one behavior — any
+        // Option key dictates and the raw transcript is pasted instantly.
         let appState = AppState.shared
-        HotKeyManager.shared.onPressNormal = { appState.startDictation(cleanup: false) }
-        HotKeyManager.shared.onPressCleanup = { appState.startDictation(cleanup: true) }
+        HotKeyManager.shared.onPressNormal = { appState.startDictation() }
         HotKeyManager.shared.onRelease = { appState.stopDictation() }
         appState.refresh()
         // HUD may need to hide if the app relaunches mid-busy-phase (D020).
         DictationHUDController.shared.update(phase: appState.phase)
         LicenseManager.shared.refreshIfNeeded()
-        // D026 — warm start: Pulido weights load from disk at launch so the
-        // first cleanup costs ~0.8 s instead of ~12 s. Cached-only (no
-        // network), background QoS, user-disabled via mlx_preload = false,
-        // and only when permissions are already granted — onboarding takes
-        // priority for fresh installs.
-        if Permissions.allGranted, Config.shared.mlxPreload {
-            Task.detached(priority: .background) { await MLXEngine.preloadNow() }
-        }
         if !Permissions.allGranted {
             appState.showOnboarding = true
             OnboardingWindowController.shared.show(appState: appState)

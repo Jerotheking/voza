@@ -56,7 +56,7 @@ final class PreviewRenderTests: XCTestCase {
 
     func testPopoverRendersInBothPhases() {
         let state = AppState.shared
-        for phase in [VozaPhase.idle, .recording(cleanup: false), .transcribing] {
+        for phase in [VozaPhase.idle, .recording, .transcribing] {
             state.phase = phase
             state.recent = []
             assertRenders(PopoverView().environmentObject(state), name: "PopoverView(\(phase))")
@@ -65,7 +65,7 @@ final class PreviewRenderTests: XCTestCase {
 
     func testDictationHUDRendersWhileBusy() {
         let state = AppState.shared
-        for phase in [VozaPhase.recording(cleanup: false), .recording(cleanup: true), .transcribing, .cleaning] {
+        for phase in [VozaPhase.recording, .transcribing] {
             state.phase = phase
             // Mirror the production panel: the HUD lives in a fixed 148×42
             // frame (D022 compact size), so assert against that geometry.

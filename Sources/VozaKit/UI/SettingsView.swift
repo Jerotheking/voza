@@ -300,23 +300,22 @@ struct DictationSettings: View {
                     get: { appState.config.cleanupMode },
                     set: { appState.config.setCleanupMode($0) }
                 )) {
-                    Text(L.t("Automatic — local only, never cloud", es: "Automática — solo local, nunca nube")).tag("auto")
-                    Text("Ollama " + L.t("only", es: "solo")).tag("ollama")
-                    Text(L.t("Cloud API only (explicit)", es: "Solo API en la nube (explícito)")).tag("cloud")
-                    Text(L.t("Off (plain paste)", es: "Apagada (pegado simple)")).tag("plain")
+                    Text(L.t("Off — paste exactly what you said (default)", es: "Apagada — pega exactamente lo que dijiste (por defecto)")).tag("plain")
+                    Text(L.t("Cloud AI — uses your own API key", es: "IA en la nube — usa tu propia llave API")).tag("cloud")
                 }
-                if appState.config.cleanupMode == "ollama" || appState.config.cleanupMode == "auto" {
-                    HStack {
-                        TextField("ollama model", text: Binding(
-                            get: { appState.config.ollamaModel },
-                            set: { appState.config.setOllamaModel($0) }
-                        ))
-                        .textFieldStyle(.roundedBorder)
-                        Text(appState.config.ollamaDetected
-                             ? L.t("Ollama detected ✓", es: "Ollama detectado ✓")
-                             : L.t("Ollama not found", es: "Ollama no encontrado"))
+                if appState.config.cleanupMode == "cloud" {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L.t("Runs on OpenAI-compatible APIs (OpenAI, OpenRouter, Groq…), then Anthropic as backup. Put your key in ~/.config/voza/.env:",
+                                 es: "Corre en APIs compatibles con OpenAI (OpenAI, OpenRouter, Groq…), con Anthropic de respaldo. Pon tu llave en ~/.config/voza/.env:"))
                             .font(.caption)
-                            .foregroundStyle(appState.config.ollamaDetected ? Color.green : Color.orange)
+                            .foregroundStyle(.secondary)
+                        Text("OPENAI_API_KEY=sk-…    # or ANTHROPIC_API_KEY=sk-ant-…")
+                            .font(.system(.caption2, design: .monospaced))
+                            .textSelection(.enabled)
+                        Text(L.t("Only the already-transcribed text is sent — never audio, and never without this switch.",
+                                 es: "Solo se envía el texto ya transcrito — nunca el audio, y nunca sin este switch."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
             } header: {

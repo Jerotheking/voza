@@ -616,13 +616,12 @@ do {
     check("history cleaned survives", parsed.contains { $0.cleaned && $0.text == "cleaned entry text" })
 }
 
-// 10. Cleaner privacy boundary (audit v2 §3.8 + D024): "auto" must NEVER chain
-// to cloud; local-first is in-process MLX, then Ollama IF already installed.
-let autoChain = Cleaner.providerChain(for: "auto")
-check("cleanup auto = local only (mlx, ollama)", autoChain == ["mlx", "ollama"], "\(autoChain)")
-check("cleanup mlx = local only", Cleaner.providerChain(for: "mlx") == ["mlx"])
-check("cleanup ollama = local only", Cleaner.providerChain(for: "ollama") == ["ollama"])
+// 10. Cleaner privacy boundary (audit v2 §3.8 + D032): no mode ever reaches
+// a local provider (they no longer exist) and ONLY explicit "cloud" touches
+// the network — anything else is passthrough.
 check("cleanup plain = none", Cleaner.providerChain(for: "plain").isEmpty)
+check("cleanup auto (legacy) = none", Cleaner.providerChain(for: "auto").isEmpty,
+      "local providers removed — legacy value must not resurrect them")
 check("cleanup cloud explicit", Cleaner.providerChain(for: "cloud") == ["openai", "anthropic"])
 
 // 11. Disk guard is per-model (audit v2 §3.10)

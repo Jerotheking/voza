@@ -4,21 +4,13 @@ import PackageDescription
 let package = Package(
     name: "Voza",
     platforms: [.macOS(.v14)],
-    dependencies: [
-        // D024: in-process cleanup inference — removes the Ollama adoption
-        // requirement. Pinned to a release line, not a branch.
-        .package(
-            url: "https://github.com/ml-explore/mlx-swift-examples.git",
-            from: "2.0.0"
-        ),
-    ],
+    // D032: the mlx-swift-examples dependency is GONE — local cleanup
+    // inference was removed (see DECISIONS.md). Voza builds in seconds,
+    // ships ~200 MB lighter, and owns zero resident LLM RAM.
+    dependencies: [],
     targets: [
         .target(
             name: "VozaKit",
-            dependencies: [
-                .product(name: "MLXLLM", package: "mlx-swift-examples"),
-                .product(name: "MLXLMCommon", package: "mlx-swift-examples"),
-            ],
             path: "Sources/VozaKit"
         ),
         .executableTarget(
@@ -30,11 +22,6 @@ let package = Package(
             name: "VozaSmoke",
             dependencies: ["VozaKit"],
             path: "Sources/VozaSmoke"
-        ),
-        .executableTarget(
-            name: "MLXBench",
-            dependencies: ["VozaKit"],
-            path: "Sources/MLXBench"
         ),
         .testTarget(
             name: "VozaTests",

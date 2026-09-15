@@ -70,12 +70,11 @@ struct DictationHUDView: View {
     var body: some View {
         HStack(spacing: 9) {
             switch appState.phase {
-            case .recording(let cleanup):
-                LevelBars(tint: cleanup ? Theme.accent : .red)
+            case .recording:
+                LevelBars(tint: .red)
                     .environmentObject(levelModel)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(L.t(cleanup ? "Cleanup" : "Recording",
-                             es: cleanup ? "Limpieza" : "Grabando"))
+                    Text(L.t("Recording", es: "Grabando"))
                         .font(.system(size: 11, weight: .semibold))
                     Text(String(format: "%.0f s", appState.elapsedSeconds))
                         .font(.system(size: 10))
@@ -92,12 +91,6 @@ struct DictationHUDView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
-            case .cleaning:
-                Image(systemName: "sparkles")
-                    .font(.system(size: 12))
-                    .foregroundStyle(Theme.accent)
-                Text(L.t("Polishing…", es: "Puliendo…"))
-                    .font(.system(size: 11, weight: .semibold))
             default:
                 EmptyView()
             }

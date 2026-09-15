@@ -23,13 +23,13 @@ Dictado local, offline y con IA para macOS — reemplazo de Superwhisper: más r
 | Action | How |
 |---|---|
 | **Dictate** | Hold **Option** (either side) anywhere in macOS, speak, release → text is pasted where your cursor is |
-| **Dictate + AI cleanup** | Hold **Right ⌘** instead → same flow, then a local LLM fixes punctuation and removes filler words |
+| **Dictate + AI cleanup (opt-in)** | Turn on *Cloud AI* in Settings and set `OPENAI_API_KEY` in `~/.config/voza/.env` → same hotkey, then punctuation/fillers are fixed by your chosen model (Wispr-Flow-style polish, sent only when you opt in) |
 | **History** | Click the menu bar mic → last 10 transcripts with copy buttons |
 | **Log** | Every transcript is appended to `~/Dictation/YYYY-MM.md` with a timestamp |
 
-- Transcription runs **100% locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (Metal-accelerated). Your audio never leaves the Mac. Text cleanup is local-first: cloud providers run only if you explicitly select a cloud mode.
+- Transcription runs **100% locally** with [whisper.cpp](https://github.com/ggml-org/whisper.cpp) (Metal-accelerated). Your audio never leaves the Mac. By default the transcript is pasted **exactly as dictated** — no network, no processing.
 - Audio files are **deleted immediately** after transcription. No accounts, no telemetry, no cloud STT.
-- AI cleanup uses your **local Ollama** by default (e.g. `qwen3:8b`) — free and offline, and the automatic mode never sends your text to the cloud. Optional explicit cloud cleanup via your own key in `~/.config/voza/.env` (see `.env.example`).
+- **AI cleanup is an explicit opt-in** (off by default): when enabled in Settings, the already-transcribed text is sent to an OpenAI-compatible API (OpenAI, OpenRouter, Groq…) with Anthropic as backup, using your own key in `~/.config/voza/.env` (see `.env.example`). Never audio, never without the switch.
 - **Automatic preset for your Mac and language**: Voza picks a multilingual model by default and only selects an English-optimized one when your speech language is English. Downloads are verified with SHA-256. Override in Settings → Models.
 - Bilingual UI: English / Español (auto-detected, override in Settings).
 
@@ -45,7 +45,7 @@ Voza triggers up to three system prompts on first use — this is normal, and ea
 
 1. **Microphone** — to record your voice. Prompt appears the first time you hold the hotkey (or press *Grant* in onboarding).
 2. **Accessibility** — to paste text into the focused app. Prompt appears on the first paste; you can also open it via onboarding → *Open Settings*. Without it, transcripts still appear in history but are not pasted.
-3. **Input Monitoring** — to detect the Option / Right ⌘ hotkeys globally. macOS shows this prompt when the event tap starts.
+3. **Input Monitoring** — to detect the Option hotkey globally. macOS shows this prompt when the event tap starts.
 
 > If a permission was denied by accident: System Settings → Privacy & Security → Microphone / Accessibility / Input Monitoring → enable **Voza**.
 
@@ -67,8 +67,7 @@ Everything works with defaults. Config lives at `~/.config/voza/config.toml`:
 ```toml
 model = "small.en-q5_1"        # whisper model id (see catalog in app)
 language = "auto"              # auto | en | es
-cleanup = "auto"               # auto | ollama | cloud | plain
-ollama_model = "qwen3:8b"
+cleanup = "plain"              # plain (default, no network) | cloud (explicit opt-in)
 log_dir = "/Users/you/Dictation"
 play_sound = false
 ```
@@ -110,9 +109,9 @@ See [docs/market-analysis.md](docs/market-analysis.md) for the full competitive 
 | **Historial** | Clic en el micrófono de la barra de menú → últimos 10 dictados con botón de copiar |
 | **Log** | Cada dictado se agrega a `~/Dictation/YYYY-MM.md` con fecha y hora |
 
-- La transcripción corre **100% local** con whisper.cpp (acelerado por Metal). Tu audio nunca sale de la Mac. La limpieza de texto es local-first: los proveedores cloud corren solo si eliges un modo cloud explícitamente.
+- La transcripción corre **100% local** con whisper.cpp (acelerado por Metal). Tu audio nunca sale de la Mac. Por defecto el dictado se pega **exactamente como lo dijiste** — sin red, sin procesamiento.
 - Los audios se **borran inmediatamente** después de transcribir. Sin cuentas, sin telemetría, sin STT en la nube.
-- La limpieza usa tu **Ollama local** por defecto (gratis y offline) — el modo automático nunca envía tu texto a la nube. Opcional: modo cloud explícito con tu llave en `~/.config/voza/.env`.
+- **La limpieza IA es opt-in explícito** (apagada por defecto): al activarla en Ajustes, el texto ya transcrito se envía a una API compatible con OpenAI (OpenAI, OpenRouter, Groq…) con Anthropic de respaldo, usando tu llave en `~/.config/voza/.env`. Nunca el audio, nunca sin el switch.
 - **Preset automático para tu Mac y tu idioma**: Voza elige un modelo multilingüe por defecto y solo usa uno optimizado para inglés cuando tu idioma de dictado es inglés. Descargas verificadas con SHA-256.
 - UI bilingüe EN/ES.
 

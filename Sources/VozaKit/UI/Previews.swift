@@ -65,7 +65,7 @@ private enum PreviewFixtures {
 
 #Preview("Popover · recording (Literal)") {
     let state = AppState.shared
-    state.phase = .recording(cleanup: false)
+    state.phase = .recording
     state.elapsedSeconds = 4.2
     state.recent = PreviewFixtures.sampleHistory
     return PopoverView()
@@ -77,7 +77,7 @@ private enum PreviewFixtures {
 
 #Preview("HUD · recording") {
     let state = AppState.shared
-    state.phase = .recording(cleanup: false)
+    state.phase = .recording
     state.elapsedSeconds = 7.0
     return DictationHUDView()
         .environmentObject(state)

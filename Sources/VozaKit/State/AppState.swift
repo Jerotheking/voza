@@ -4,9 +4,8 @@ import Foundation
 
 enum VozaPhase: Equatable {
     case idle
-    case recording(cleanup: Bool)
+    case recording
     case transcribing
-    case cleaning
     case failed(String)
 
     var isBusy: Bool {
@@ -35,7 +34,6 @@ final class AppState: ObservableObject {
     let license = LicenseManager.shared
 
     private let recorder = AudioRecorder.shared
-    private var activeModeIsCleanup = false
     private var tickTimer: Timer?
     private var recordedSeconds: Double = 0
     private var downloadStartAt: Date?
@@ -58,7 +56,7 @@ final class AppState: ObservableObject {
 
     // MARK: - Push to talk
 
-    func startDictation(cleanup: Bool) {
+    func startDictation() {
         // Allow (re)starting from both .idle and .failed — a failed attempt
         // must never require quitting to retry. Busy phases block new starts.
         guard !phase.isBusy else { return }
@@ -68,7 +66,6 @@ final class AppState: ObservableObject {
             showOnboarding = true
             return
         }
-        activeModeIsCleanup = cleanup
         do {
             try recorder.start()
             elapsedSeconds = 0
@@ -79,7 +76,7 @@ final class AppState: ObservableObject {
                     self.elapsedSeconds = self.recorder.elapsedSeconds
                 }
             }
-            phase = .recording(cleanup: cleanup)
+            phase = .recording
         } catch {
             phase = .failed(error.localizedDescription)
         }
@@ -107,7 +104,6 @@ final class AppState: ObservableObject {
 
     private func pipeline(wavURL: URL) async {
         let cfg = config
-        let cleanupMode = activeModeIsCleanup
 
         // 1. Transcribe (never leaves the Mac). The whisper.cpp process is blocking
         // (it polls with Thread.sleep), so it MUST run off the MainActor — otherwise
@@ -144,28 +140,19 @@ final class AppState: ObservableObject {
         // Learned corrections are the source of truth for what gets pasted.
         text = CorrectionStore.apply(text)
 
-        // 2. Optional AI cleanup — result carries what ACTUALLY happened.
-        var cleanupApplied = false
-        if cleanupMode {
-            phase = .cleaning
-            let outcome = await Cleaner.clean(text, config: cfg)
-            text = outcome.text
-            cleanupApplied = outcome.applied
-            if !outcome.applied {
-                statusMessage = L.t("Cleanup unavailable — pasted raw text",
-                                    es: "Limpieza no disponible — se pegó el texto crudo")
-            }
-        }
-
-        // 3. Paste + log (history only marks ✨ when a provider really transformed the text)
+        // 2. Paste + log. D032: no LLM cleanup stage — paste is instant after
+        // transcription (the Flow lesson: on-device 4B cleanup cannot win the
+        // latency/reliability war on real machines). Cloud cleanup returns as
+        // an explicit-opt-in feature; the pipeline hook point is documented in
+        // DECISIONS.md D032. ✨ history markers stay reserved for it.
         guard Permissions.accessibilityGranted else {
-            TranscriptStore.shared.add(text: text, cleaned: cleanupApplied)
+            TranscriptStore.shared.add(text: text, cleaned: false)
             refresh()
             phase = .failed(L.t("Accessibility permission needed for paste", es: "Falta permiso de Accesibilidad para pegar"))
             return
         }
         Paster.paste(text)
-        TranscriptStore.shared.add(text: text, cleaned: cleanupApplied)
+        TranscriptStore.shared.add(text: text, cleaned: false)
         if cfg.autoLearn, let session = Paster.lastSession {
             CorrectionWatcher.shared.start(for: session)
         }

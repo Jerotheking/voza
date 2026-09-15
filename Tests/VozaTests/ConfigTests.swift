@@ -63,13 +63,13 @@ final class ConfigTests: XCTestCase {
         config.setLanguage("es")
         config.setPlaySound(true)
         config.setAutoLearn(false)
-        config.setCleanupMode("ollama")
+        config.setCleanupMode("cloud")
 
         let reloaded = Config(paths: env.paths)
         XCTAssertEqual(reloaded.resolvedLanguage, "es")
         XCTAssertTrue(reloaded.playSound)
         XCTAssertFalse(reloaded.autoLearn)
-        XCTAssertEqual(reloaded.cleanupMode, "ollama")
+        XCTAssertEqual(reloaded.cleanupMode, "cloud")
         // File lives inside the QA root, nowhere else.
         XCTAssertTrue(env.paths.configFile.path.hasPrefix(env.root.path))
     }
@@ -80,7 +80,37 @@ final class ConfigTests: XCTestCase {
         let config = Config(paths: env.paths)
         XCTAssertEqual(config.resolvedLanguage, "auto")
         XCTAssertTrue(config.autoLearn, "auto-learn is on by default (product decision)")
-        XCTAssertEqual(config.cleanupMode, "auto")
+        XCTAssertEqual(config.cleanupMode, "plain", "D032: default never touches the network")
+    }
+
+    /// D032 privacy invariant, enforced at the setter: only "cloud" reaches
+    /// the net; legacy local values ("auto"/"ollama"/"mlx") are clamped to
+    /// "plain" — they can never resurrect removed local providers, and no
+    /// stray value ever becomes an accidental network opt-in.
+    func testCleanupModeClampingEnforcesPrivacyBoundary() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        let config = Config(paths: env.paths)
+
+        for legacy in ["auto", "ollama", "mlx", "", "CLOUD-CASE"] {
+            config.setCleanupMode(legacy)
+            XCTAssertEqual(config.cleanupMode, "plain",
+                           "legacy/garbage value \(legacy) must clamp to plain")
+        }
+        config.setCleanupMode("cloud")
+        XCTAssertEqual(config.cleanupMode, "cloud", "explicit opt-in is honored")
+        // The clamped value is what persists.
+        XCTAssertEqual(Config(paths: env.paths).cleanupMode, "cloud")
+    }
+
+    /// D032 provider chain: cloud-only, in fixed order. Pure boundary.
+    func testProviderChainIsCloudOnly() {
+        XCTAssertEqual(Cleaner.providerChain(for: "cloud"), ["openai", "anthropic"])
+        XCTAssertTrue(Cleaner.providerChain(for: "plain").isEmpty)
+        for legacy in ["auto", "ollama", "mlx"] {
+            XCTAssertTrue(Cleaner.providerChain(for: legacy).isEmpty,
+                          "legacy mode \(legacy) must not chain anywhere")
+        }
     }
 
     // MARK: - D021: transcriber arguments + level meter (pure seams)
@@ -120,26 +150,31 @@ final class ConfigTests: XCTestCase {
         XCTAssertLessThan(AudioRecorder.meterLevel(rms: 0.01), AudioRecorder.meterLevel(rms: 0.1))
     }
 
-    // MARK: - D023: Ollama RAM/latency budget (pure seams)
+    // MARK: - D032: cloud request contracts (pure seams)
 
-    func testOllamaRequestBodyBoundsRAMAndLatency() {
-        let body = Cleaner.ollamaRequestBody(text: "hola", model: "gemma3:4b", keepAlive: "5m")
-        // RAM: keep_alive must travel in every request — the server-side
-        // default (5m) kept qwen3:8b resident at 6.8 GB RSS on the owner's Mac.
-        XCTAssertEqual(body["keep_alive"] as? String, "5m",
-                       "missing keep_alive re-extends residency to server default on every call")
-        // Latency ceiling: 400 tokens ≈ 0.5 s warm for a 4B non-thinking model.
-        // (Numeric literals in an [String: Any] dict unify to Double; use NSNumber.)
-        let opts = try! XCTUnwrap(body["options"] as? [String: Any])
-        XCTAssertEqual((opts["num_predict"] as? NSNumber)?.intValue, 400)
-        XCTAssertEqual(opts["temperature"] as? Double, 0.2)
-        // Role-separated chat (D023): generate+system concatenation invited
-        // meta-commentary ("We are given a text...") into the paste.
-        XCTAssertEqual(body["stream"] as? Bool, false)
-        XCTAssertNil(body["prompt"], "must use /api/chat messages, not raw prompt")
-        XCTAssertNotNil(body["messages"])
-        // Hybrid models (qwen3): thinking explicitly off at API level.
-        XCTAssertEqual(body["think"] as? Bool, false)
+    func testOpenAIRequestContract() {
+        let req = Cleaner.openAIRequest(text: "hola mundo", apiKey: "sk-test",
+                                        baseURL: nil, model: nil)
+        let request = try! XCTUnwrap(req)
+        XCTAssertEqual(request.url.absoluteString, "https://api.openai.com/v1/chat/completions")
+        XCTAssertEqual(request.headers["Authorization"], "Bearer sk-test")
+        XCTAssertEqual(request.body["model"] as? String, "gpt-4o-mini")
+        // Prompt contract: system + user roles, temperature pinned for fidelity.
+        let messages = try! XCTUnwrap(request.body["messages"] as? [[String: String]])
+        XCTAssertEqual(messages.first?["role"], "system")
+        XCTAssertEqual(messages.first?["content"], Cleaner.systemPrompt)
+        XCTAssertEqual(messages.last?["role"], "user")
+        XCTAssertEqual(messages.last?["content"], "hola mundo")
+        XCTAssertEqual(request.body["temperature"] as? Double, 0.2)
+    }
+
+    func testAnthropicRequestContract() {
+        let request = try! XCTUnwrap(
+            Cleaner.anthropicRequest(text: "hola", apiKey: "sk-ant", model: nil))
+        XCTAssertEqual(request.url.absoluteString, "https://api.anthropic.com/v1/messages")
+        XCTAssertEqual(request.headers["x-api-key"], "sk-ant")
+        XCTAssertNotNil(request.headers["anthropic-version"])
+        XCTAssertEqual(request.body["system"] as? String, Cleaner.systemPrompt)
     }
 
     func testStripThinkingJunk() {
@@ -149,64 +184,6 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(Cleaner.stripThinkingJunk("<think>razonamiento sin cerrar"), "")
         // Clean text → untouched.
         XCTAssertEqual(Cleaner.stripThinkingJunk("Hola mundo."), "Hola mundo.")
-    }
-
-    /// D026 — warm-start knob: default ON (TypeWhisper-style preload at
-    /// launch), persists, roundtrips.
-    func testConfigRoundtripsMlxPreload() throws {
-        let env = try TestEnvironment()
-        defer { env.tearDown() }
-        let config = Config(paths: env.paths)
-        XCTAssertTrue(config.mlxPreload, "default: preload Pulido weights at launch")
-        config.setMlxPreload(false)
-        XCTAssertEqual(Config(paths: env.paths).mlxPreload, false)
-        let toml = try String(contentsOf: env.paths.configFile, encoding: .utf8)
-        XCTAssertTrue(toml.contains("mlx_preload = false"))
-    }
-
-    /// preloadNow's two guards: flag off → no-op; model not cached → no-op.
-    /// No Metal load happens in either (isLoaded stays false) — the network
-    /// contract is exactly "cached models only".
-    func testPreloadNowGuards() async {
-        defer { MLXEngine.unloadNow() }
-        MLXEngine.config.preloadOnLaunch = false
-        await MLXEngine.preloadNow()
-        XCTAssertFalse(MLXEngine.isLoaded)
-
-        MLXEngine.config.preloadOnLaunch = true
-        await MLXEngine.preloadNow(modelExists: { _ in false })
-        XCTAssertFalse(MLXEngine.isLoaded, "uncached model must not trigger a Hub download")
-    }
-
-    /// defaultCachedModelExists mirrors MLXLMCommon's cache layout
-    /// (cachesDirectory/models/{org}/{repo}) and requires the weights file.
-    func testCachedModelDetectionLayout() throws {
-        let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
-        let org = caches.appendingPathComponent("models")
-            .appendingPathComponent("voza-tests-\(UUID().uuidString)", isDirectory: true)
-        let repo = org.appendingPathComponent("repo", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: org) }
-        try FileManager.default.createDirectory(at: repo, withIntermediateDirectories: true)
-
-        XCTAssertFalse(MLXEngine.defaultCachedModelExists("\(org.lastPathComponent)/repo"),
-                       "metadata-only directory is not cached")
-        try Data("x".utf8).write(to: repo.appendingPathComponent("model.safetensors"))
-        XCTAssertTrue(MLXEngine.defaultCachedModelExists("\(org.lastPathComponent)/repo"))
-        XCTAssertFalse(MLXEngine.defaultCachedModelExists("no-slash"),
-                       "malformed model id is never 'cached'")
-    }
-
-    func testConfigRoundtripsOllamaKeepAlive() throws {
-        let env = try TestEnvironment()
-        defer { env.tearDown() }
-        let config = Config(paths: env.paths)
-        XCTAssertEqual(config.resolvedOllamaKeepAlive, "5m", "default: model unloads 5m after last use")
-        config.setOllamaKeepAlive("2m")
-        XCTAssertEqual(Config(paths: env.paths).resolvedOllamaKeepAlive, "2m")
-        // Env override wins (hosting setups may want 0 to keep it resident).
-        let withEnv = Config(paths: env.paths)
-        withEnv.setenvOverride("OLLAMA_KEEP_ALIVE", "0")
-        XCTAssertEqual(withEnv.resolvedOllamaKeepAlive, "0")
     }
 
     func testLevelBarsGeometry() {
