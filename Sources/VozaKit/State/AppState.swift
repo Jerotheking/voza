@@ -159,6 +159,13 @@ final class AppState: ObservableObject {
         if cfg.playSound {
             NSSound(named: "Tink")?.play()
         }
+        // First-dictation teaching moment: exactly once, right after the first
+        // successful paste — the gesture and the learn-by-typing habit are
+        // taught while they're happening, not in a forgotten setup screen.
+        if FirstRunExperience.firstDictationPending {
+            FirstRunExperience.markFirstDictationShown()
+            FirstDictationPanelController.shared.show()
+        }
         refresh()
         phase = .idle
     }
@@ -246,10 +253,16 @@ final class AppState: ObservableObject {
 
     /// Learns from a user-corrected history row (✏️) and re-pastes the fixed
     /// text at the cursor, so fixing a row doubles as "redo the paste".
+    /// D033: oversized diffs are refused with an honest status instead of
+    /// silently poisoning the dictionary (they'd never fire as replacements
+    /// and would starve the whisper prompt budget).
     func learnCorrection(entry: TranscriptEntry, corrected: String) {
         if let pair = CorrectionStore.diffCorrection(original: entry.text, corrected: corrected) {
-            CorrectionStore.shared.record(heard: pair.heard, said: pair.said)
-            statusMessage = L.t("Learned — I'll write it right next time", es: "Aprendido — la próxima vez lo escribiré bien")
+            if CorrectionStore.shared.record(heard: pair.heard, said: pair.said) != nil {
+                statusMessage = L.t("Learned — I'll write it right next time", es: "Aprendido — la próxima vez lo escribiré bien")
+            } else {
+                statusMessage = L.t("Too long to learn — fix it word by word", es: "Demasiado largo para aprenderlo — corrígelo palabra por palabra")
+            }
         }
         repaste(corrected)
     }

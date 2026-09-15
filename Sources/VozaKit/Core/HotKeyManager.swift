@@ -69,7 +69,10 @@ final class HotKeyManager {
     /// Human-readable reason the tap is not active, for the Status home.
     private(set) var lastTapError: String?
 
-    private func ensureTapAlive() {
+    /// Creates or re-enables the event tap on demand. Internal so the
+    /// onboarding's Input Monitoring step can trigger the OS prompt at the
+    /// moment the user clicks (rather than on their first dictation attempt).
+    func ensureTapAlive() {
         guard let tap else {
             installTap()
             return

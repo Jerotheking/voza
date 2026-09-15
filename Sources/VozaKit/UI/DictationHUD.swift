@@ -19,6 +19,9 @@ final class DictationHUDController {
     func update(phase: VozaPhase) {
         if phase.isBusy {
             show()
+            // The first-dictation celebration lives at the same anchor; a
+            // new dictation always wins the spot instantly.
+            FirstDictationPanelController.shared.hide()
         } else {
             hide()
         }
@@ -151,6 +154,104 @@ final class HUDLevelModel: ObservableObject {
             return display + (target - display) * 0.55
         }
         return display * 0.82 + target * 0.18
+    }
+}
+
+/// First-dictation teaching moment (one-shot, FirstRunExperience): shown
+/// right after the first successful paste, while muscle memory is forming.
+/// Teaches the two habits that make Voza stick — the hold-a-Option gesture
+/// and typing-to-teach — then leaves the user alone forever. Same visual
+/// language and anchor as the dictation HUD.
+@MainActor
+final class FirstDictationPanelController {
+    static let shared = FirstDictationPanelController()
+
+    private var panel: NSPanel?
+    private var dismissWork: DispatchWorkItem?
+    private let panelSize = NSSize(width: 340, height: 118)
+    private static let autoDismissSeconds: TimeInterval = 10
+
+    func show() {
+        let p = ensurePanel()
+        position(p)
+        p.orderFrontRegardless()
+        scheduleAutoDismiss()
+    }
+
+    func hide() {
+        dismissWork?.cancel()
+        dismissWork = nil
+        panel?.orderOut(nil)
+    }
+
+    private func scheduleAutoDismiss() {
+        dismissWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.hide() }
+        dismissWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.autoDismissSeconds, execute: work)
+    }
+
+    private func ensurePanel() -> NSPanel {
+        if let panel { return panel }
+        let p = NSPanel(contentRect: NSRect(origin: .zero, size: panelSize),
+                        styleMask: [.borderless, .nonactivatingPanel],
+                        backing: .buffered, defer: false)
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = false
+        p.level = .statusBar
+        p.isMovableByWindowBackground = false
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.contentView = NSHostingView(rootView: FirstDictationView(onDismiss: { [weak self] in self?.hide() }))
+        panel = p
+        return p
+    }
+
+    /// Same anchor as the dictation HUD: bottom-center, above the dock.
+    private func position(_ p: NSPanel) {
+        guard let visible = NSScreen.main?.visibleFrame else { return }
+        p.setFrame(NSRect(x: visible.midX - panelSize.width / 2,
+                          y: visible.minY + 40,
+                          width: panelSize.width,
+                          height: panelSize.height),
+                   display: true)
+    }
+}
+
+struct FirstDictationView: View {
+    var onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack(spacing: 6) {
+                Image(systemName: "hand.wave")
+                    .foregroundStyle(Theme.accent)
+                Text(L.t("That was your first dictation!", es: "¡Ese fue tu primer dictado!"))
+                    .font(.system(size: 13, weight: .bold))
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            Text(L.t("Hold an Option key, talk, release — in any app.",
+                     es: "Mantén una tecla Option, habla y suelta — en cualquier app."))
+                .font(.system(size: 12))
+            Text(L.t("A word wrong? Just fix it by typing — Voza learns your corrections and applies them next time. Everything stays on your Mac.",
+                     es: "¿Alguna palabra mal? Corrígela tecleando — Voza aprende tus correcciones y las aplica la próxima vez. Todo se queda en tu Mac."))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .background(.ultraThinMaterial,
+                    in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(.white.opacity(0.12))
+        )
+        .shadow(color: .black.opacity(0.25), radius: 8, y: 2)
     }
 }
 

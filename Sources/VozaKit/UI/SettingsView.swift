@@ -13,6 +13,8 @@ struct SettingsView: View {
                 .tabItem { Label(L.t("Dictation", es: "Dictado"), systemImage: "mic") }
             ModelSettings().environmentObject(appState)
                 .tabItem { Label(L.t("Models", es: "Modelos"), systemImage: "square.stack.3d.down.forward") }
+            CorrectionsSettings().environmentObject(appState)
+                .tabItem { Label(L.t("Corrections", es: "Correcciones"), systemImage: "character.book.closed") }
             AdvancedSettings().environmentObject(appState)
                 .tabItem { Label(L.t("Advanced", es: "Avanzado"), systemImage: "wrench.and.screwdriver") }
             LicenseSettings().environmentObject(appState)
@@ -146,8 +148,8 @@ struct StatusView: View {
         } else {
             hero(icon: "checkmark.seal.fill", tint: .green,
                  title: L.t("Voza is ready", es: "Voza está lista"),
-                 detail: L.t("Hold Right Option anywhere and talk. Left Option adds AI cleanup (test).",
-                             es: "Mantén Option derecha en cualquier app y habla. Option izquierda agrega limpieza IA (prueba)."))
+                 detail: L.t("Hold either Option key, talk, release — your words are pasted as spoken. Optional AI cleanup lives in the Dictation tab.",
+                             es: "Mantén cualquiera de las teclas Option, habla y suelta — tus palabras se pegan tal cual. La limpieza IA opcional vive en la pestaña Dictado."))
         }
     }
 
@@ -342,8 +344,8 @@ struct DictationSettings: View {
                 Text(L.t("Languages", es: "Idiomas"))
             }
             Section {
-                Text(L.t("Hotkeys: hold **Right Option** to dictate · hold **Left Option** for AI cleanup (temporary test binding).",
-                         es: "Teclas: mantén **Option derecha** para dictar · **Option izquierda** para limpieza IA (bind temporal de prueba)."))
+                Text(L.t("One button: hold **either Option key** to dictate, release to paste. If you fix the text by typing, Voza learns your corrections automatically (can be turned off in Advanced).",
+                         es: "Un solo botón: mantén **cualquiera de las teclas Option** para dictar, suelta para pegar. Si corriges el texto tecleando, Voza aprende tus correcciones automáticamente (se puede apagar en Avanzado)."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -432,6 +434,113 @@ struct ModelSettings: View {
             }
         }
         .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Corrections (the learned dictionary, visible and editable)
+
+/// The user-facing surface of the auto-learn feature (D033): every lesson
+/// Voza taught itself is visible, editable and deletable here. Trust requires
+/// inspectability — "the app learns from you" only works if "you" can see
+/// what it learned and undo it.
+struct CorrectionsSettings: View {
+    @EnvironmentObject var appState: AppState
+    @State private var corrections: [Correction] = []
+    @State private var editingId: UUID?
+    @State private var editSaid = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "character.book.closed").foregroundStyle(Theme.accent)
+                Text(L.t("Applied on every dictation. Fix a word by typing and Voza learns it here.",
+                         es: "Se aplican en cada dictado. Corrige una palabra tecleando y Voza la aprende aquí."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20).padding(.top, 14)
+
+            if corrections.isEmpty {
+                VStack(spacing: 6) {
+                    Image(systemName: "tray")
+                        .font(.system(size: 28))
+                        .foregroundStyle(.secondary)
+                    Text(L.t("Nothing learned yet", es: "Aún no ha aprendido nada"))
+                        .font(.system(size: 13, weight: .semibold))
+                    Text(L.t("After a dictation, fix any word by typing — Voza learns it automatically. You can also fix past dictations from the menu bar history (✏️).",
+                             es: "Después de un dictado, corrige cualquier palabra tecleando — Voza la aprende automáticamente. También puedes corregir dictados pasados desde el historial de la barra de menú (✏️)."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 340)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List {
+                    ForEach(corrections) { c in
+                        correctionRow(c)
+                        Divider().padding(.leading, 12)
+                    }
+                }
+                .listStyle(.inset)
+                Text(L.t("\(corrections.count) learned · stored only on this Mac", es: "\(corrections.count) aprendidas · guardadas solo en esta Mac"))
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 20).padding(.bottom, 10)
+            }
+        }
+        .onAppear { corrections = CorrectionStore.shared.all() }
+    }
+
+    @ViewBuilder
+    private func correctionRow(_ c: Correction) -> some View {
+        if editingId == c.id {
+            HStack(spacing: 8) {
+                TextField(c.heard, text: $editSaid)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .onSubmit(saveEdit)
+                Button(L.t("Save", es: "Guardar"), action: saveEdit)
+                    .buttonStyle(.borderedProminent).controlSize(.small)
+                Button(L.t("Cancel", es: "Cancelar")) { editingId = nil }
+                    .buttonStyle(.bordered).controlSize(.small)
+            }
+        } else {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(c.said).font(.system(size: 12, weight: .semibold))
+                    Text(L.t("when Voza hears “\(c.heard)”", es: "cuando Voza oye “\(c.heard)”"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                Spacer()
+                Button {
+                    editingId = c.id
+                    editSaid = c.said
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                .buttonStyle(.borderless).controlSize(.small)
+                Button {
+                    CorrectionStore.shared.delete(id: c.id)
+                    corrections = CorrectionStore.shared.all()
+                } label: {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless).controlSize(.small)
+            }
+        }
+    }
+
+    private func saveEdit() {
+        if let id = editingId, let c = corrections.first(where: { $0.id == id }) {
+            // record() updates the existing entry for the same heard phrase.
+            CorrectionStore.shared.record(heard: c.heard, said: editSaid)
+            corrections = CorrectionStore.shared.all()
+        }
+        editingId = nil
     }
 }
 

@@ -330,3 +330,44 @@ Símbolos extraídos del checkout actual. Índice completo legible por máquina:
 | [Sources/VozaKit/UI/SettingsView.swift](../../Sources/VozaKit/UI/SettingsView.swift) | 485 | `LicenseSettings` |
 | [Sources/VozaKit/UI/SettingsView.swift](../../Sources/VozaKit/UI/SettingsView.swift) | 554 | `AboutSettings` |
 | [Sources/VozaKit/UI/Theme.swift](../../Sources/VozaKit/UI/Theme.swift) | 4 | `Theme` |
+
+---
+
+## Addendum (2026-09-15, D032/D033) — conciliación con el código vivo
+
+El baseline de arriba es una instantánea del 2026-09-08. Las siguientes
+secciones lo concilian con el código actual; ante duda, el código manda.
+
+### Cambios estructurales D032 (extracción del cleanup local)
+
+Removidos del árbol (y de este mapa): `MLXEngine`, `MLXCleaner`, `MLXBench`,
+`CleanupLog`, phases `.cleaning`/`.recording(cleanup:)`, knobs
+`mlx_preload`/ollama, dependencias mlx-swift. Símbolos obsoletos en las
+tablas de abajo: `ollamaClean` (Cleaner.swift:66), `setOllamaModel`
+(Config.swift:98). `Cleaner` queda cloud-only (`providerChain/clean`).
+
+### Nuevos símbolos post-baseline (post-D033)
+
+| Archivo | Símbolos | Lectura |
+|---|---|---|
+| `Sources/VozaKit/Core/FirstRunExperience.swift` | `FirstRunExperience.firstDictationPending/markFirstDictationShown` | Flag one-shot del momento de primer dictado; seam de defaults inyectable para tests herméticos. |
+| `Sources/VozaKit/UI/DictationHUD.swift` | `FirstDictationPanelController/FirstDictationView` | Panel docente post-primer-pegado (una sola vez); mismo ancla y lenguaje visual que el HUD. |
+| `Sources/VozaKit/UI/SettingsView.swift` | `CorrectionsSettings` | Tab Correcciones: diccionario aprendido visible, editable y borrable (D033). |
+| `Sources/VozaKit/UI/OnboardingView.swift` | 4 pasos (mic, AX, Input Monitoring, modelo) | Paso de Input Monitoring agregado (post-D033); promesa one-button en pantalla 1. |
+
+### Contratos post-baseline del autoaprendizaje (D033)
+
+- `CorrectionStore.record` es el ÚNICO chokepoint de ambas rutas de
+  aprendizaje; rechaza pares con `heard`/`said` > `maxLearnedChars` (400).
+- `CorrectionStore.diffCorrection` (ruta manual ✏️) exige
+  `Paster.similarity >= minSimilarity` (0.55) — mismo umbral del watcher —
+  para que una reescritura no relacionada jamás se vuelva lección.
+- Round-trip pineado en `Tests/VozaTests/CorrectionRoundTripTests.swift`
+  (persistencia, cap, apply case-preserving, presupuesto del prompt).
+
+### Drift conocido de líneas
+
+Los números de línea de las tablas de abajo reflejan el baseline; el archivo
+vivo ha cambiado (AppState 255→285 l, SettingsView 571→~700 l, OnboardingView
+115→138 l, DictationHUD inexistente en baseline). Los símbolos siguen siendo
+el ancla: re-buscar, no confiar en la línea.

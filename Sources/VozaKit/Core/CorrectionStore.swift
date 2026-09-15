@@ -65,11 +65,21 @@ final class CorrectionStore {
     /// Records or updates a correction: heard → said. If the same `heard`
     /// exists, its `said` is updated (kept at its original creation date so
     /// ordering stays stable). Returns the stored entry.
+    ///
+    /// Length caps mirror `CorrectionWatcher.maxLearnedChars`: `record` is the
+    /// ONE chokepoint both learning paths flow through, so the guard lives
+    /// here, not in the callers. A cap here protects BOTH consumers — the
+    /// word-boundary replacer (a 350-char "phrase" can never fire safely)
+    /// and the whisper prompt budget (one oversized `said` would consume the
+    /// entire 200-char conditioning budget and starve the real vocabulary).
+    /// (D033: the manual ✏️ path had no cap and poisoned a real store.)
     @discardableResult
     func record(heard: String, said: String) -> Correction? {
         let h = heard.trimmingCharacters(in: .whitespacesAndNewlines)
         let s = said.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !h.isEmpty, !s.isEmpty, h != s else { return nil }
+        guard h.count <= CorrectionWatcher.maxLearnedChars,
+              s.count <= CorrectionWatcher.maxLearnedChars else { return nil }
         return queue.sync {
             loadIfNeededLocked()
             let now = clock.now
@@ -186,6 +196,11 @@ final class CorrectionStore {
         let o = original.trimmingCharacters(in: .whitespacesAndNewlines)
         let c = corrected.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !o.isEmpty, !c.isEmpty, o != c else { return nil }
+        // D033: an unrelated rewrite (field repurposed, different language,
+        // pasted-over content) is not a vocabulary lesson. The watcher enforces
+        // the same threshold on its own path; the manual path must too — this
+        // exact gap poisoned a real store with an LLM system prompt.
+        guard Paster.similarity(o, c) >= CorrectionWatcher.minSimilarity else { return nil }
         if let pair = middleDiff(o, c,
                                  tokenize: { $0.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty } },
                                  glue: " ") {
