@@ -22,8 +22,9 @@ final class LearningLog {
         case expired
         /// The target app's AX tree never appeared even after forced overrides
         /// (Electron that ignores AXManualAccessibility) — a distinct failure
-        /// mode from "no edit made".
-        case axNeverWoke
+        /// mode from "no edit made". accepted/unsupported counts tell WHICH
+        /// refusal mode the app used.
+        case axNeverWoke(accepted: Int, unsupported: Int)
     }
 
     private let lock = NSLock()
@@ -32,6 +33,10 @@ final class LearningLog {
     private let maxBytes = 1_000_000
     /// Test seam.
     var sink: ((String) -> Void)?
+    /// Global mute for test processes (D034: watcher functions log to the
+    /// shared instance even under a QASink — without this, `swift test` runs
+    /// wrote fake "learned" lines into the USER's real bitácora).
+    nonisolated(unsafe) static var isMutedForTests = false
 
     init(clock: Clock = SystemClock(), directory: URL? = nil) {
         self.clock = clock
@@ -40,6 +45,7 @@ final class LearningLog {
     }
 
     func event(_ e: Event) {
+        if Self.isMutedForTests { return }
         let ts = Self.timestamp(clock.now)
         let line: String
         switch e {
@@ -51,8 +57,8 @@ final class LearningLog {
             line = "\(ts) | learned | \(h) -> \(s)"
         case .expired:
             line = "\(ts) | expired | no stable approved edit in window"
-        case .axNeverWoke:
-            line = "\(ts) | expired | ax-never-woke (app ignored manual accessibility)"
+        case .axNeverWoke(let accepted, let unsupported):
+            line = "\(ts) | expired | ax-never-woke (overrides accepted=\(accepted) unsupported=\(unsupported))"
         }
         lock.lock()
         defer { lock.unlock() }

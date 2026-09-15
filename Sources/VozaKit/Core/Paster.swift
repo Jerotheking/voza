@@ -112,6 +112,7 @@ enum Paster {
                            fieldBefore: "", startedAt: Date())
         }
 
+        applyMessagingTimeout(element)
         return Session(element: element, pastedText: pastedText,
                        selectedRange: NSRange(location: selRange.location, length: selRange.length),
                        fieldBefore: fieldValue, startedAt: Date())
@@ -122,6 +123,15 @@ enum Paster {
     internal static var focusedElementPublic: AXUIElement? {
         guard AXIsProcessTrusted() else { return nil }
         return focusedElement()
+    }
+
+    /// AX calls are synchronous IPC into the target app's main thread; if that
+    /// thread is busy (a chat app streaming output, a busy Electron renderer)
+    /// the caller can block for many seconds — the watcher's window dies
+    /// inside one call. Cap every element we hand out at 2 s (D034: the
+    /// ax=live session that never finished).
+    static func applyMessagingTimeout(_ element: AXUIElement) {
+        AXUIElementSetMessagingTimeout(element, 2.0)
     }
 
     /// Wakes the focused app's hidden accessibility support. Chromium/Electron

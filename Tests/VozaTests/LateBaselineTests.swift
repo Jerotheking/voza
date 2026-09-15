@@ -6,6 +6,7 @@ import XCTest
 /// watched with a LIVE baseline captured after the paste. All tests inject a
 /// fake reader/clock/sink — zero real AX, zero real sleeps.
 final class LateBaselineTests: XCTestCase {
+    override class func setUp() { LearningLog.isMutedForTests = true }
     private func makeSession(pasted: String) -> Paster.Session {
         Paster.Session(element: nil, pastedText: pasted,
                        selectedRange: NSRange(location: 0, length: 0),
@@ -102,6 +103,7 @@ final class LateBaselineTests: XCTestCase {
 
 /// LearningLog format/rotation — hermetic via the sink seam.
 final class LearningLogTests: XCTestCase {
+    override class func setUp() { LearningLog.isMutedForTests = false }
     func testEventLines() {
         let log = LearningLog()
         var lines: [String] = []

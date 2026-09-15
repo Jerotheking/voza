@@ -9,6 +9,7 @@ import XCTest
 /// already lived (malformed WAV, hallucinated non-speech markers, broken
 /// medians, wrong disk budgets). All hermetic: pure statics, no disk.
 final class LearningAndPureFnsTests: XCTestCase {
+    override class func setUp() { LearningLog.isMutedForTests = true }
 
     private func correction(_ heard: String, _ said: String) -> Correction {
         Correction(id: UUID(), heard: heard, said: said, createdAt: Date(timeIntervalSince1970: 0))

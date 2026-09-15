@@ -47,14 +47,16 @@ final class CorrectionWatcher {
         func record(heard: String, said: String) -> Correction?
     }
 
-    /// Test-only sink. Never touches the user's dictionary.
+    /// Test-only sink. Never touches the user's dictionary. Returns a real
+    /// Correction value so the honest log path (record accepted → "learned")
+    /// behaves exactly like production.
     final class QASink: LearningSink {
         private let lock = NSLock()
         private(set) var pairs: [(heard: String, said: String)] = []
         func record(heard: String, said: String) -> Correction? {
             lock.lock(); defer { lock.unlock() }
             pairs.append((heard, said))
-            return nil
+            return Correction(id: UUID(), heard: heard, said: said, createdAt: Date())
         }
     }
 
@@ -130,7 +132,10 @@ final class CorrectionWatcher {
                       config: WatchConfig = .production) -> Bool {
         guard let element = session.element else { return false }
         guard let expected = expectedField(after: session) else { return false } // corrupt pre-paste snapshot → nothing to verify against
-        let reader = readField ?? { Self.readField($0) }
+        let reader = readField ?? { el in
+            Paster.applyMessagingTimeout(el)
+            return Self.readField(el)
+        }
         let doSleep = sleep ?? { Thread.sleep(forTimeInterval: $0) }
         var lastValue: String?
         var stableCount = 0
@@ -162,8 +167,13 @@ final class CorrectionWatcher {
             // Stable for N consecutive samples ≈ typing paused: the fix is on screen.
             if stableCount >= config.stabilitySamples,
                let pair = extractPair(pasted: session.pastedText, typed: current, expected: expected) {
-                sink.record(heard: pair.heard, said: pair.said)
-                return true // exactly one learning per paste
+                let stored = sink.record(heard: pair.heard, said: pair.said)
+                // Same log honesty as the late-baseline path: tests (QASink)
+                // never fake a "learned" line in the user's bitácora.
+                LearningLog.shared.event(stored != nil
+                    ? .learned(heard: pair.heard, said: pair.said)
+                    : .expired)
+                return stored != nil // exactly one learning attempt per paste
             }
         }
         return false
@@ -282,6 +292,7 @@ final class CorrectionWatcher {
         let doSleep = sleep ?? { Thread.sleep(forTimeInterval: $0) }
         let reader = readFocused ?? {
             guard let el = Paster.focusedElementPublic else { return nil }
+            Paster.applyMessagingTimeout(el)
             return readField(el)
         }
         let pollSeconds = config.pollIntervalSeconds
@@ -295,9 +306,11 @@ final class CorrectionWatcher {
         let pasted = session.pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
         var baseline: String?
         var waited = 0.0
+        var forcedAccepted = 0
+        var forcedUnsupported = 0
         while waited < axWakeSeconds {
             if let shouldContinue, !shouldContinue() { return false }
-            Paster.forceAccessibilityOnFocusedApp()
+            if Paster.forceAccessibilityOnFocusedApp() { forcedAccepted += 1 } else { forcedUnsupported += 1 }
             doSleep(pollSeconds)
             waited += pollSeconds
             if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -308,7 +321,10 @@ final class CorrectionWatcher {
         guard let baseline else {
             // Distinguish "AX never woke" (fixable later) from "woke but the
             // user made no approved edit" — different remediation paths.
-            LearningLog.shared.event(.axNeverWoke)
+            // accepted = the app ACKNOWLEDGED the override (tree just never
+            // built); unsupported = the app rejected the attribute outright
+            // (its Electron build doesn't implement the handler at all).
+            LearningLog.shared.event(.axNeverWoke(accepted: forcedAccepted, unsupported: forcedUnsupported))
             return false
         }
 
@@ -339,9 +355,15 @@ final class CorrectionWatcher {
                 // semantics with expected = baseline (what the field held with
                 // our paste inside).
                 if let pair = extractPair(pasted: session.pastedText, typed: current, expected: baseline) {
-                    _ = sink.record(heard: pair.heard, said: pair.said)
-                    LearningLog.shared.event(.learned(heard: pair.heard, said: pair.said))
-                    return true
+                    // Log HONESTY (D034): "learned" only when the sink actually
+                    // accepted (record can refuse: caps, heard == said). The
+                    // QASink returns nil — tests must never write "learned"
+                    // lines into the user's real bitácora.
+                    let stored = sink.record(heard: pair.heard, said: pair.said)
+                    LearningLog.shared.event(stored != nil
+                        ? .learned(heard: pair.heard, said: pair.said)
+                        : .expired)
+                    return stored != nil
                 }
                 LearningLog.shared.event(.expired) // change rejected by guards
                 return false
