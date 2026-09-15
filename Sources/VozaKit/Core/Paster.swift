@@ -124,17 +124,23 @@ enum Paster {
         return focusedElement()
     }
 
-    /// Wakes the focused app's hidden accessibility support by setting
-    /// `AXManualAccessibility` (the attribute VoiceOver itself sets; harmless
-    /// no-op on apps that already expose AX or ignore the attribute).
-    /// Chromium/Electron gates its AX tree behind this.
-    static func forceAccessibilityOnFocusedApp() {
-        guard let element = focusedElement() else { return }
-        var app: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXFocusedApplicationAttribute as CFString, &app) == .success,
-              let appEl = app else { return }
-        let axApp = appEl as! AXUIElement
-        AXUIElementSetAttributeValue(axApp, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+    /// Wakes the focused app's hidden accessibility support. Chromium/Electron
+    /// gates its AX tree behind VoiceOver detection — or a manual override.
+    /// v2 (D034 field evidence: setting the attribute on the focused ELEMENT's
+    /// app reference failed silently on Freebuff): resolve the app by PID and
+    /// set BOTH known override attributes. Returns false when nothing stuck.
+    @discardableResult
+    static func forceAccessibilityOnFocusedApp() -> Bool {
+        guard let element = focusedElement() else { return false }
+        var pid = pid_t(0)
+        guard AXUIElementGetPid(element, &pid) == .success, pid > 0 else { return false }
+        let app = AXUIElementCreateApplication(pid)
+        var anySet = false
+        for attr in ["AXManualAccessibility", "AXEnhancedUserInterface"] {
+            let result = AXUIElementSetAttributeValue(app, attr as CFString, kCFBooleanTrue)
+            if result == .success { anySet = true }
+        }
+        return anySet
     }
 
     /// System-wide focused element, or nil when unavailable.

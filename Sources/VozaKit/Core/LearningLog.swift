@@ -20,6 +20,10 @@ final class LearningLog {
         /// The window closed without a lesson (timeout, unreadable field, or
         /// guards rejected the edit).
         case expired
+        /// The target app's AX tree never appeared even after forced overrides
+        /// (Electron that ignores AXManualAccessibility) — a distinct failure
+        /// mode from "no edit made".
+        case axNeverWoke
     }
 
     private let lock = NSLock()
@@ -47,6 +51,8 @@ final class LearningLog {
             line = "\(ts) | learned | \(h) -> \(s)"
         case .expired:
             line = "\(ts) | expired | no stable approved edit in window"
+        case .axNeverWoke:
+            line = "\(ts) | expired | ax-never-woke (app ignored manual accessibility)"
         }
         lock.lock()
         defer { lock.unlock() }

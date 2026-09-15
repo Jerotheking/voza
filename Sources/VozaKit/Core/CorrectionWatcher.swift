@@ -288,15 +288,16 @@ final class CorrectionWatcher {
         let settleSeconds = 1.0
         let axWakeSeconds = 5.0
 
-        // 1) Wake the app's AX tree (manual override, the VO trick).
-        Paster.forceAccessibilityOnFocusedApp()
-
-        // 2) Wait until the field reflects our paste, or give up.
+        // 1)+2) Wake the app's AX tree (manual overrides, the VO trick) and
+        // wait until the field reflects our paste — RE-FORCING on every poll,
+        // because Chromium builds its tree lazily and the first poke often
+        // doesn't stick (D034 field evidence: Freebuff needed repeats).
         let pasted = session.pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
         var baseline: String?
         var waited = 0.0
         while waited < axWakeSeconds {
             if let shouldContinue, !shouldContinue() { return false }
+            Paster.forceAccessibilityOnFocusedApp()
             doSleep(pollSeconds)
             waited += pollSeconds
             if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -305,7 +306,9 @@ final class CorrectionWatcher {
             }
         }
         guard let baseline else {
-            LearningLog.shared.event(.expired) // app never exposed the field
+            // Distinguish "AX never woke" (fixable later) from "woke but the
+            // user made no approved edit" — different remediation paths.
+            LearningLog.shared.event(.axNeverWoke)
             return false
         }
 
