@@ -1,25 +1,37 @@
 import SwiftUI
 
 extension NSApplication {
-    /// Opens the SwiftUI Settings scene and guarantees it lands in front.
-    /// Voza is an LSUIElement (accessory) app: macOS 14+ cooperative
-    /// activation routinely denies focus, so the settings window otherwise
-    /// opens BEHIND the frontmost app — looking exactly like "the button
-    /// does nothing". The activation opportunity is only valid while the
-    /// user's click is being handled, so activate FIRST, then open, then
-    /// force the window to front on the next run-loop turn.
-    func openSettingsInFront() {
-        if #available(macOS 14.0, *) {
-            activate()
-        } else {
-            activate(ignoringOtherApps: true)
-        }
-        guard sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil) else { return }
-        DispatchQueue.main.async {
-            if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == "com_apple_SwiftUI_Settings_window" }) {
-                w.makeKeyAndOrderFront(nil)
+    /// Voza is an LSUIElement (accessory) app: the Settings window otherwise
+    /// opens BEHIND the frontmost app — cooperative activation routinely
+    /// denies us focus, which looks exactly like "the button does nothing".
+    /// Runs alongside `SettingsLink`, which owns the actual opening; this
+    /// only forces the already-open window to the front (a few run-loop
+    /// turns, because window creation timing varies).
+    func bringSettingsToFront() {
+        let id = "com_apple_SwiftUI_Settings_window"
+        for delay in [0.05, 0.25, 0.6] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                if let w = NSApp.windows.first(where: { $0.identifier?.rawValue == id }) {
+                    NSApp.activate()
+                    w.makeKeyAndOrderFront(nil)
+                }
             }
         }
+    }
+}
+
+/// Opens the SwiftUI Settings scene via `SettingsLink` — the selector-based
+/// `showSettingsWindow:` stopped resolving on macOS 26 (Tahoe), which is why
+/// the gear button appeared dead. The simultaneous gesture then raises the
+/// window for accessory apps (see bringSettingsToFront).
+struct SettingsOpenButton<Label: View>: View {
+    @ViewBuilder var label: Label
+
+    var body: some View {
+        SettingsLink { label }
+            .simultaneousGesture(TapGesture().onEnded {
+                NSApp.bringSettingsToFront()
+            })
     }
 }
 

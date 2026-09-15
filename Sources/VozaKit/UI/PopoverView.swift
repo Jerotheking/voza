@@ -61,9 +61,7 @@ struct PopoverView: View {
                 Text(msg).font(.caption2).foregroundStyle(.green)
             }
             if case .trialOver = appState.license.state {
-                Button {
-                    NSApp.openSettingsInFront()
-                } label: {
+                SettingsOpenButton {
                     Label(L.t("Trial over — activate Voza", es: "Prueba terminada — activa Voza"),
                           systemImage: "key")
                         .font(.caption2)
@@ -168,9 +166,7 @@ struct PopoverView: View {
             .buttonStyle(.borderless)
             .help(L.t("Open log folder", es: "Abrir carpeta de logs"))
 
-            Button {
-                NSApp.openSettingsInFront()
-            } label: {
+            SettingsOpenButton {
                 Image(systemName: "gearshape")
             }
             .buttonStyle(.borderless)
