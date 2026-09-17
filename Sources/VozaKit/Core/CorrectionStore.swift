@@ -80,10 +80,19 @@ final class CorrectionStore {
         guard !h.isEmpty, !s.isEmpty, h != s else { return nil }
         guard h.count <= CorrectionWatcher.maxLearnedChars,
               s.count <= CorrectionWatcher.maxLearnedChars else { return nil }
+        // Same letter shape on a single token ("tiago" → "Tiago"): the
+        // watcher's `valid` guard rejects these as dead weight, and so does
+        // the chokepoint — otherwise the manual ✏️ path would re-admit them.
+        if h.lowercased() == s.lowercased(), !h.contains(" "), !s.contains(" ") {
+            return nil
+        }
         return queue.sync {
             loadIfNeededLocked()
             let now = clock.now
-            if let idx = cached.firstIndex(where: { $0.heard == h }) {
+            // Case-insensitive dedupe: "Sintelia" and "sintelia" are the
+            // same key for the replacer (it lowercases), so two entries would
+            // be UI noise and double prompt budget for one term.
+            if let idx = cached.firstIndex(where: { $0.heard.lowercased() == h.lowercased() }) {
                 let updated = Correction(id: cached[idx].id, heard: h, said: s, createdAt: cached[idx].createdAt)
                 cached[idx] = updated
                 persistLocked()
