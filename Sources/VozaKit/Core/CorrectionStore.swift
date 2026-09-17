@@ -201,27 +201,12 @@ final class CorrectionStore {
         // the same threshold on its own path; the manual path must too — this
         // exact gap poisoned a real store with an LLM system prompt.
         guard Paster.similarity(o, c) >= CorrectionWatcher.minSimilarity else { return nil }
-        if let pair = middleDiff(o, c,
-                                 tokenize: { $0.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty } },
-                                 glue: " ") {
-            return pair
-        }
-        return middleDiff(o, c, tokenize: { Array($0).map(String.init) }, glue: "")
-    }
-
-    private static func middleDiff(_ a: String, _ b: String,
-                                   tokenize: (String) -> [String],
-                                   glue: String) -> (heard: String, said: String)? {
-        let ta = tokenize(a), tb = tokenize(b)
-        var prefix = 0
-        while prefix < ta.count && prefix < tb.count && ta[prefix] == tb[prefix] { prefix += 1 }
-        var suffix = 0
-        while suffix < ta.count - prefix && suffix < tb.count - prefix
-                && ta[ta.count - 1 - suffix] == tb[tb.count - 1 - suffix] { suffix += 1 }
-        let heard = ta[prefix..<(ta.count - suffix)].joined(separator: glue)
-        let said = tb[prefix..<(tb.count - suffix)].joined(separator: glue)
-        guard !heard.isEmpty, !said.isEmpty else { return nil }
-        return (heard, said)
+        // D035: same alignment as the watcher's auto-learn path (word-level
+        // first, character fallback) — the manual path must not re-introduce
+        // the dead `telia.` → `telia` class of lesson the auto path just
+        // learned to avoid.
+        if let pair = CorrectionWatcher.wordLevelPair(e: o, t: c) { return pair }
+        return CorrectionWatcher.charLevelPair(e: o, t: c)
     }
 
     /// Prompt from this store (pipeline call site in AppState).

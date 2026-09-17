@@ -212,11 +212,81 @@ final class CorrectionWatcher {
         guard t.count >= minSaidLength else { return nil }                    // trivial edit / UI chrome
         guard t != e else { return nil }                                       // nothing changed
         // Formatting-only change (case/whitespace): the app's autocorrect, not the user's vocabulary.
+        // D035: same LETTERS but a different token split ("sin telia" →
+        // "sintelia") is a real merge/split lesson and must pass; a pure
+        // case/punctuation change still dies here (the whole-word replacer
+        // mirrors case anyway, so such a lesson could never fire).
         let canon = { (s: String) -> String in s.lowercased().filter { !$0.isWhitespace } }
-        guard canon(t) != canon(e) else { return nil }
+        if canon(t) == canon(e) {
+            let et = e.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+            let tt = t.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+            guard et != tt else { return nil }
+        }
         // Unrelated replacement (URL pasted over, field cleared and rewritten): too dangerous to learn.
         guard Paster.similarity(e, t) >= minSimilarity else { return nil }
 
+        // D035: two diff granularities, tried in order. Both yield a raw
+        // (heard, said) fragment; `valid` then applies the shared acceptance
+        // guards (lengths, non-identity, containment in OUR paste).
+        func valid(_ pair: (heard: String, said: String)?) -> (heard: String, said: String)? {
+            guard let (h, fix) = pair else { return nil }
+            guard h.count >= 2, fix.count >= minSaidLength, h.count <= maxLearnedChars,
+                  fix.count <= maxLearnedChars else { return nil }
+            guard h != fix else { return nil } // nothing left to learn
+            // Pure-case single-token pair ("tiago" → "Tiago"): dead weight —
+            // the replacer's matchingCase already mirrors case shape, so such
+            // a lesson can never change an output. Merge/split lessons are
+            // canon-equal too but span a space, and stay welcome.
+            let canonPair = { (x: String) -> String in x.lowercased() }
+            if canonPair(h) == canonPair(fix), !h.contains(" "), !fix.contains(" ") { return nil }
+            // The lesson must be about OUR text: the heard side must appear
+            // inside what Voza pasted. Edits to the user's surrounding
+            // context (their own words before/after the paste) are never
+            // attributed to the model.
+            guard pasted.range(of: h, options: .caseInsensitive) != nil else { return nil }
+            return (h, fix)
+        }
+        if let pair = valid(Self.wordLevelPair(e: e, t: t)) { return pair }
+        return valid(Self.charLevelPair(e: e, t: t))
+    }
+
+    /// D035 — word-level alignment, tried first because it handles the two
+    /// topologies the character diff corrupts:
+    ///
+    /// 1. End-of-sentence fixes: correcting "…? Sin telia." → "…? Sintelia"
+    ///    diffs at character level as "telia." → "telia" — the sentence-final
+    ///    period gets welded into the fragment (real bug, shipped: the store
+    ///    learned the dead pair `telia.` → `telia`, unusable by the whole-word
+    ///    replacer and polluting the whisper prompt).
+    /// 2. Merges and splits across the space: "Sin telia" → "Sintelia" (and
+    ///    the reverse) — the change spans the boundary a character diff
+    ///    can't express as one replayable replacement.
+    ///
+    /// Tokens carry their attached punctuation so prefix/suffix anchoring is
+    /// honest ("funcionar?" ≠ "funcionar"); the changed middle is then
+    /// edge-trimmed to letters. Whitespace-only differences die in the
+    /// caller's canonical guard before we get here.
+    static func wordLevelPair(e: String, t: String) -> (heard: String, said: String)? {
+        let ew = e.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        let tw = t.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        var prefix = 0
+        while prefix < ew.count && prefix < tw.count && ew[prefix] == tw[prefix] { prefix += 1 }
+        var suffix = 0
+        while suffix < ew.count - prefix && suffix < tw.count - prefix
+                && ew[ew.count - 1 - suffix] == tw[tw.count - 1 - suffix] { suffix += 1 }
+        let heardMid = ew[prefix..<(ew.count - suffix)].joined(separator: " ")
+        let saidMid = tw[prefix..<(tw.count - suffix)].joined(separator: " ")
+        guard !heardMid.isEmpty, !saidMid.isEmpty else { return nil }
+        let h = trimmedToWordBoundaries(heardMid)
+        let fix = trimmedToWordBoundaries(saidMid)
+        guard !h.isEmpty, !fix.isEmpty, h != fix else { return nil }
+        return (h, fix)
+    }
+
+    /// Character-level diff with mid-word expansion — the fallback, precise
+    /// when the change lives inside one word ("prueva" → "prueba" diffs as
+    /// "v" → "b", which word alignment would teach as the whole words).
+    static func charLevelPair(e: String, t: String) -> (heard: String, said: String)? {
         let es = Array(e), ts = Array(t)
         var p = 0
         let minLen = min(es.count, ts.count)
@@ -231,15 +301,14 @@ final class CorrectionWatcher {
         let tsEnd = ts.count - s
         let heardMid = String(es[p..<esEnd])
         let saidMid = String(ts[p..<tsEnd])
-        var h = heardMid.trimmingCharacters(in: .whitespaces)
-        var fix = saidMid.trimmingCharacters(in: .whitespaces)
+        var h = trimmedToWordBoundaries(heardMid)
+        var fix = trimmedToWordBoundaries(saidMid)
         guard !h.isEmpty, !fix.isEmpty else { return nil }
-        guard h.count <= maxLearnedChars, fix.count <= maxLearnedChars else { return nil }
 
-        // Mid-word cut (user paused inside a word, e.g. "prueva"→"prueba" diffs
-        // as "v"→"b"): expand BOTH sides to their containing words, otherwise
-        // we would teach a garbage single-letter pair that whole-word replace
-        // can never fire safely. Multi-word realignments mid-cut are refused.
+        // Mid-word cut (user paused inside a word): expand BOTH sides to
+        // their containing words, otherwise we would teach a garbage
+        // single-letter pair that whole-word replace can never fire safely.
+        // Multi-word realignments mid-cut are refused.
         let startsMidWord = p > 0 && es[p - 1].isLetter && es[p].isLetter
         let endsMidWord = esEnd > p && es[esEnd - 1].isLetter && esEnd < es.count && es[esEnd].isLetter
         if startsMidWord || endsMidWord {
@@ -253,13 +322,19 @@ final class CorrectionWatcher {
             fix = String(ts[tS..<tE])
             guard h != fix else { return nil }
         }
-
-        guard h.count >= 2, fix.count >= minSaidLength, fix.count <= maxLearnedChars else { return nil }
-        // The lesson must be about OUR text: the heard side must appear inside
-        // what Voza pasted. Edits to the user's surrounding context (their own
-        // words before/after the paste) are never attributed to the model.
-        guard pasted.range(of: h, options: .caseInsensitive) != nil else { return nil }
+        guard !h.isEmpty, !fix.isEmpty else { return nil }
         return (h, fix)
+    }
+
+    /// D035: strips edge non-letter characters from a diff middle (sentence
+    /// punctuation welded to the fragment — "telia." → "telia"). Inner
+    /// characters are never touched, so abbreviations like "Dr." keep their
+    /// period when the diff cut inside a word (mid-word expansion path).
+    static func trimmedToWordBoundaries(_ s: String) -> String {
+        var t = s
+        while let f = t.first, !f.isLetter, t.count > 1 { t.removeFirst() }
+        while let l = t.last, !l.isLetter, t.count > 1 { t.removeLast() }
+        return t
     }
 
     /// Reads kAXValueAttribute; nil when the element is gone or unreadable.
