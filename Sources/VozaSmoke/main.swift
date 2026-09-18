@@ -328,7 +328,9 @@ if CommandLine.arguments.contains("corrections") {
     check("watcher refuses oversized fix", longFix == nil)
 
     // Live-loop decision logic: undoes (field back to expected) RESET stability.
-    // Mirrors watch() without AX/timers: expected → continue; changed → count.
+    // Mirrors watch()'s stability arithmetic without AX/timers. Note: the live
+    // loop adds a D036 confirm read after the gate (pause is not proof —
+    // accent menus freeze mid-composition); not mirrored in this pure block.
     do {
         let expected = "Hola, esto es una prueva"
         var lastValue: String?? = nil // nil outer = never observed; inner nil = unreadable

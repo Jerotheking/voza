@@ -22,6 +22,12 @@ final class CorrectionWatcher {
     static let pollIntervalSeconds: TimeInterval = 0.8
     static let windowSeconds: TimeInterval = 20
     static let stabilitySamples = 2
+    /// D036: pause is not proof — macOS accent menus (press-and-hold) and IME
+    /// candidates freeze typing for seconds while composition is UNFINISHED
+    /// (field evidence: "sinteli" was learned while the user was still
+    /// composing "sinteliä" in the accent menu). After the stability gate,
+    /// one extra read after this pause confirms the field truly settled.
+    static let confirmationPauseSeconds: TimeInterval = 0.7
     static let minSimilarity = 0.55
     static let minSaidLength = 4
     static let maxLearnedChars = 400
@@ -164,16 +170,33 @@ final class CorrectionWatcher {
             }
             lastValue = current
 
-            // Stable for N consecutive samples ≈ typing paused: the fix is on screen.
-            if stableCount >= config.stabilitySamples,
-               let pair = extractPair(pasted: session.pastedText, typed: current, expected: expected) {
-                let stored = sink.record(heard: pair.heard, said: pair.said)
-                // Same log honesty as the late-baseline path: tests (QASink)
-                // never fake a "learned" line in the user's bitácora.
-                LearningLog.shared.event(stored != nil
-                    ? .learned(heard: pair.heard, said: pair.said)
-                    : .expired)
-                return stored != nil // exactly one learning attempt per paste
+            // Stable for N consecutive samples ≈ typing paused. D036: a pause
+            // is not proof — the confirm read (extra read after a pause)
+            // catches resumed typing, reader hiccups and not-yet-valid
+            // fragments. Everything except a confirmed, valid, stable edit
+            // re-arms stability and keeps watching: only the window expiry
+            // ends a session, never a frozen half-typed value.
+            if stableCount >= config.stabilitySamples {
+                doSleep(Self.confirmationPauseSeconds)
+                let confirmed = reader(element)
+                if let confirmed, confirmed == current,
+                   let pair = extractPair(pasted: session.pastedText, typed: confirmed, expected: expected) {
+                    let stored = sink.record(heard: pair.heard, said: pair.said)
+                    // Same log honesty as the late-baseline path: tests (QASink)
+                    // never fake a "learned" line in the user's bitácora.
+                    LearningLog.shared.event(stored != nil
+                        ? .learned(heard: pair.heard, said: pair.said)
+                        : .expired)
+                    return stored != nil // exactly one learning attempt per paste
+                }
+                if let confirmed {
+                    stableCount = 1
+                    lastValue = confirmed
+                } else {
+                    stableCount = 0
+                    lastValue = nil
+                }
+                continue
             }
         }
         return false
@@ -467,10 +490,15 @@ final class CorrectionWatcher {
             }
             lastValue = current
             if stableCount >= config.stabilitySamples {
-                // The learned pair must be about OUR text: reuse extractPair
-                // semantics with expected = baseline (what the field held with
-                // our paste inside).
-                if let pair = extractPair(pasted: session.pastedText, typed: current, expected: baseline) {
+                // D036 confirmation pause (see watch()): a stable-looking field
+                // may be frozen mid-composition (accent menu / IME). Re-read
+                // after a pause; only a still-identical field whose edit is a
+                // valid lesson may learn — everything else re-arms and the
+                // window expiry remains the only failure exit.
+                doSleep(Self.confirmationPauseSeconds)
+                let confirmed = reader()
+                if let confirmed, confirmed == current,
+                   let pair = extractPair(pasted: session.pastedText, typed: confirmed, expected: baseline) {
                     // Log HONESTY (D034): "learned" only when the sink actually
                     // accepted (record can refuse: caps, heard == said). The
                     // QASink returns nil — tests must never write "learned"
@@ -481,8 +509,13 @@ final class CorrectionWatcher {
                         : .expired)
                     return stored != nil
                 }
-                LearningLog.shared.event(.expired) // change rejected by guards
-                return false
+                if let confirmed {
+                    stableCount = 1
+                    lastValue = confirmed
+                } else {
+                    stableCount = 0
+                    lastValue = nil
+                }
             }
         }
         LearningLog.shared.event(.expired)
