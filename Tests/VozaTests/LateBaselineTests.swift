@@ -52,7 +52,8 @@ final class LateBaselineTests: XCTestCase {
             readFocused: { script.read() },
             sleep: { _ in },
             sink: sink,
-            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2)
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
+            force: { false }, voWake: { false }
         )
 
         XCTAssertTrue(learned)
@@ -74,7 +75,8 @@ final class LateBaselineTests: XCTestCase {
             sleep: { _ in },
             sink: sink,
             // axWakeSeconds = 5.0 / poll 0.5 → 10 wake polls max, then window
-            config: .init(pollIntervalSeconds: 0.5, windowSeconds: 0.1, stabilitySamples: 2)
+            config: .init(pollIntervalSeconds: 0.5, windowSeconds: 0.1, stabilitySamples: 2),
+            force: { false }, voWake: { false }
         )
 
         XCTAssertFalse(learned)
@@ -93,7 +95,8 @@ final class LateBaselineTests: XCTestCase {
             readFocused: { script.read() },
             sleep: { _ in },
             sink: sink,
-            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 0.05, stabilitySamples: 2)
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 0.05, stabilitySamples: 2),
+            force: { false }, voWake: { false }
         )
 
         XCTAssertFalse(learned, "containment alone must never produce a lesson")

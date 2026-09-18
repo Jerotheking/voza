@@ -384,6 +384,22 @@ final class CorrectionWatcher {
     /// it (~2.5 s), then quits VO. Net effect: a short system blip, no
     /// speech content, no dependency on shortcut settings.
     /// Returns false only when VO could not be started at all.
+    /// Runs a short osascript; nil on failure. Process-based (thread-safe,
+    /// no TCC prompt — "set volume" needs no automation permission).
+    private static func runOsa(_ script: String) -> String? {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        p.arguments = ["-e", script]
+        let pipe = Pipe()
+        p.standardOutput = pipe
+        p.standardError = FileHandle.nullDevice
+        guard (try? p.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        guard p.terminationStatus == 0 else { return nil }
+        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     @discardableResult
     static func wakeAccessibilityViaVoiceOverToggle() -> Bool {
         let voRunning: () -> Bool = {
@@ -404,31 +420,42 @@ final class CorrectionWatcher {
         }
         _ = tapF5()
         usleep(900_000) // let Chromium notice VO started (if shortcut is on)
-        if !voRunning() {
-            // 2) D038: the shortcut is disabled (or failed) — launch VO for
-            // real. VoiceOverStarter brings the process up without UI setup.
-            let starter = Process()
-            starter.executableURL = URL(fileURLWithPath:
-                "/System/Library/CoreServices/VoiceOver.app/Contents/MacOS/VoiceOverStarter")
-            starter.standardOutput = FileHandle.nullDevice
-            starter.standardError = FileHandle.nullDevice
-            guard (try? starter.run()) != nil else { return false }
-            // Wait up to ~3 s for the process to appear.
-            var waited = 0.0
-            while !voRunning() && waited < 3.0 {
-                usleep(200_000)
-                waited += 0.2
-            }
-            guard voRunning() else { return false }
-            usleep(1_500_000) // Chromium renderer registers the screen reader
-            // 3) Quit VO: graceful first, SIGTERM as permissionless fallback.
-            if let vo = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" }) {
-                vo.terminate()
-                usleep(1_200_000)
-            }
-            if voRunning(), let pid = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" })?.processIdentifier {
-                kill(pid, SIGTERM)
-            }
+        if voRunning() {
+            // Our F5 started the user's VO — turn it back off (state balance;
+            // never leave a screen reader running that we started).
+            _ = tapF5()
+            usleep(400_000)
+            LearningLog.shared.event(.voWake)
+            return true
+        }
+        // 2) D038: the shortcut is disabled (or failed) — launch VO for real.
+        // D039: VO SPEAKS when launched (field evidence 00:59 — it narrated
+        // the screen out loud). Mute system output for the whole launch
+        // window and restore it afterwards, on every exit path.
+        let wasMuted = runOsa("output muted of (get volume settings)") == "true"
+        _ = runOsa("set volume output muted true")
+        defer { if !wasMuted { _ = runOsa("set volume output muted false") } }
+        let starter = Process()
+        starter.executableURL = URL(fileURLWithPath:
+            "/System/Library/CoreServices/VoiceOver.app/Contents/MacOS/VoiceOverStarter")
+        starter.standardOutput = FileHandle.nullDevice
+        starter.standardError = FileHandle.nullDevice
+        guard (try? starter.run()) != nil else { return false }
+        // Wait up to ~3 s for the process to appear.
+        var waited = 0.0
+        while !voRunning() && waited < 3.0 {
+            usleep(200_000)
+            waited += 0.2
+        }
+        guard voRunning() else { return false }
+        usleep(1_500_000) // Chromium renderer registers the screen reader
+        // 3) Quit the VO WE launched: graceful first, SIGTERM as fallback.
+        if let vo = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" }) {
+            vo.terminate()
+            usleep(1_200_000)
+        }
+        if voRunning(), let pid = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" })?.processIdentifier {
+            kill(pid, SIGTERM)
         }
         LearningLog.shared.event(.voWake)
         return true
@@ -493,7 +520,7 @@ final class CorrectionWatcher {
             // that single read came back empty (00:1x field log).
             if !voTried, (forcedAccepted + forcedUnsupported) >= 4 {
                 voTried = true
-                if wakeFn() { wakeBudget += 3.0 } // tree construction after VO detection
+                if wakeFn() { wakeBudget += 8.0 } // tree construction after VO detection (D039: took ~20 s in the field)
             }
             doSleep(pollSeconds)
             waited += pollSeconds
