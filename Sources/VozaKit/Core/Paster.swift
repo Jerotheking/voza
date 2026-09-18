@@ -134,11 +134,12 @@ enum Paster {
         AXUIElementSetMessagingTimeout(element, 2.0)
     }
 
-    /// Wakes the focused app's hidden accessibility support. Chromium/Electron
-    /// gates its AX tree behind VoiceOver detection — or a manual override.
-    /// v2 (D034 field evidence: setting the attribute on the focused ELEMENT's
-    /// app reference failed silently on Freebuff): resolve the app by PID and
-    /// set BOTH known override attributes. Returns false when nothing stuck.
+    /// Wakes the focused app's hidden accessibility support by setting the
+    /// manual-override attributes on the app element. Chromium/Electron gates
+    /// its web-content tree; the full web wake lives in
+    /// `CorrectionWatcher.wakeAppTree` (D040, sets AXManualAccessibility on
+    /// every AXWebArea — attribute-only, never VoiceOver). Returns false only
+    /// when nothing stuck.
     @discardableResult
     static func forceAccessibilityOnFocusedApp() -> Bool {
         guard let element = focusedElement() else { return false }

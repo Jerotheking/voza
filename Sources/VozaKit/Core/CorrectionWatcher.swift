@@ -368,106 +368,55 @@ final class CorrectionWatcher {
         return value
     }
 
-    // MARK: - VoiceOver wake (the Chromium canary)
+    // MARK: - Chromium wake (D040: attribute-only, NO VoiceOver, ever)
 
-    /// Chromium/Electron enables its accessibility tree when it detects a
-    /// screen reader; the manual AXManualAccessibility attribute is not
-    /// implemented by every Electron build (D034 field evidence: Freebuff
-    /// answers `attributeUnsupported`). The wake is therefore VoiceOver
-    /// itself: Chromium sees VO start and keeps AX enabled after it stops.
-    ///
-    /// D038 (field evidence 00:44): ⌘F5 only works when the user enabled the
-    /// VO shortcut in System Settings — the owner's machine has
-    /// `voiceOverOnOffKey = 0`, so the keystroke was a no-op and the session
-    /// died `ax-never-woke` WITH the toggle sent. The reliable path launches
-    /// VoiceOver directly (VoiceOverStarter), waits for Chromium to detect
-    /// it (~2.5 s), then quits VO. Net effect: a short system blip, no
-    /// speech content, no dependency on shortcut settings.
-    /// Returns false only when VO could not be started at all.
-    /// Runs a short osascript; nil on failure. Process-based (thread-safe,
-    /// no TCC prompt — "set volume" needs no automation permission).
-    private static func runOsa(_ script: String) -> String? {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        p.arguments = ["-e", script]
-        let pipe = Pipe()
-        p.standardOutput = pipe
-        p.standardError = FileHandle.nullDevice
-        guard (try? p.run()) != nil else { return nil }
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        guard p.terminationStatus == 0 else { return nil }
-        return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
+    /// Wakes a Chromium/Electron app's web-content accessibility tree by
+    /// setting `AXManualAccessibility` on every **AXWebArea**, found by
+    /// walking the app's OWN tree (windows/buttons — readable even when web
+    /// content is dark). This is Chromium's documented manual-override path,
+    /// implemented by its renderer; the field experiment on Freebuff
+    /// (18 Sep 2026) woke the web tree in ~1 s with the focused element
+    /// readable — NO VoiceOver, no keystrokes, no audio, no visible blip.
+    /// The previous VoiceOver-toggle approach is deleted: it could speak out
+    /// loud (D039) and flicker UI; the owner required it to never happen.
     @discardableResult
-    static func wakeAccessibilityViaVoiceOverToggle() -> Bool {
-        let voRunning: () -> Bool = {
-            NSWorkspace.shared.runningApplications.contains {
-                $0.bundleIdentifier == "com.apple.VoiceOver"
+    static func wakeAppTree(pid: pid_t) -> Bool {
+        guard pid > 0 else { return false }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 2.0)
+        var winsRef: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &winsRef) == .success,
+              let wins = winsRef as? [AXUIElement] else { return false }
+        var stuck = false
+        var budget = 400
+        func walk(_ el: AXUIElement, depth: Int) {
+            guard budget > 0, depth < 14 else { return }
+            budget -= 1
+            var roleRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(el, kAXRoleAttribute as CFString, &roleRef) == .success,
+                  let role = roleRef as? String else { return }
+            if role == "AXWebArea" {
+                AXUIElementSetMessagingTimeout(el, 2.0)
+                let r = AXUIElementSetAttributeValue(el, "AXManualAccessibility" as CFString, kCFBooleanTrue)
+                if r == .success { stuck = true }
+                return // webAreas are the wake targets; don't walk their content
             }
+            var kidsRef: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(el, kAXChildrenAttribute as CFString, &kidsRef) == .success,
+                  let kids = kidsRef as? [AXUIElement] else { return }
+            for k in kids { walk(k, depth: depth + 1) }
         }
-        // 1) Lightweight first: the shortcut toggle, harmless if disabled.
-        func tapF5() -> Bool {
-            guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 96, keyDown: true),
-                  let up = CGEvent(keyboardEventSource: nil, virtualKey: 96, keyDown: false) else { return false }
-            down.flags = .maskCommand
-            up.flags = .maskCommand
-            down.post(tap: .cghidEventTap)
-            usleep(60_000)
-            up.post(tap: .cghidEventTap)
-            return true
-        }
-        _ = tapF5()
-        usleep(900_000) // let Chromium notice VO started (if shortcut is on)
-        if voRunning() {
-            // Our F5 started the user's VO — turn it back off (state balance;
-            // never leave a screen reader running that we started).
-            _ = tapF5()
-            usleep(400_000)
-            LearningLog.shared.event(.voWake)
-            return true
-        }
-        // 2) D038: the shortcut is disabled (or failed) — launch VO for real.
-        // D039: VO SPEAKS when launched (field evidence 00:59 — it narrated
-        // the screen out loud). Mute system output for the whole launch
-        // window and restore it afterwards, on every exit path.
-        let wasMuted = runOsa("output muted of (get volume settings)") == "true"
-        _ = runOsa("set volume output muted true")
-        defer { if !wasMuted { _ = runOsa("set volume output muted false") } }
-        let starter = Process()
-        starter.executableURL = URL(fileURLWithPath:
-            "/System/Library/CoreServices/VoiceOver.app/Contents/MacOS/VoiceOverStarter")
-        starter.standardOutput = FileHandle.nullDevice
-        starter.standardError = FileHandle.nullDevice
-        guard (try? starter.run()) != nil else { return false }
-        // Wait up to ~3 s for the process to appear.
-        var waited = 0.0
-        while !voRunning() && waited < 3.0 {
-            usleep(200_000)
-            waited += 0.2
-        }
-        guard voRunning() else { return false }
-        usleep(1_500_000) // Chromium renderer registers the screen reader
-        // 3) Quit the VO WE launched: graceful first, SIGTERM as fallback.
-        if let vo = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" }) {
-            vo.terminate()
-            usleep(1_200_000)
-        }
-        if voRunning(), let pid = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" })?.processIdentifier {
-            kill(pid, SIGTERM)
-        }
-        LearningLog.shared.event(.voWake)
-        return true
+        for w in wins { walk(w, depth: 0) }
+        return stuck
     }
 
     // MARK: - Late-baseline mode (Electron/Chromium, D034)
 
     /// Watches a paste whose target app exposed no AX text at capture time.
     /// Electron apps (Slack, VS Code, Discord, Chromium browsers…) gate their
-    /// accessibility tree behind VoiceOver detection — or the manual
-    /// `AXManualAccessibility` override, which is exactly what we set here
-    /// (same trick VO uses). The tree takes a moment to build, so we poll the
+    /// web-content accessibility tree; we wake it with the attribute-only
+    /// `wakeAppTree` (D040 — never VoiceOver). The tree takes a moment to
+    /// build, so we poll the
     /// focused element for up to ~5 s until kAXValue reads our pasted text,
     /// then diff the LIVE field against that baseline with the SAME guards as
     /// the normal path. Difference rules: the baseline starts as `pasted` (it
@@ -488,10 +437,17 @@ final class CorrectionWatcher {
             Paster.applyMessagingTimeout(el)
             return readField(el)
         }
-        // D037: the escalation side effects are seams. Tests MUST inject
-        // fakes — the defaults touch real AX and post real ⌘F5 events.
-        let forceFn = force ?? { Paster.forceAccessibilityOnFocusedApp() }
-        let wakeFn = voWake ?? { Self.wakeAccessibilityViaVoiceOverToggle() }
+        // D040: the wake side effect is a seam. Tests MUST inject a fake —
+        // the default walks real AX trees. It is attribute-only: it can NEVER
+        // launch VoiceOver, post keystrokes or touch audio.
+        let forceFn = force ?? {
+            var pid = pid_t(0)
+            if let el = Paster.focusedElementPublic,
+               AXUIElementGetPid(el, &pid) == .success {
+                _ = Self.wakeAppTree(pid: pid)
+            }
+            return Paster.forceAccessibilityOnFocusedApp()
+        }
         let pollSeconds = config.pollIntervalSeconds
         let settleSeconds = 1.0
         let axWakeSeconds = 5.0
@@ -505,23 +461,26 @@ final class CorrectionWatcher {
         var waited = 0.0
         var forcedAccepted = 0
         var forcedUnsupported = 0
-        var wakeBudget = axWakeSeconds
-        var voTried = false
+        let wakeBudget = axWakeSeconds
+        // D040: resolve the pasted-into app by PID BEFORE anything else, so
+        // the wake targets the right app even if focus moves mid-session.
+        var appPID = pid_t(0)
+        if let el = session.element { AXUIElementGetPid(el, &appPID) }
+        if appPID <= 0, let focused = Paster.focusedElementPublic {
+            AXUIElementGetPid(focused, &appPID)
+        }
         while waited < wakeBudget {
             if let shouldContinue, !shouldContinue() { return false }
             if forceFn() { forcedAccepted += 1 } else { forcedUnsupported += 1 }
-            // D037: escalate INSIDE the wait window. After 4 failed wake
-            // attempts (~3 s at production cadence) fire the VoiceOver toggle
-            // once — VO detection is compiled into every Chromium renderer,
-            // unlike the manual-override attribute Freebuff rejects — and
-            // EXTEND the budget so there is time left to observe the tree it
-            // builds. The previous shape (toggle after give-up, one
-            // confirmation read) could not even reach the watch phase when
-            // that single read came back empty (00:1x field log).
-            if !voTried, (forcedAccepted + forcedUnsupported) >= 4 {
-                voTried = true
-                if wakeFn() { wakeBudget += 8.0 } // tree construction after VO detection (D039: took ~20 s in the field)
-            }
+            // D040: EVERY poll also sets AXManualAccessibility on the app's
+            // AXWebAreas (walked via the app element by PID — readable even
+            // when web content is dark). This is the ONLY wake path in Voza:
+            // attribute-only; there is no VoiceOver fallback anywhere.
+            // Chromium builds the web tree lazily and a single early set
+            // often doesn't stick (D034 field evidence), so repeat it every
+            // poll. Field experiment (18 Sep 2026): Freebuff's web tree woke
+            // in ~1 s with the focused element readable.
+            if appPID > 0 { _ = Self.wakeAppTree(pid: appPID) }
             doSleep(pollSeconds)
             waited += pollSeconds
             if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
