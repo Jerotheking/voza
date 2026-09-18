@@ -416,13 +416,19 @@ final class CorrectionWatcher {
                                   sleep: ((TimeInterval) -> Void)? = nil,
                                   shouldContinue: (() -> Bool)? = nil,
                                   sink: LearningSink = CorrectionStore.shared,
-                                  config: WatchConfig = .production) -> Bool {
+                                  config: WatchConfig = .production,
+                                  force: (() -> Bool)? = nil,
+                                  voWake: (() -> Bool)? = nil) -> Bool {
         let doSleep = sleep ?? { Thread.sleep(forTimeInterval: $0) }
         let reader = readFocused ?? {
             guard let el = Paster.focusedElementPublic else { return nil }
             Paster.applyMessagingTimeout(el)
             return readField(el)
         }
+        // D037: the escalation side effects are seams. Tests MUST inject
+        // fakes — the defaults touch real AX and post real ⌘F5 events.
+        let forceFn = force ?? { Paster.forceAccessibilityOnFocusedApp() }
+        let wakeFn = voWake ?? { Self.wakeAccessibilityViaVoiceOverToggle() }
         let pollSeconds = config.pollIntervalSeconds
         let settleSeconds = 1.0
         let axWakeSeconds = 5.0
@@ -436,9 +442,23 @@ final class CorrectionWatcher {
         var waited = 0.0
         var forcedAccepted = 0
         var forcedUnsupported = 0
-        while waited < axWakeSeconds {
+        var wakeBudget = axWakeSeconds
+        var voTried = false
+        while waited < wakeBudget {
             if let shouldContinue, !shouldContinue() { return false }
-            if Paster.forceAccessibilityOnFocusedApp() { forcedAccepted += 1 } else { forcedUnsupported += 1 }
+            if forceFn() { forcedAccepted += 1 } else { forcedUnsupported += 1 }
+            // D037: escalate INSIDE the wait window. After 4 failed wake
+            // attempts (~3 s at production cadence) fire the VoiceOver toggle
+            // once — VO detection is compiled into every Chromium renderer,
+            // unlike the manual-override attribute Freebuff rejects — and
+            // EXTEND the budget so there is time left to observe the tree it
+            // builds. The previous shape (toggle after give-up, one
+            // confirmation read) could not even reach the watch phase when
+            // that single read came back empty (00:1x field log).
+            if !voTried, (forcedAccepted + forcedUnsupported) >= 4 {
+                voTried = true
+                if wakeFn() { wakeBudget += 3.0 } // tree construction after VO detection
+            }
             doSleep(pollSeconds)
             waited += pollSeconds
             if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
@@ -453,17 +473,6 @@ final class CorrectionWatcher {
             // built); unsupported = the app rejected the attribute outright
             // (its Electron build doesn't implement the handler at all).
             LearningLog.shared.event(.axNeverWoke(accepted: forcedAccepted, unsupported: forcedUnsupported))
-            // Last resort: the VoiceOver toggle wakes every real Chromium
-            // build (VO detection is compiled into the renderer, unlike the
-            // manual-override attribute, which Freebuff's build rejects).
-            if forcedUnsupported > 0, forcedAccepted == 0,
-               Self.wakeAccessibilityViaVoiceOverToggle() {
-                doSleep(1.5) // tree construction after VO detection
-                if let current = reader(),
-                   current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                    baseline = current
-                }
-            }
         }
         guard let baseline else { return false }
 

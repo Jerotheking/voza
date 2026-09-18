@@ -99,6 +99,58 @@ final class LateBaselineTests: XCTestCase {
         XCTAssertFalse(learned, "containment alone must never produce a lesson")
         XCTAssertTrue(sink.pairs.isEmpty)
     }
+
+    // MARK: D037 — escalation inside the wait window
+
+    func testVoiceOverWakeEscalatesInsideWindow() {
+        // Force always rejected (Freebuff's Electron build). After 4 wake
+        // attempts the VO toggle fires ONCE and the budget extends — the tree
+        // then appears and the lesson is captured. Everything injected: no
+        // real AX, no real ⌘F5 (the pre-D037 shape ran the real toggle).
+        let script = Script(values: [nil, nil, nil, nil, "Sintelia.", "Sinteliä.", "Sinteliä."])
+        var voWakeCalls = 0
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watchLateBaseline(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.5, windowSeconds: 20, stabilitySamples: 2),
+            force: { false },
+            voWake: { voWakeCalls += 1; return true }
+        )
+
+        XCTAssertTrue(learned)
+        XCTAssertEqual(voWakeCalls, 1, "the toggle is a one-shot escalation, not a loop")
+        XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
+        XCTAssertEqual(sink.pairs.first?.said, "Sinteliä")
+    }
+
+    func testFailedVoiceOverWakeDoesNotExtendBudgetAndFallsThrough() {
+        // voWake posts nothing (keystroke failure): budget unchanged, the
+        // wake window still ends and the session falls through to the
+        // honest ax-never-woke exit without a lesson.
+        let script = Script(values: [nil])
+        var voWakeCalls = 0
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watchLateBaseline(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.5, windowSeconds: 0.1, stabilitySamples: 2),
+            force: { false },
+            voWake: { voWakeCalls += 1; return false }
+        )
+
+        XCTAssertFalse(learned)
+        XCTAssertTrue(sink.pairs.isEmpty)
+        XCTAssertEqual(voWakeCalls, 1, "exactly one escalation attempt, even when it fails")
+    }
 }
 
 /// LearningLog format/rotation — hermetic via the sink seam.

@@ -371,3 +371,53 @@ Los números de línea de las tablas de abajo reflejan el baseline; el archivo
 vivo ha cambiado (AppState 255→285 l, SettingsView 571→~700 l, OnboardingView
 115→138 l, DictationHUD inexistente en baseline). Los símbolos siguen siendo
 el ancla: re-buscar, no confiar en la línea.
+
+---
+
+## Addendum (2026-09-18, D034–D037) — subsistema de autoaprendizaje
+
+Conciliación del subsistema completo nacido post-baseline (D033–D037).
+Estado verificado contra HEAD (101 tests, smoke 54 checks en verde).
+
+### Archivos nuevos del subsistema (Core)
+
+| Archivo | Símbolos | Lectura |
+|---|---|---|
+| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `watchLateBaseline` / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAccessibilityViaVoiceOverToggle` / `WatchConfig` / `LearningSink` | Dos loops de aprendizaje: normal (sesión con `fieldBefore`) y late-baseline (Electron). `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s (D036), `minSimilarity` 0.55. D037: `force`/`voWake` son costuras inyectables; el toggle VO escala DENTRO de la ventana (tras 4 forcing fallidos, +3 s de presupuesto, one-shot). |
+| `Sources/VozaKit/Core/CorrectionStore.swift` · 248 l | `record` / `apply` / `apply(corrections:)` / `initialPrompt` / `diffCorrection` | Chokepoint único (D033 + matriz adversarial): dedupe case-insensitive, rechaza pares pure-case y > `maxLearnedChars` (400). `apply` reemplaza por límites de palabra espejando caso; `initialPrompt` alimenta whisper (presupuesto 200 chars). |
+| `Sources/VozaKit/Core/LearningLog.swift` · 102 l | `LearningLog.Event` / `event` / `isMutedForTests` | Bitácora `~/Library/Logs/voza/learning.log`: start/learned/expired/axNeverWoke/voWake. `learned` solo cuando `record` aceptó (honestidad D034). Tests la silencian. |
+| `Sources/VozaKit/Core/AppPaths.swift` · 63 l | `AppPaths` | Rutas de datos (V01), seam para QA hermético. |
+| `Sources/VozaKit/Core/Clock.swift` · 58 l | `Clock` / `SystemClock` / `FixedClock` | Abstracción de reloj (V01), inyectable en watcher y stores. |
+| `Sources/VozaKit/UI/Previews.swift` · 96 l | preview harness | Harness de Xcode Previews para vistas de Settings/onboarding. |
+
+### Superficie de Paster crecida (54 → 199 l)
+
+`Session` (captura pre-paste), `focusedElementPublic`, `applyMessagingTimeout`
+(2 s por elemento — el hilo main de la app destino puede colgar el IPC AX),
+`forceAccessibilityOnFocusedApp` (`AXManualAccessibility` +
+`AXEnhancedUserInterface` por PID, con reintentos del watcher), `similarity`
+(Jaccard, umbral compartido con el watcher).
+
+### Integración con el pipeline (AppState · 285 l)
+
+`CorrectionStore.shared.initialPrompt()` ANTES de transcribir (bias de
+decodificación, fuera del bloque cronometrado) y `CorrectionStore.apply(text)`
+DESPUÉS (fuente de verdad antes de pegar). Verificación de campo 2026-09-18:
+ambas llamadas activas y funcionando (dictado 00:11 pegó "sinteliâ" ya
+corregido sin LLM).
+
+### Tests post-baseline (12 suites, 101 casos)
+
+`LateBaselineTests` (incluye escalada D037 con fakes), `ExtractorTopologiesTests`
+(D035: merges/splits/fin-de-oración), `AdversarialMatrixTests` (22 ataques),
+`ConfirmationReadTests` (D036: menú de acentos + hiccup),
+`CorrectionRoundTripTests`, `LearningAndPureFnsTests`, `AppPathsTests`,
+`FirstRunExperienceTests`, `SmokeIsolationTests`, `TestEnvironmentTests`,
+`PreviewRenderTests`. `VozaSmoke` creció 202 → 641 l (aislamiento V01 +
+espejo de correcciones + confirm-read D036).
+
+### Regla viva del subsistema
+
+Toda decisión de aprendizaje pasa por `record`; toda decisión de pegado pasa
+por `apply`. Los tests NUNCA tocan AX real, CGEvent real ni la bitácora real
+(`isMutedForTests`, costuras `force`/`voWake`).
