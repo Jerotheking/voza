@@ -383,9 +383,9 @@ Estado verificado contra HEAD (101 tests, smoke 54 checks en verde).
 
 | Archivo | Símbolos | Lectura |
 |---|---|---|
-| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `watchLateBaseline` / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAccessibilityViaVoiceOverToggle` / `WatchConfig` / `LearningSink` | Dos loops de aprendizaje: normal (sesión con `fieldBefore`) y late-baseline (Electron). `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s (D036), `minSimilarity` 0.55. D037: `force`/`voWake` son costuras inyectables; el toggle VO escala DENTRO de la ventana (tras 4 forcing fallidos, +3 s de presupuesto, one-shot). |
+| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `watchLateBaseline` / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAppTree` / `WatchConfig` / `LearningSink` | Dos loops de aprendizaje: normal (sesión con `fieldBefore`) y late-baseline (Electron). `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s (D036), `minSimilarity` 0.55. D040: `force` es costura inyectable y `wakeAppTree` (atributos sobre AXWebAreas vía PID) corre en CADA poll de la ventana — la vía VoiceOver está BORRADA del código (D040, decisión del dueño: nunca puede hablar ni parpadear). |
 | `Sources/VozaKit/Core/CorrectionStore.swift` · 248 l | `record` / `apply` / `apply(corrections:)` / `initialPrompt` / `diffCorrection` | Chokepoint único (D033 + matriz adversarial): dedupe case-insensitive, rechaza pares pure-case y > `maxLearnedChars` (400). `apply` reemplaza por límites de palabra espejando caso; `initialPrompt` alimenta whisper (presupuesto 200 chars). |
-| `Sources/VozaKit/Core/LearningLog.swift` · 102 l | `LearningLog.Event` / `event` / `isMutedForTests` | Bitácora `~/Library/Logs/voza/learning.log`: start/learned/expired/axNeverWoke/voWake. `learned` solo cuando `record` aceptó (honestidad D034). Tests la silencian. |
+| `Sources/VozaKit/Core/LearningLog.swift` · 102 l | `LearningLog.Event` / `event` / `isMutedForTests` | Bitácora `~/Library/Logs/voza/learning.log`: start/learned/expired/axNeverWoke (el evento `voWake` fue eliminado en D040; test pin prohibe líneas voiceover). `learned` solo cuando `record` aceptó (honestidad D034). Tests la silencian. |
 | `Sources/VozaKit/Core/AppPaths.swift` · 63 l | `AppPaths` | Rutas de datos (V01), seam para QA hermético. |
 | `Sources/VozaKit/Core/Clock.swift` · 58 l | `Clock` / `SystemClock` / `FixedClock` | Abstracción de reloj (V01), inyectable en watcher y stores. |
 | `Sources/VozaKit/UI/Previews.swift` · 96 l | preview harness | Harness de Xcode Previews para vistas de Settings/onboarding. |
@@ -420,4 +420,38 @@ espejo de correcciones + confirm-read D036).
 
 Toda decisión de aprendizaje pasa por `record`; toda decisión de pegado pasa
 por `apply`. Los tests NUNCA tocan AX real, CGEvent real ni la bitácora real
-(`isMutedForTests`, costuras `force`/`voWake`).
+(`isMutedForTests`, costura `force`; D040 además borra toda vía VoiceOver).
+
+---
+
+## Addendum (2026-09-18, D038–D040 + auditoría) — despertar por atributos y pass de calidad
+
+### D040 — Despertar Chromium 100% por atributos (VoiceOver borrado)
+
+El campo demostró que el toggle/lanzamiento de VoiceOver era innecesario Y
+peligroso (habló en voz alta, D039). Experimento (18 sep): setear
+`AXManualAccessibility` sobre el **AXWebArea** de Freebuff despertó su árbol
+web en ~1 s con el foco legible — sin VO. Borrado del código: toggle ⌘F5,
+`VoiceOverStarter`, mute de audio vía osascript, evento `voWake`. Contract
+pins: test prohibe líneas voiceover en el log; binario release auditado sin
+strings prohibidos ("VoiceOver", "output muted": 0 ocurrencias).
+
+| Archivo | Cambio |
+|---|---|
+| `CorrectionWatcher.swift` · 560 l | `wakeAppTree(pid:)` nuevo: walk del árbol de la app (ventanas→…→AXWebArea, legible aunque el web duerma) + atributo en cada webArea; corre en cada poll de `watchLateBaseline` con PID resuelto de `session.element` (fallback: foco). |
+| `LearningLog.swift` · 97 l | Evento `voWake` eliminado del vocabulario. |
+| `Paster.swift` · 200 l | `forceAccessibilityOnFocusedApp` queda como set de atributos a nivel app; el despertar web vive en `wakeAppTree`. |
+| `Tests/.../LateBaselineTests.swift` | Reescrita a semántica D040: `testForcesEveryPollViaWakeSeam`, `testNoVoiceOverRemainsInLogFormat` (pin de contrato). |
+
+### Auditoría de calidad (metodología skills de Matt Pocock)
+
+Commit `37a8dd8` — reporte completo en
+`docs/plan-glm/evidence/audit-matt-skills-2026-09-18.md`. Resumen: 4 símbolos
+muertos eliminados (`ModelManager.resolvedModelPath`,
+`Config.setLogDirectory`, `Config.setenvOverride`,
+`Config.setGumroadPermalink`); caching de `DateFormatter` en `LearningLog` y
+`TranscriptStore` (construían uno por evento/fila). Sin cambios de
+comportamiento. Skills instaladas en `~/Developer/sintelia/skills/matt/`
+(29, upstream github.com/mattpocock/skills).
+
+Verificación al cierre: 101/101 tests, smoke 54 checks, 0 warnings.
