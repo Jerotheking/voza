@@ -87,11 +87,18 @@ final class LearningLog {
         }
     }
 
-    static func timestamp(_ date: Date) -> String {
+    /// Cached formatter (DateFormatter construction is expensive; log events
+    /// fire per watcher poll burst). Thread-safe: formatting on a shared
+    /// instance is safe on modern macOS.
+    private static let stampFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm:ss"
         f.locale = Locale(identifier: "en_US_POSIX") // logs: never locale-dependent
         f.timeZone = .current
-        return f.string(from: date)
+        return f
+    }()
+
+    static func timestamp(_ date: Date) -> String {
+        stampFormatter.string(from: date)
     }
 }

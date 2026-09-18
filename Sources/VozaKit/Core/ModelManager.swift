@@ -131,10 +131,6 @@ final class ModelManager: Sendable {
         return downloadedModels().first.map { ($0, localPath(for: $0).path) }
     }
 
-    func resolvedModelPath(preferredId: String) -> String? {
-        resolvedModel(preferredId: preferredId)?.path
-    }
-
     /// Async download with progress callback (0...1). Verifies size + SHA-256 before success.
     /// `directory` overrides the destination (V02): the smoke e2e mode MUST pass a
     /// QA path — downloads never land in the real models dir from tests.

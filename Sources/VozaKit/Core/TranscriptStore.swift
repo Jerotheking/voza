@@ -6,15 +6,23 @@ struct TranscriptEntry: Identifiable, Hashable {
     let text: String
     let cleaned: Bool
 
-    var timeLabel: String {
+    // Cached formatters (DateFormatter construction is expensive; these run
+    // per history row render / per parse).
+    private static let timeLabelFormatter = makeEntryFormatter("HH:mm")
+    private static let dayLabelFormatter = makeEntryFormatter("yyyy-MM-dd")
+    /// Shared with `TranscriptStore.parseEntries` (same file).
+    static let entryStampFormatter = makeEntryFormatter("yyyy-MM-dd HH:mm:ss")
+    private static func makeEntryFormatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f.string(from: date)
+        f.dateFormat = format
+        return f
+    }
+
+    var timeLabel: String {
+        Self.timeLabelFormatter.string(from: date)
     }
     var dayLabel: String {
-        let f = DateFormatter()
-        f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: date)
+        Self.dayLabelFormatter.string(from: date)
     }
 }
 
@@ -58,8 +66,7 @@ final class TranscriptStore {
     /// Previously `DateFormatter.date(from:)` received "…  ✨" and failed, so every
     /// cleaned entry silently vanished from the history after a relaunch.
     static func parseEntries(fromMarkdown raw: String) -> [TranscriptEntry] {
-        let tf = DateFormatter()
-        tf.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        let tf = TranscriptEntry.entryStampFormatter
         var entries: [TranscriptEntry] = []
         for chunk in raw.components(separatedBy: "\n## ") {
             let body = chunk.hasPrefix("## ") ? String(chunk.dropFirst(3)) : chunk

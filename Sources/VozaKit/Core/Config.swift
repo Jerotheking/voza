@@ -110,7 +110,6 @@ final class Config {
     func setModel(_ v: String?)            { modelId = v;        if let v { raw["model"] = v }; persist() }
     func setWhisperBinary(_ v: String?)    { whisperBinary = v;  if let v { raw["whisper_binary"] = v }; persist() }
     func setModelsDirectory(_ v: String?)  { modelsDirectory = v; if let v { raw["models_dir"] = v }; persist() }
-    func setLogDirectory(_ v: String?)     { logDirectory = v;   if let v { raw["log_dir"] = v }; persist() }
     /// D032: only two modes exist. "plain" (default) never touches the
     /// network; "cloud" is the explicit opt-in. Anything else is clamped to
     /// plain — the privacy invariant (no net without explicit consent) is
@@ -121,12 +120,9 @@ final class Config {
         raw["cleanup"] = clamped
         persist()
     }
-    /// Test seam: inject a synthetic env entry without touching process env.
-    func setenvOverride(_ key: String, _ value: String) { env[key] = value }
     func setLanguage(_ v: String)          { language = v;       raw["language"] = v; persist() }
     func setPlaySound(_ v: Bool)           { playSound = v;      raw["play_sound"] = v ? "true" : "false"; persist() }
     func setAutoLearn(_ v: Bool)           { autoLearn = v;      raw["auto_learn"] = v ? "true" : "false"; persist() }
-    func setGumroadPermalink(_ v: String)  { gumroadPermalink = v; raw["gumroad_permalink"] = v; persist() }
 
     private func persist() {
         var lines = ["# Voza configuration — edited from the app or by hand."]
