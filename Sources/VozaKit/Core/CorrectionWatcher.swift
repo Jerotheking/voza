@@ -373,14 +373,25 @@ final class CorrectionWatcher {
     /// Chromium/Electron enables its accessibility tree when it detects a
     /// screen reader; the manual AXManualAccessibility attribute is not
     /// implemented by every Electron build (D034 field evidence: Freebuff
-    /// answers `attributeUnsupported`). The reliable wake is toggling
-    /// VoiceOver on→off: Chromium sees VO start and keeps AX enabled after it
-    /// stops. Voza sends ⌘F5 twice (VO on, then off) — net effect is a short
-    /// system blip, no speech content, and the tree stays awake for the
-    /// session. Requires Input Monitoring (same permission as the hotkey).
-    /// Returns false when the keystrokes could not be posted.
+    /// answers `attributeUnsupported`). The wake is therefore VoiceOver
+    /// itself: Chromium sees VO start and keeps AX enabled after it stops.
+    ///
+    /// D038 (field evidence 00:44): ⌘F5 only works when the user enabled the
+    /// VO shortcut in System Settings — the owner's machine has
+    /// `voiceOverOnOffKey = 0`, so the keystroke was a no-op and the session
+    /// died `ax-never-woke` WITH the toggle sent. The reliable path launches
+    /// VoiceOver directly (VoiceOverStarter), waits for Chromium to detect
+    /// it (~2.5 s), then quits VO. Net effect: a short system blip, no
+    /// speech content, no dependency on shortcut settings.
+    /// Returns false only when VO could not be started at all.
     @discardableResult
     static func wakeAccessibilityViaVoiceOverToggle() -> Bool {
+        let voRunning: () -> Bool = {
+            NSWorkspace.shared.runningApplications.contains {
+                $0.bundleIdentifier == "com.apple.VoiceOver"
+            }
+        }
+        // 1) Lightweight first: the shortcut toggle, harmless if disabled.
         func tapF5() -> Bool {
             guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 96, keyDown: true),
                   let up = CGEvent(keyboardEventSource: nil, virtualKey: 96, keyDown: false) else { return false }
@@ -391,9 +402,34 @@ final class CorrectionWatcher {
             up.post(tap: .cghidEventTap)
             return true
         }
-        guard tapF5() else { return false }
-        usleep(900_000) // let Chromium notice VO started
-        guard tapF5() else { return false }
+        _ = tapF5()
+        usleep(900_000) // let Chromium notice VO started (if shortcut is on)
+        if !voRunning() {
+            // 2) D038: the shortcut is disabled (or failed) — launch VO for
+            // real. VoiceOverStarter brings the process up without UI setup.
+            let starter = Process()
+            starter.executableURL = URL(fileURLWithPath:
+                "/System/Library/CoreServices/VoiceOver.app/Contents/MacOS/VoiceOverStarter")
+            starter.standardOutput = FileHandle.nullDevice
+            starter.standardError = FileHandle.nullDevice
+            guard (try? starter.run()) != nil else { return false }
+            // Wait up to ~3 s for the process to appear.
+            var waited = 0.0
+            while !voRunning() && waited < 3.0 {
+                usleep(200_000)
+                waited += 0.2
+            }
+            guard voRunning() else { return false }
+            usleep(1_500_000) // Chromium renderer registers the screen reader
+            // 3) Quit VO: graceful first, SIGTERM as permissionless fallback.
+            if let vo = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" }) {
+                vo.terminate()
+                usleep(1_200_000)
+            }
+            if voRunning(), let pid = NSWorkspace.shared.runningApplications.first(where: { $0.bundleIdentifier == "com.apple.VoiceOver" })?.processIdentifier {
+                kill(pid, SIGTERM)
+            }
+        }
         LearningLog.shared.event(.voWake)
         return true
     }

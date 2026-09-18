@@ -25,7 +25,8 @@ final class LearningLog {
         /// mode from "no edit made". accepted/unsupported counts tell WHICH
         /// refusal mode the app used.
         case axNeverWoke(accepted: Int, unsupported: Int)
-        /// The VoiceOver on→off wake (⌘F5 ×2) was sent — Chromium builds its
+        /// The VoiceOver wake was sent (⌘F5 first, then direct launch D038 —
+        /// Chromium builds its
         /// AX tree on VO detection and keeps it enabled after VO stops.
         case voWake
     }
@@ -63,7 +64,7 @@ final class LearningLog {
         case .axNeverWoke(let accepted, let unsupported):
             line = "\(ts) | expired | ax-never-woke (overrides accepted=\(accepted) unsupported=\(unsupported))"
         case .voWake:
-            line = "\(ts) | wake | voiceover toggle sent (⌘F5 ×2)"
+            line = "\(ts) | wake | voiceover wake sent (D038)"
         }
         lock.lock()
         defer { lock.unlock() }
