@@ -117,6 +117,13 @@ final class AppState: ObservableObject {
         pipeline.onNotice = { [weak self] message in
             self?.statusMessage = message
         }
+        // P1-b (agy re-review 2026-09-22): a cloud-cleanup failure must be
+        // ANNOUNCED, never silent — the raw paste alone reads as a broken
+        // Pulido mode. Same surface as the fallback-model notice.
+        pipeline.onCleanupUnavailable = { [weak self] in
+            self?.statusMessage = L.t("Cloud cleanup unavailable — pasted raw",
+                                      es: "Limpieza IA no disponible — pegado directo")
+        }
         let outcome = await pipeline.run()
         switch outcome {
         case .pasted:

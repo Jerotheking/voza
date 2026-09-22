@@ -249,6 +249,28 @@ final class DictationPipelineTests: XCTestCase {
         XCTAssertFalse(w.cleanedFlags.first ?? true)
     }
 
+    func testDefaultCleanGatesOnModeAndProvider() throws {
+        // P1-a (agy re-review 2026-09-22): the seam default needs BOTH the
+        // mode and the key. plain+key (a dev with OPENAI_API_KEY in their
+        // shell who never asked for cleanup) must derive nil — otherwise
+        // every plain dictation runs Cleaner.clean and trips the
+        // applied=false path (bogus "cleanup unavailable").
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        try FileManager.default.createDirectory(at: env.paths.configFile.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try "OPENAI_API_KEY=sk-test-123\n".write(to: env.paths.envFile, atomically: true, encoding: .utf8)
+        let cfg = Config(paths: env.paths)
+        XCTAssertTrue(cfg.hasCleanupProvider, "precondition: the key IS configured")
+        let plain = Config(paths: env.paths)
+        XCTAssertNil(DictationPipeline.defaultClean(for: plain),
+                     "plain mode + key → NO cleanup seam, no network, no notice")
+        try "cleanup = \"cloud\"\n".write(to: env.paths.configFile, atomically: true, encoding: .utf8)
+        let cloud = Config(paths: env.paths)
+        XCTAssertNotNil(DictationPipeline.defaultClean(for: cloud),
+                        "cloud + key → the real cleanup closure")
+    }
+
     func testNakedCloudModeHasNoProviderAndNoNetworkPath() throws {
         // The root cause of P0-1: persisted "cloud" with NO key. Contract:
         // the mode records user INTENT, but the enforcement point is the

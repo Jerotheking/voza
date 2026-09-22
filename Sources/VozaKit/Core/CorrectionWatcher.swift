@@ -157,13 +157,25 @@ final class CorrectionWatcher {
         case .liveBaseline:
             expected = expectedField(after: session) // nil → corrupt pre-paste snapshot, nothing to verify against
         case .lateBaseline:
-            expected = captureLateBaseline(session: session,
-                                           readFocused: readFocused,
-                                           sleep: doSleep,
-                                           shouldContinue: shouldContinue,
-                                           config: config,
-                                           wake: wake)
-            if expected == nil { return false } // ax-never-woke already logged inside
+            let captured = captureLateBaseline(session: session,
+                                               readFocused: readFocused,
+                                               sleep: doSleep,
+                                               shouldContinue: shouldContinue,
+                                               config: config,
+                                               wake: wake)
+            if captured == nil { return false } // ax-never-woke already logged inside
+            // P2-c (agy re-review 2026-09-22): a strict-prefix capture is an
+            // AX truncation — the field mirrored only part of our paste
+            // while the DOM settled. The user's edits happen on the FULL
+            // paste, so phase 2 must diff against the pasted text, never
+            // against the truncated fragment (a fragment pre-image yields
+            // fragment lessons like heard="Sint").
+            if let captured, captured != session.pastedText,
+               session.pastedText.hasPrefix(captured) {
+                expected = session.pastedText
+            } else {
+                expected = captured
+            }
         }
         guard let expected else { return false }
 
@@ -539,10 +551,13 @@ final class CorrectionWatcher {
             // instantly and captured "" as the baseline, wrecking phase-2
             // lesson extraction in exactly the Electron apps this mode
             // targets. A valid baseline must be non-empty AND related to the
-            // paste (our text intact, or our text inside a larger field).
+            // paste (our text intact, our text inside a larger field, or an
+            // AX truncation of it — a PREFIX of our paste, since some fields
+            // only mirror the leading part while the DOM settles).
             if let current = reader() {
                 let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty, current.contains(pasted) || pasted.contains(trimmed) {
+                if !trimmed.isEmpty,
+                   current.contains(pasted) || pasted.hasPrefix(trimmed) {
                     return current
                 }
             }

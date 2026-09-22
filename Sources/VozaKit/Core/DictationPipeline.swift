@@ -54,12 +54,17 @@ struct DictationPipeline {
         }
     var initialPrompt: () -> String? = { CorrectionStore.shared.initialPrompt() }
     var applyCorrections: (String) -> String = { CorrectionStore.apply($0) }
-    /// P0-1 (audit 2026-09-21): the production default for the cleanup
-    /// seam — a closure ONLY when a provider is configured. This static is
-    /// the single derivation point, so tests can pin the no-provider case
-    /// against any Config (not just the shared one).
+    /// P0-1 (audit 2026-09-21); P1-a (agy re-review 2026-09-22): the
+    /// production default for the cleanup seam — a closure ONLY when the
+    /// user both SELECTED the cloud mode AND a provider is configured.
+    /// The earlier provider-only gate fired `Cleaner.clean` (and its
+    /// `applied=false` path) on every plain dictation of anyone with a key
+    /// in their shell — surfacing a bogus "cleanup unavailable" notice.
+    /// This static is the single derivation point, so tests can pin the
+    /// no-provider AND the plain-mode case against any Config.
     static func defaultClean(for config: Config) -> ((String) async -> Cleaner.CleaningOutcome)? {
-        config.hasCleanupProvider ? { await Cleaner.clean($0, config: config) } : nil
+        (config.resolvedCleanupMode == "cloud" && config.hasCleanupProvider)
+            ? { await Cleaner.clean($0, config: config) } : nil
     }
 
     /// Cloud Pulido, connected at last — but ONLY meaningful with a

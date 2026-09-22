@@ -327,6 +327,18 @@ struct DictationSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                // P2-d (agy re-review 2026-09-22): discoverability. With no
+                // key configured the picker has ONE option and nothing tells
+                // a fresh buyer the cloud mode exists — a dead end for the
+                // paid feature. A one-line hint fixes it without offering
+                // anything the pipeline can't do (the option itself stays
+                // gated; this only explains HOW to unlock it).
+                if !appState.config.hasCleanupProvider {
+                    Text(L.t("Optional: AI cleanup with your own API key — add OPENAI_API_KEY (or ANTHROPIC_API_KEY) to ~/.config/voza/.env and it appears here.",
+                             es: "Opcional: limpieza IA con tu propia llave — agrega OPENAI_API_KEY (o ANTHROPIC_API_KEY) en ~/.config/voza/.env y aparecerá aquí."))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             } header: {
                 Text(L.t("What happens after you speak", es: "Qué pasa después de hablar"))
             }

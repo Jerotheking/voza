@@ -185,6 +185,60 @@ final class LateBaselineTests: XCTestCase {
         XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
     }
 
+    func testMidFieldResidueNeverCapturedAsBaseline() {
+        // P2-c (agy re-review 2026-09-22): a reading that is merely a
+        // SUBSTRING of the paste (mid-field residue like "telia" left in the
+        // AX tree while the DOM settles) must NOT be adopted as baseline —
+        // the old `pasted.contains(trimmed)` accepted any fragment. Only a
+        // PREFIX truncation is legitimate (some fields mirror just the
+        // leading part). With the residue rejected, poll 2 captures the
+        // real paste and the lesson stays clean.
+        let script = Script(values: ["telia", "Sintelia.", "Sintelio.", "Sintelio."])
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watch(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
+            mode: .lateBaseline,
+            wake: { false }
+        )
+
+        XCTAssertTrue(learned, "the correction after the residue poll must still learn")
+        XCTAssertEqual(sink.pairs.count, 1)
+        XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
+        XCTAssertEqual(sink.pairs.first?.said, "Sintelio")
+    }
+
+    func testPrefixTruncationStillYieldsCleanLesson() {
+        // P2-c companion: the LEGITIMATE truncation case (an Electron field
+        // mirroring only the leading part of the paste) must remain
+        // accepted — `hasPrefix` keeps serving what `contains` served for
+        // this shape, and the lesson is still extracted against the pasted
+        // text, not the truncated baseline.
+        let script = Script(values: ["Sint", "Sintelia.", "Sinteliä.", "Sinteliä."])
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watch(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
+            mode: .lateBaseline,
+            wake: { false }
+        )
+
+        XCTAssertTrue(learned, "a prefix-truncated baseline must not block learning")
+        XCTAssertEqual(sink.pairs.count, 1)
+        XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
+        XCTAssertEqual(sink.pairs.first?.said, "Sinteliä")
+    }
+
     // MARK: D041 — one loop: the shared phase-2 core must behave identically
     // in both modes for the same field transcript.
 
