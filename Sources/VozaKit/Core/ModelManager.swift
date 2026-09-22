@@ -149,6 +149,7 @@ final class ModelManager: Sendable {
         let url = URL(string: "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/\(model.file)")!
 
         var resumeFrom: Int64 = 0
+        var skipStream = false
         if let existing = fileSize(at: partial), existing > 0 { resumeFrom = Int64(existing) }
 
         var request = URLRequest(url: url)
@@ -167,12 +168,18 @@ final class ModelManager: Sendable {
         case 206:
             break // appending to existing partial
         case 416:
-            // Range beyond EOF: the partial is complete → fall through to verification.
-            // If it is NOT complete, the partial is corrupt/invalid → delete and restart clean.
-            if fileSize(at: partial) != model.bytes {
+            // P2-1 (audit 2026-09-21): 416 = Range Not Satisfiable. The error
+            // body must NEVER be streamed into the file (it used to corrupt
+            // the .part past its expected size). Complete partial → skip the
+            // stream and go straight to verification; wrong-size partial →
+            // corrupt: fail honestly, the next attempt starts from zero.
+            if fileSize(at: partial) == model.bytes {
+                skipStream = true
+            } else {
                 try? fm.removeItem(at: partial)
-                resumeFrom = 0
-                fm.createFile(atPath: partial.path, contents: nil)
+                throw TranscriptionError.transcriptionFailed(
+                    L.t("Corrupt partial download — try again",
+                        es: "Descarga parcial corrupta — inténtalo de nuevo"))
             }
         default:
             throw TranscriptionError.transcriptionFailed("HTTP \(http.statusCode)")
@@ -181,38 +188,42 @@ final class ModelManager: Sendable {
             fm.createFile(atPath: partial.path, contents: nil)
         }
 
-        let handle = try FileHandle(forWritingTo: partial)
-        defer { try? handle.close() }
-        try handle.seekToEnd()
-
         let total = Int64(model.bytes)
         var received = resumeFrom
         var buffer = Data()
         buffer.reserveCapacity(1 << 18)
 
-        do {
-            for try await byte in bytes {
-                buffer.append(byte)
-                if buffer.count >= 1 << 18 {
+        // P2-1: a skipped stream (complete partial after 416) jumps directly
+        // to the size guard + hash verification below.
+        if !skipStream {
+            let handle = try FileHandle(forWritingTo: partial)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+
+            do {
+                for try await byte in bytes {
+                    buffer.append(byte)
+                    if buffer.count >= 1 << 18 {
+                        try handle.write(contentsOf: buffer)
+                        received += Int64(buffer.count)
+                        buffer.removeAll(keepingCapacity: true)
+                        progress(min(Double(received) / Double(total), 1.0))
+                    }
+                }
+                if !buffer.isEmpty {
                     try handle.write(contentsOf: buffer)
                     received += Int64(buffer.count)
                     buffer.removeAll(keepingCapacity: true)
-                    progress(min(Double(received) / Double(total), 1.0))
                 }
-            }
-            if !buffer.isEmpty {
-                try handle.write(contentsOf: buffer)
-                received += Int64(buffer.count)
-                buffer.removeAll(keepingCapacity: true)
-            }
-        } catch {
+            } catch {
             // FIX (audit v2 §3.10): a network drop must NOT destroy download progress.
             // Keep the .part file on recoverable network errors so the next attempt
             // resumes; delete only for non-recoverable errors (disk write failure).
-            if !(error is URLError) {
-                try? fm.removeItem(at: partial)
+                if !(error is URLError) {
+                    try? fm.removeItem(at: partial)
+                }
+                throw error
             }
-            throw error
         }
 
         guard received == total, fileSize(at: partial) == model.bytes else {

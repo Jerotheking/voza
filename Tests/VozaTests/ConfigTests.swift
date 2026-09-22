@@ -41,6 +41,38 @@ final class ConfigTests: XCTestCase {
         XCTAssertEqual(HardwareProfile.RAMTier.tier(forRAMGB: 7), .lowRAM)
     }
 
+    // MARK: P2-2 + P0-1 (audit 2026-09-21) — Config round-trip integrity
+
+    func testGumroadPermalinkRoundTrips() throws {
+        // P2-2: the value was persisted but never loaded — it evaporated on
+        // every relaunch. The fix is in load(); the test writes the TOML
+        // directly (the old setter was deleted as dead code in the
+        // 2026-09-18 audit and stays dead — nothing in the app sets it).
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        try FileManager.default.createDirectory(at: env.paths.configFile.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try "gumroad_permalink = \"my-permalink_42\"\n".write(to: env.paths.configFile,
+                                                              atomically: true, encoding: .utf8)
+        let cfg = Config(paths: env.paths)
+        XCTAssertEqual(cfg.gumroadPermalink, "my-permalink_42",
+                       "a persisted permalink must survive construction")
+        XCTAssertFalse(cfg.hasCleanupProvider, "QA env has no keys by construction")
+    }
+
+    func testHasCleanupProviderDetectsKeys() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        try FileManager.default.createDirectory(at: env.paths.configFile.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try "".write(to: env.paths.envFile, atomically: true, encoding: .utf8)
+        var cfg = Config(paths: env.paths)
+        XCTAssertFalse(cfg.hasCleanupProvider, "empty env → no provider")
+        try "OPENAI_API_KEY=sk-test-123\n".write(to: env.paths.envFile, atomically: true, encoding: .utf8)
+        cfg = Config(paths: env.paths)
+        XCTAssertTrue(cfg.hasCleanupProvider, "an OpenAI key counts as a provider")
+    }
+
     /// Audit v2 §3.2: non-English (and auto) must NEVER get an English-only
     /// model — for every tier, every multilingual language.
     func testMultilingualLanguagesNeverGetEnglishOnlyModels() {

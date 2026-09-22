@@ -299,13 +299,20 @@ struct DictationSettings: View {
         Form {
             Section {
                 Picker(L.t("AI cleanup", es: "Limpieza IA"), selection: Binding(
-                    get: { appState.config.cleanupMode },
+                    // A persisted "cloud" with a since-removed key displays
+                    // (and behaves) as plain — never a dangling selection.
+                    get: { (appState.config.cleanupMode == "cloud" && !appState.config.hasCleanupProvider) ? "plain" : appState.config.cleanupMode },
                     set: { appState.config.setCleanupMode($0) }
                 )) {
                     Text(L.t("Off — paste exactly what you said (default)", es: "Apagada — pega exactamente lo que dijiste (por defecto)")).tag("plain")
-                    Text(L.t("Cloud AI — uses your own API key", es: "IA en la nube — usa tu propia llave API")).tag("cloud")
+                    // P0-1 (audit 2026-09-21): the cloud option exists ONLY
+                    // when a provider key is configured — the UI must never
+                    // offer what the pipeline cannot do.
+                    if appState.config.hasCleanupProvider {
+                        Text(L.t("Cloud AI — uses your own API key", es: "IA en la nube — usa tu propia llave API")).tag("cloud")
+                    }
                 }
-                if appState.config.cleanupMode == "cloud" {
+                if appState.config.cleanupMode == "cloud" && appState.config.hasCleanupProvider {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L.t("Runs on OpenAI-compatible APIs (OpenAI, OpenRouter, Groq…), then Anthropic as backup. Put your key in ~/.config/voza/.env:",
                                  es: "Corre en APIs compatibles con OpenAI (OpenAI, OpenRouter, Groq…), con Anthropic de respaldo. Pon tu llave en ~/.config/voza/.env:"))
@@ -651,7 +658,9 @@ struct LicenseSettings: View {
                 Text(L.t("No license yet?", es: "¿Aún no tienes licencia?"))
                     .foregroundStyle(.secondary)
                 Link(L.t("Buy Voza ($29) →", es: "Comprar Voza ($29) →"),
-                     destination: URL(string: "https://jerotherey.gumroad.com/l/\(appState.config.gumroadPermalink)")!)
+                     // P2-5 (audit 2026-09-21): force-unwrap crashed the whole
+                     // License tab on an unencodable permalink.
+                     destination: gumroadURL(permalink: appState.config.gumroadPermalink))
                     .foregroundStyle(Theme.accent)
             }
             .font(.callout)
@@ -684,4 +693,12 @@ struct AboutSettings: View {
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+}
+
+/// P2-5 (audit 2026-09-21): percent-encodes the permalink and NEVER force-
+/// unwraps — an unencodable value degrades to the plain product page.
+func gumroadURL(permalink: String) -> URL {
+    let encoded = permalink.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? permalink
+    return URL(string: "https://jerotherey.gumroad.com/l/\(encoded)")
+        ?? URL(string: "https://jerotherey.gumroad.com/l/voza")!
 }

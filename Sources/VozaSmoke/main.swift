@@ -582,15 +582,18 @@ if let env = SmokeQA(name: "perf") {
     check("perf speed label", perf.speedLabel(model: "small.en-q5_1") == "3.3× realtime",
           perf.speedLabel(model: "small.en-q5_1") ?? "nil")
     check("perf no suggestion in healthy band",
-          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
+          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24, language: "en") == nil)
     perf._test_setSamples([0.9, 1.1, 0.8], model: "small.en-q5_1")
-    let sugg = perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24)
+    let sugg = perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24, language: "en")
     check("perf suggests lighter when slow", sugg?.direction == .lighter, sugg?.targetModelId ?? "none")
     perf._test_setSamples([0.05, 0.06, 0.04], model: "small.en-q5_1")
     check("perf no heavier suggestion under 32GB",
-          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24) == nil)
+          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 24, language: "en") == nil)
     check("perf suggests heavier on 32GB+",
-          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 32)?.direction == .heavier)
+          perf.suggestion(currentModel: "small.en-q5_1", ramGB: 32, language: "en")?.direction == .heavier)
+    check("perf never suggests .en for non-English",
+          // slow multilingual `small` must NOT step into the .en twin
+          perf.suggestion(currentModel: "small", ramGB: 24, language: "es")?.targetModelId.hasSuffix(".en") != true)
     check("perf file confined to QA root", FileManager.default.fileExists(atPath: env.paths.perfFile.path))
 } else {
     check("perf hermetic environment", false, "no defaults suite available")

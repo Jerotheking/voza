@@ -27,12 +27,31 @@ final class HotKeyManager {
 
     private var tap: CFMachPort?
     private var normalDown = false
+    /// Watchdog that resurrects a dead tap. P1-3 (audit 2026-09-21): it used
+    /// to be un-owned — `stop()` left it running and 30 s later it silently
+    /// RE-CREATED the tap that had just been stopped. Owned + invalidated.
+    private(set) var watchdog: Timer?
+    /// Installation seam (hermetic tests inject a counting no-op; never
+    /// create real event taps from a test process). Default weakly captures
+    /// self and routes to the real installer.
+    var tapInstaller: () -> Void
+
+    init(tapInstaller: (() -> Void)? = nil) {
+        // Two-phase: an injected closure initializes the property directly;
+        // the default needs self, which is only legal after phase 1.
+        self.tapInstaller = tapInstaller ?? {}
+        if tapInstaller == nil {
+            self.tapInstaller = { [weak self] in self?.installTap() }
+        }
+    }
 
     func start() {
-        installTap()
+        tapInstaller()
+        watchdog?.invalidate()
         let timer = Timer(timeInterval: 30, repeats: true) { [weak self] _ in
             self?.ensureTapAlive()
         }
+        watchdog = timer
         RunLoop.main.add(timer, forMode: .common)
     }
 
@@ -74,7 +93,7 @@ final class HotKeyManager {
     /// moment the user clicks (rather than on their first dictation attempt).
     func ensureTapAlive() {
         guard let tap else {
-            installTap()
+            tapInstaller()
             return
         }
         if !CGEvent.tapIsEnabled(tap: tap) {
@@ -120,6 +139,8 @@ final class HotKeyManager {
     }
 
     func stop() {
+        watchdog?.invalidate()
+        watchdog = nil
         if let tap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }

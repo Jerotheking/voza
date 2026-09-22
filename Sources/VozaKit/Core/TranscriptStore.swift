@@ -1,5 +1,16 @@
 import Foundation
 
+/// P1-6 (audit 2026-09-21): fixed-format stamps are a FILE FORMAT, not a
+/// user-facing label. Without en_US_POSIX, a 12-hour locale (AM/PM) or a
+/// non-gregorian calendar (Buddist year 2569) makes date(from:) fail for
+/// every entry — the whole history silently vanishes after a relaunch.
+/// LearningLog already does this; the store must match.
+private func applyPOSIXLocale(_ f: DateFormatter) {
+    f.locale = Locale(identifier: "en_US_POSIX")
+    f.calendar = Calendar(identifier: .gregorian)
+    f.timeZone = .current
+}
+
 struct TranscriptEntry: Identifiable, Hashable {
     let id: UUID
     let date: Date
@@ -12,9 +23,20 @@ struct TranscriptEntry: Identifiable, Hashable {
     private static let dayLabelFormatter = makeEntryFormatter("yyyy-MM-dd")
     /// Shared with `TranscriptStore.parseEntries` (same file).
     static let entryStampFormatter = makeEntryFormatter("yyyy-MM-dd HH:mm:ss")
+    /// P1-6 companion: stamps WRITTEN before the POSIX fix carry the system
+    /// locale of the writing machine. Parsing stays backward-compatible:
+    /// POSIX first, legacy-locale second. (Writes are always POSIX now.)
+    static let legacyEntryStampFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+        f.calendar = Calendar(identifier: .gregorian)
+        f.timeZone = .current
+        return f
+    }()
     private static func makeEntryFormatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
         f.dateFormat = format
+        applyPOSIXLocale(f)
         return f
     }
 
@@ -50,15 +72,34 @@ final class TranscriptStore {
 
     func add(text: String, cleaned: Bool) {
         let entry = TranscriptEntry(id: UUID(), date: clock.now, text: text, cleaned: cleaned)
+        // P1-1 (audit 2026-09-21): the in-memory insert used to live in a
+        // main.async NESTED after the disk write — a caller refreshing right
+        // after `add` (DictationPipeline → AppState.refresh) read a STALE
+        // list and the just-made dictation was missing from History until
+        // the popover was reopened. Insert FIRST, synchronously on main (all
+        // mutations of `recent` happen on main), then persist to disk.
+        if Thread.isMainThread {
+            insertRecent(entry)
+        } else {
+            DispatchQueue.main.async { self.insertRecent(entry) }
+        }
         queue.async { [weak self] in
             self?.appendToFile(entry)
-            DispatchQueue.main.async {
-                self?.recent.insert(entry, at: 0)
-                if self?.recent.count ?? 0 > 50 {
-                    self?.recent.removeLast()
-                }
-            }
         }
+    }
+
+    private func insertRecent(_ entry: TranscriptEntry) {
+        recent.insert(entry, at: 0)
+        if recent.count > 50 {
+            recent.removeLast()
+        }
+    }
+
+    /// Test seam (V01 hermeticity): drains pending disk operations so a QA
+    /// store never writes AFTER its TestEnvironment was torn down (the QA
+    /// root would be recreated and flagged as survived-teardown).
+    func drainPendingWritesForTests() {
+        queue.sync { }
     }
 
     /// Pure markdown parser — testable without touching the user's log files.
@@ -77,7 +118,8 @@ final class TranscriptStore {
                 .replacingOccurrences(of: "✨", with: "")
                 .trimmingCharacters(in: .whitespaces)
             let text = body[body.index(after: nl)...].trimmingCharacters(in: .whitespacesAndNewlines)
-            guard let date = tf.date(from: cleanStamp), !text.isEmpty else { continue }
+            let date = tf.date(from: cleanStamp) ?? TranscriptEntry.legacyEntryStampFormatter.date(from: cleanStamp)
+            guard let date, !text.isEmpty else { continue }
             entries.append(TranscriptEntry(id: UUID(), date: date, text: text, cleaned: cleaned))
         }
         return entries
@@ -128,6 +170,8 @@ final class TranscriptStore {
     private static func makeFormatter(_ format: String) -> DateFormatter {
         let f = DateFormatter()
         f.dateFormat = format
+        applyPOSIXLocale(f)
         return f
     }
+
 }

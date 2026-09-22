@@ -77,6 +77,9 @@ final class Config {
         whisperBinary  = raw["whisper_binary"]
         modelsDirectory = raw["models_dir"]
         logDirectory   = raw["log_dir"]
+        // P2-2 (audit 2026-09-21): persisted but never loaded — the value only
+        // survived until the next relaunch.
+        gumroadPermalink = raw["gumroad_permalink"] ?? gumroadPermalink
         // D032 migration: legacy local values ("auto"/"ollama"/"mlx") map to
         // "plain" — local inference no longer exists. "cloud" is honored; an
         // explicit "plain" stays "plain".
@@ -103,6 +106,15 @@ final class Config {
         for key in ["OPENAI_API_KEY", "OPENAI_BASE_URL", "ANTHROPIC_API_KEY", "CLEANUP_MODEL"] {
             if let v = ProcessInfo.processInfo.environment[key], env[key] == nil { env[key] = v }
         }
+    }
+
+    /// P0-1 (audit 2026-09-21): a provider exists ONLY when the user actually
+    /// configured a key in .env (or the process env). The UI shows the cloud
+    /// option only in that case, and the pipeline runs cleanup only in that
+    /// case — the feature can never promise what it cannot do (the audit's
+    /// "broken promise": mode cloud without a key silently pasted raw).
+    var hasCleanupProvider: Bool {
+        ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"].contains { !env[$0, default: ""].isEmpty }
     }
 
     // MARK: - Explicit setters (persist to config.toml)

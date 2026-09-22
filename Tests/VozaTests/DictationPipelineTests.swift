@@ -29,6 +29,7 @@ final class DictationPipelineTests: XCTestCase {
         var learned: [Paster.Session] = []
         var notices: [String] = []
         var rtfRecorded: [(rtf: Double, model: String)] = []
+        var cleanedFlags: [Bool] = []
         var corrected: String?
 
         init(wav: URL) { self.wav = wav }
@@ -84,9 +85,10 @@ final class DictationPipelineTests: XCTestCase {
                                       selectedRange: NSRange(location: 0, length: 0),
                                       fieldBefore: "", startedAt: Date())
             }
-            p.logTranscript = { text in
+            p.logTranscript = { text, cleaned in
                 world.events.add("log")
                 world.logged.append(text)
+                world.cleanedFlags.append(cleaned)
             }
             p.startLearning = { session in
                 world.events.add("learn")
@@ -158,8 +160,7 @@ final class DictationPipelineTests: XCTestCase {
         // clock advances 2 s per call → transcription measured as 2 s.
         // recordedSeconds 4 → rtf 0.5.
         let (p, w) = World.make(dir: try! makeDir(), recordedSeconds: 4)
-        let outcome1 = await p.run()
-        _ = outcome1
+        let outcome = await p.run()
         XCTAssertEqual(w.rtfRecorded.first?.rtf ?? -1, 0.5, accuracy: 0.0001)
 
         // Floor: recordedSeconds 0 must divide by 0.5, never 0.
@@ -198,6 +199,73 @@ final class DictationPipelineTests: XCTestCase {
         XCTAssertTrue(w.pasted.isEmpty)
         XCTAssertTrue(w.learned.isEmpty)
         XCTAssertFalse(FileManager.default.fileExists(atPath: w.wav.path))
+    }
+
+    // MARK: P0-1 (audit 2026-09-21) — cloud Pulido connected, provider-gated
+
+    func testCleanupRunsOnlyWhenInjectedAndApplies() async {
+        let (p, w) = World.make(dir: try! makeDir())
+        var pipeline = p
+        pipeline.clean = { text in
+            w.events.add("clean")
+            return Cleaner.CleaningOutcome(text: text.uppercased(), applied: true, provider: "openai")
+        }
+        let outcome = await pipeline.run()
+        XCTAssertEqual(outcome, .pasted)
+        // Order pin: cleanup happens AFTER learned corrections, BEFORE paste.
+        XCTAssertEqual(w.events.list, ["resolve", "prompt", "transcribe", "rtf", "apply", "clean", "ax", "paste", "log", "learn"])
+        XCTAssertEqual(w.pasted, ["HOLA MUNDO"])
+        // The history row records what ACTUALLY happened.
+        XCTAssertTrue(w.cleanedFlags.first ?? false)
+    }
+
+    func testNoProviderMeansNoNetworkEver() async {
+        // Production default with no provider configured: clean == nil —
+        // zero network reachability from the flow.
+        let (pipeline, w) = World.make(dir: try! makeDir())
+        var p = pipeline
+        if Config.shared.hasCleanupProvider {
+            p.clean = nil // owner's real machine has a key; tests must not
+        }
+        let outcome = await p.run()
+        XCTAssertEqual(outcome, .pasted)
+        XCTAssertFalse(w.events.list.contains("clean"))
+        XCTAssertFalse(w.cleanedFlags.first ?? true)
+    }
+
+    func testProviderFailureDegradesHonestly() async {
+        let (p, w) = World.make(dir: try! makeDir())
+        var pipeline = p
+        var notices = 0
+        pipeline.clean = { text in
+            w.events.add("clean")
+            return Cleaner.CleaningOutcome(text: text, applied: false, provider: nil)
+        }
+        pipeline.onCleanupUnavailable = { notices += 1 }
+        let outcome = await pipeline.run()
+        XCTAssertEqual(outcome, .pasted)
+        XCTAssertEqual(notices, 1, "a failed cleanup must be announced, never silent")
+        XCTAssertEqual(w.pasted, ["hola mundo"], "raw text pasted on provider failure")
+        XCTAssertFalse(w.cleanedFlags.first ?? true)
+    }
+
+    func testNakedCloudModeHasNoProviderAndNoNetworkPath() throws {
+        // The root cause of P0-1: persisted "cloud" with NO key. Contract:
+        // the mode records user INTENT, but the enforcement point is the
+        // provider gate — no key means no provider, and the pipeline's
+        // production default for `clean` is therefore nil (no network path).
+        // (Cleaner.clean's own mode guard is unreachable through the flow.)
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        // V01-AC01: the QA root is never eager-created — this test owns its
+        // config directory creation.
+        try FileManager.default.createDirectory(at: env.paths.configFile.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try "cleanup = \"cloud\"\n".write(to: env.paths.configFile, atomically: true, encoding: .utf8)
+        let cfg = Config(paths: env.paths)
+        XCTAssertFalse(cfg.hasCleanupProvider, "cloud intent without a key is not a provider")
+        // The production seam default derives from this gate:
+        XCTAssertNil(DictationPipeline.defaultClean(for: cfg))
     }
 
     // MARK: Learning gate

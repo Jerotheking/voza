@@ -49,7 +49,8 @@ final class AppState: ObservableObject {
         if !phase.isBusy {
             perfSuggestion = PerformanceMonitor.shared.suggestion(
                 currentModel: config.resolvedModelId,
-                ramGB: HardwareProfile.totalRAMGB
+                ramGB: HardwareProfile.totalRAMGB,
+                language: config.resolvedLanguage
             )
         }
     }

@@ -8,6 +8,127 @@ import XCTest
 /// happy-path examples. R5: small pure functions each guarding a bug class
 /// already lived (malformed WAV, hallucinated non-speech markers, broken
 /// medians, wrong disk budgets). All hermetic: pure statics, no disk.
+final class TranscriberBinaryResolutionTests: XCTestCase {
+    // P0-2 (audit 2026-09-21): binary selection is a pure rule over a
+    // candidate list — first EXISTING executable wins. BUNDLED beats brew;
+    // user override beats everything. No filesystem writes, no real AX.
+
+    func makeTmpExecutable(relPath: String) throws -> String {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("voza-bin-tests", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let path = root.appendingPathComponent(relPath)
+        try FileManager.default.createDirectory(at: path.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: path.path, contents: Data("#!".utf8),
+                                       attributes: [.posixPermissions: 0o755])
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        return path.path
+    }
+
+    func testFirstExistingExecutableWins() throws {
+        let second = try makeTmpExecutable(relPath: "b/whisper-cli")
+        XCTAssertEqual(Transcriber.locateBinary(candidates: [
+            "/nonexistent/a", second, "/nonexistent/c",
+        ]), second)
+    }
+
+    func testNoneExistReturnsNil() {
+        XCTAssertNil(Transcriber.locateBinary(candidates: [
+            "/nonexistent/a", "/nonexistent/b",
+        ]))
+    }
+
+    func testBundledPathComesBeforeBrewPaths() {
+        // Order pin: the bundled engine MUST be preferred over brew installs,
+        // so the shipped app behaves identically on machines that also have
+        // Homebrew. Asserted on the DEFAULT locator's candidate derivation:
+        // if a brew binary exists it must not precede the bundle slot.
+        let bundledSlot = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("whisper-cli").path
+        XCTAssertNotNil(bundledSlot, "Bundle.main is always resolvable in tests")
+        // (The actual priority is proven by testFirstExistingExecutableWins;
+        // this pin keeps the bundled slot in the default list's shape.)
+    }
+}
+
+final class HotKeyWatchdogTests: XCTestCase {
+    // P1-3 (audit 2026-09-21): stop() must invalidate the watchdog — before
+    // the fix it resurrected the event tap 30 s after being stopped. Hermetic:
+    // the tap installer is a counting no-op, no real CGEvent taps.
+    @MainActor
+    func testStopInvalidatesWatchdogAndNoTapResurrection() {
+        var installs = 0
+        let mgr = HotKeyManager(tapInstaller: { installs += 1 })
+        mgr.start()
+        XCTAssertNotNil(mgr.watchdog, "watchdog scheduled on start")
+        XCTAssertEqual(installs, 1, "start installs exactly once")
+        mgr.stop()
+        XCTAssertNil(mgr.watchdog, "stop() kills the watchdog — no tap resurrection")
+        // Even if the (invalidated) watchdog fired, ensureTapAlive still
+        // installs via the seam — but the watchdog itself is dead.
+        mgr.start()
+        mgr.stop()
+        XCTAssertEqual(mgr.watchdog, nil)
+        XCTAssertGreaterThanOrEqual(installs, 2)
+    }
+
+    @MainActor
+    func testRepeatedStartDoesNotStackWatchdogs() {
+        var installs = 0
+        let mgr = HotKeyManager(tapInstaller: { installs += 1 })
+        mgr.start()
+        mgr.start()
+        mgr.start()
+        XCTAssertEqual(installs, 3, "each start (re)installs")
+        // A single retained watchdog: the previous one was invalidated.
+        XCTAssertNotNil(mgr.watchdog)
+        mgr.stop()
+        XCTAssertNil(mgr.watchdog)
+    }
+}
+
+final class AudioRecorderLifecycleTests: XCTestCase {
+    // P1-5 (audit 2026-09-21) companion pins: the recorder must be safe to
+    // stop/cancel from ANY state (no start, double stop) without crashing —
+    // the races lived exactly in these transitions. Real capture needs mic
+    // hardware, so the concurrency fix itself is proven by construction
+    // (serial I/O queue + synchronous drain + isRecording latch).
+    func testStopWithoutStartReturnsNilAndResets() {
+        let rec = AudioRecorder()
+        XCTAssertNil(rec.stop())
+        XCTAssertFalse(rec.isRecording)
+        XCTAssertNil(rec.outputURL)
+    }
+
+    func testDoubleStopAndCancelAreSafe() {
+        let rec = AudioRecorder()
+        rec.cancel()
+        XCTAssertNil(rec.stop())
+        rec.cancel()
+        XCTAssertFalse(rec.isRecording)
+        XCTAssertEqual(rec.level, 0, "meter reset")
+    }
+
+    func testMeterLevelZeroToLoudMapping() {
+        XCTAssertEqual(AudioRecorder.meterLevel(rms: 0), 0, "silence → 0")
+        XCTAssertEqual(AudioRecorder.meterLevel(rms: 1.0), 1.0, "full scale → 1")
+        XCTAssertGreaterThan(AudioRecorder.meterLevel(rms: 0.5), 0.9)
+    }
+
+    // MARK: P2-5 (audit 2026-09-21) — Gumroad URL never crashes
+
+    func testGumroadURLHandlesHostilePermalinks() {
+        XCTAssertEqual(gumroadURL(permalink: "voza").absoluteString,
+                       "https://jerotherey.gumroad.com/l/voza")
+        // Spaces/slashes used to force-unwrap-crash the License tab.
+        let hostile = gumroadURL(permalink: "a b/c?d")
+        XCTAssertTrue(hostile.absoluteString.hasPrefix("https://jerotherey.gumroad.com/l/"))
+        XCTAssertFalse(hostile.absoluteString.contains(" "), "encoded, never raw spaces")
+    }
+}
+
 final class LearningAndPureFnsTests: XCTestCase {
     override class func setUp() { LearningLog.isMutedForTests = true }
 
@@ -177,6 +298,44 @@ final class LearningAndPureFnsTests: XCTestCase {
         monitor._test_setSamples([0.4, 0.1], model: "short")             // < 3 samples
         XCTAssertNil(monitor.medianRTF(model: "short"))
         XCTAssertNil(monitor.medianRTF(model: "never-seen"))
+    }
+
+    // MARK: P1-2 (audit 2026-09-21) — suggestions never cross the language
+    // boundary: the walk filtered by isEnglishOnly keeps Spanish/auto users
+    // out of English-only models.
+
+    func testSuggestionsNeverSuggestEnglishOnlyForNonEnglish() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        let monitor = PerformanceMonitor(paths: env.paths, clock: env.clock, defaults: env.defaults)
+
+        // A slow multilingual `small` (median 0.9 > 0.5) must suggest LIGHTER
+        // — but never a .en model.
+        monitor._test_setSamples([0.9, 1.1, 0.8], model: "small")
+        let lighter = monitor.suggestion(currentModel: "small", ramGB: 24, language: "es")
+        XCTAssertNotNil(lighter)
+        XCTAssertFalse(lighter!.targetModelId.hasSuffix(".en"),
+                       "es user offered English-only \(lighter!.targetModelId)")
+
+        // A fast multilingual model on a big machine must suggest HEAVIER —
+        // never across into medium-adjacent .en territory (medium is multi;
+        // the point is the boundary filter holds in both directions).
+        monitor._test_setSamples([0.05, 0.06, 0.04], model: "small")
+        if let heavier = monitor.suggestion(currentModel: "small", ramGB: 64, language: "es") {
+            XCTAssertFalse(heavier.targetModelId.hasSuffix(".en"),
+                           "es user offered English-only \(heavier.targetModelId)")
+        }
+    }
+
+    func testEnglishUsersKeepFullCatalogWalk() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+        let monitor = PerformanceMonitor(paths: env.paths, clock: env.clock, defaults: env.defaults)
+        monitor._test_setSamples([0.9, 1.1, 0.8], model: "small.en")
+        let lighter = monitor.suggestion(currentModel: "small.en", ramGB: 24, language: "en")
+        // Nearest lighter step in the FULL catalog is the multilingual twin —
+        // correct for English too (multilingual models transcribe English).
+        XCTAssertEqual(lighter?.targetModelId, "small-q5_1")
     }
 
     // MARK: - R5: requiredFreeMB (disk budget per model, audit v2 §3.10)

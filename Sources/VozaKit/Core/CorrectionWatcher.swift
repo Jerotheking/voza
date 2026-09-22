@@ -172,7 +172,9 @@ final class CorrectionWatcher {
         switch mode {
         case .liveBaseline:
             guard let element = session.element else { return false }
-            Paster.applyMessagingTimeout(element)
+            // P1-4 (audit 2026-09-21): the messaging timeout is REAL AX —
+            // tests inject a reader and must not touch it at all.
+            if readField == nil { Paster.applyMessagingTimeout(element) }
             reader = { readField?(element) ?? Self.readField(element) }
         case .lateBaseline:
             reader = {
@@ -531,8 +533,18 @@ final class CorrectionWatcher {
             if wakeFn() { wakeAccepted += 1 } else { wakeUnsupported += 1 }
             sleep(pollSeconds)
             waited += pollSeconds
-            if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                return current
+            // P0-3 (audit 2026-09-21): `pasted.contains("")` is ALWAYS true in
+            // Swift — an empty or whitespace-only reading (field not yet
+            // propagated in Chromium's DOM, or genuinely empty field) matched
+            // instantly and captured "" as the baseline, wrecking phase-2
+            // lesson extraction in exactly the Electron apps this mode
+            // targets. A valid baseline must be non-empty AND related to the
+            // paste (our text intact, or our text inside a larger field).
+            if let current = reader() {
+                let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty, current.contains(pasted) || pasted.contains(trimmed) {
+                    return current
+                }
             }
         }
         // accepted = the app ACKNOWLEDGED the override (tree just never

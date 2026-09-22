@@ -64,22 +64,30 @@ final class PerformanceMonitor {
         return String(format: "%.1f× realtime", 1 / median)
     }
 
-    /// Evidence-based suggestion, or nil. Requires ≥3 samples on the current model.
-    func suggestion(currentModel: String, ramGB: Int) -> Suggestion? {
+    /// Evidence-based suggestion, or nil. Requires ≥3 samples on the current
+    /// model. `language` is EXPLICIT (P1-2, audit 2026-09-21): the walk used
+    /// to cross the catalog's .en/multilingual boundary — a Spanish speaker
+    /// on `small` slowing down got offered `small.en` (English phonemes for
+    /// Spanish speech), violating the ModelManager invariant. The candidate
+    /// walk only sees English-only models when language == "en".
+    func suggestion(currentModel: String, ramGB: Int, language: String) -> Suggestion? {
+        let catalog = language == "en" ? WhisperCatalog.all
+            : WhisperCatalog.all.filter { !$0.isEnglishOnly }
         guard let median = medianRTF(model: currentModel),
-              let index = WhisperCatalog.all.firstIndex(where: { $0.id == currentModel }) else { return nil }
+              let index = catalog.firstIndex(where: { $0.id == currentModel }) else { return nil }
 
         let direction: Suggestion.Direction
         if median > 0.5 && index > 0 {
             direction = .lighter
-        } else if median < 0.08 && ramGB >= 32 && index < WhisperCatalog.all.count - 1 {
+        } else if median < 0.08 && ramGB >= 32 && index < catalog.count - 1 {
             direction = .heavier
         } else {
             return nil
         }
 
         let targetIndex = direction == .lighter ? index - 1 : index + 1
-        let target = WhisperCatalog.all[targetIndex]
+        guard catalog.indices.contains(targetIndex) else { return nil }
+        let target = catalog[targetIndex]
         let candidate = Suggestion(direction: direction, targetModelId: target.id)
 
         // Respect dismissal window.

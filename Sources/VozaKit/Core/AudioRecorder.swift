@@ -26,6 +26,15 @@ final class AudioRecorder {
     private(set) var outputURL: URL?
     private(set) var isRecording = false
     private var startedAt: Date?
+    /// P1-5 (audit 2026-09-21): ALL file writes and byte accounting live on
+    /// this serial queue. `enqueue` runs on the real-time audio thread and
+    /// `stop()`/`cancel()` on main — the old direct `fileHandle?.write` from
+    /// the capture thread raced the main-thread close (an ObjC
+    /// NSFileHandleOperationException that Swift cannot catch → crash) and
+    /// `pcmBytes` was a genuine data race. `stop` drains the queue
+    /// synchronously BEFORE closing: happens-after is established by
+    /// construction (removeTap returns with no enqueue in flight or pending).
+    private let ioQueue = DispatchQueue(label: "voza.audiorecorder.io")
 
     // MARK: - Level meter (D021: audio-reactive HUD)
 
@@ -104,7 +113,20 @@ final class AudioRecorder {
             self?.enqueue(buffer)
         }
         engine.prepare()
-        try engine.start()
+        do {
+            try engine.start()
+        } catch {
+            // P2-3 (audit 2026-09-21): a failed start used to leak the 44-byte
+            // temp file and the open handle. Full cleanup before rethrowing.
+            input.removeTap(onBus: 0)
+            try? handle.close()
+            fileHandle = nil
+            try? FileManager.default.removeItem(at: url)
+            outputURL = nil
+            pcmBytes = 0
+            startedAt = nil
+            throw error
+        }
         isRecording = true
     }
 
@@ -117,6 +139,9 @@ final class AudioRecorder {
         engine = nil
         converter = nil
 
+        // P1-5: drain pending capture-thread writes BEFORE closing — no
+        // writer can exist past this point (tap removed + queue drained).
+        ioQueue.sync { }
         if let handle = fileHandle {
             try? handle.close()
         }
@@ -141,6 +166,7 @@ final class AudioRecorder {
         setLevel(0)
         engine = nil
         converter = nil
+        ioQueue.sync { } // P1-5: same drain discipline as stop()
         try? fileHandle?.close()
         fileHandle = nil
         if let url = outputURL {
@@ -153,7 +179,9 @@ final class AudioRecorder {
     // MARK: - Conversion (thread-safe via serial queue inside AVAudioConverter)
 
     private func enqueue(_ buffer: AVAudioPCMBuffer) {
-        guard let converter, let target = targetFormat else { return }
+        // P1-5: a block still in flight while stop() tears down must not
+        // enqueue after the drain — the flag is the latch.
+        guard isRecording, let converter, let target = targetFormat else { return }
 
         let inputFrames = AVAudioFrameCount(Double(buffer.frameLength) * target.sampleRate / buffer.format.sampleRate + 64)
         guard let converted = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: max(inputFrames, 1024)) else { return }
@@ -180,8 +208,12 @@ final class AudioRecorder {
         setLevel(Self.meterLevel(rms: Double(sqrt(sum / Float(frames)))))
 
         let bytes = Data(buffer: UnsafeBufferPointer(start: channel, count: frames))
-        fileHandle?.write(bytes)
-        pcmBytes += UInt64(bytes.count)
+        let data = bytes
+        ioQueue.async { [weak self] in
+            guard let self else { return }
+            self.fileHandle?.write(data)
+            self.pcmBytes += UInt64(data.count)
+        }
     }
 
     private func finalizeWAVHeader(at url: URL, pcmBytes: UInt64) {

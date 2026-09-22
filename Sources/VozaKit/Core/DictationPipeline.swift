@@ -54,6 +54,20 @@ struct DictationPipeline {
         }
     var initialPrompt: () -> String? = { CorrectionStore.shared.initialPrompt() }
     var applyCorrections: (String) -> String = { CorrectionStore.apply($0) }
+    /// P0-1 (audit 2026-09-21): the production default for the cleanup
+    /// seam — a closure ONLY when a provider is configured. This static is
+    /// the single derivation point, so tests can pin the no-provider case
+    /// against any Config (not just the shared one).
+    static func defaultClean(for config: Config) -> ((String) async -> Cleaner.CleaningOutcome)? {
+        config.hasCleanupProvider ? { await Cleaner.clean($0, config: config) } : nil
+    }
+
+    /// Cloud Pulido, connected at last — but ONLY meaningful with a
+    /// configured provider. nil = no network call, paste raw. When injected
+    /// (or defaulted with a provider), a provider failure degrades honestly:
+    /// notice + raw paste, never a silent skip.
+    var clean: ((String) async -> Cleaner.CleaningOutcome)? = Self.defaultClean(for: .shared)
+    var onCleanupUnavailable: () -> Void = { }
     var clock: () -> Date = { Date() }
     var recordPerformance: (_ rtf: Double, _ modelId: String) -> Void =
         { rtf, model in PerformanceMonitor.shared.record(rtf: rtf, model: model) }
@@ -63,7 +77,7 @@ struct DictationPipeline {
         Paster.paste(text)
         return Paster.lastSession
     }
-    var logTranscript: (String) -> Void = { TranscriptStore.shared.add(text: $0, cleaned: false) }
+    var logTranscript: (String, _ cleaned: Bool) -> Void = { TranscriptStore.shared.add(text: $0, cleaned: $1) }
     var startLearning: (Paster.Session) -> Void = { CorrectionWatcher.shared.start(for: $0) }
     var accessibilityGranted: () -> Bool = { Permissions.accessibilityGranted }
 
@@ -102,17 +116,29 @@ struct DictationPipeline {
         // 4. Learned corrections are the source of truth for what gets pasted.
         text = applyCorrections(text)
 
-        // 5. Paste + log. D032: no LLM cleanup stage — paste is instant after
-        // transcription (the Flow lesson). Cloud cleanup returns as an
-        // explicit-opt-in feature; the hook point is documented in D032.
-        // ✨ history markers stay reserved for it.
+        // 4b. Cloud Pulido — only reachable when a provider is configured
+        // (P0-1). Failure degrades honestly: notice + raw paste, and the
+        // history row records what ACTUALLY happened (cleaned or not).
+        var wasCleaned = false
+        if let clean {
+            let outcome = await clean(text)
+            if outcome.applied {
+                text = outcome.text
+                wasCleaned = true
+            } else {
+                onCleanupUnavailable()
+            }
+        }
+
+        // 5. Paste + log. D032: the hook point lives here (4b); ✨ history
+        // markers stay reserved for the clean case.
         guard accessibilityGranted() else {
-            logTranscript(text)
+            logTranscript(text, false)
             return .failed(L.t("Accessibility permission needed for paste",
                                es: "Falta permiso de Accesibilidad para pegar"))
         }
         let session = paste(text)
-        logTranscript(text)
+        logTranscript(text, wasCleaned)
 
         // 6. Learning window opens only after the paste is logged — the
         // watcher needs the session the paste just created.

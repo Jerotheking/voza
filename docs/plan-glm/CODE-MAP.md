@@ -38,7 +38,7 @@ Baseline `44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf`. Líneas y hashes en [eviden
 | [design/wireframes/wireframes.html](../../design/wireframes/wireframes.html) · 187 l | wireframes estáticos | Referencia visual histórica; no evidencia de UI instalada. | Sin cambios previstos |
 | [design/assets/voza-icon.svg](../../design/assets/voza-icon.svg) · 20 l | icono | Conservar hasta decisión de marca; no modificar como parte de bugs. | Sin cambios previstos |
 | [Package.swift](../../Package.swift) · 28 l | targets/platforms | Mantener targets y mínimo; añadir dependencia updater/engine solo justificada y pinned. | V02, V04, V28 |
-| [build.sh](../../build.sh) · 35 l | bundle build | Empaquetar engine/resources y no ocultar errores; build distinto de release. | V16, V28 |
+| [build.sh](../../build.sh) · ~80 l | bundle build | Empaqueta la app + el STT engine vendido (whisper.cpp v1.9.4 compilado estático con Metal embebido — D043; compila el vendor con cache en la primera build; sin brew, sin dylibs externas). Firma con identidad estable `voza-dev` para preservar permisos TCC entre rebuilds. | D043 |
 | [README.md](../../README.md) · 141 l | requirements/config/licensing/verification | Claims/version/precios y comandos según gates; distinguir beta de estable. | V29 |
 | [docs/AUDIT-SPEC.md](../../docs/AUDIT-SPEC.md) · 422 l | spec histórico con contradicciones | Actualizar con estado de versión, conservando histórico original del paquete. | V29 |
 | [docs/design-adaptive-ux.md](../../docs/design-adaptive-ux.md) · 60 l | UX parcial técnica | Referenciar PRD vigente; no RTF invertido ni tres permisos ausentes del flow. | V29 |
@@ -383,7 +383,7 @@ Estado verificado contra HEAD (101 tests, smoke 54 checks en verde).
 
 | Archivo | Símbolos | Lectura |
 |---|---|---|
-| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `watchCore` (D041) / `captureLateBaseline` (D041) / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAppTree` / `WatchConfig` / `LearningSink` | UN solo loop de aprendizaje desde D041: `watch` (baseline early = `fieldBefore`) y `captureLateBaseline` (baseline live post-wake) comparten `watchCore` — el gate de estabilidad+confirmación D036 vive en UN lugar. `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s, `minSimilarity` 0.55. D040: `force` es costura inyectable y `wakeAppTree` (atributos sobre AXWebAreas vía PID) corre en CADA poll — la vía VoiceOver está BORRADA del código (D040, decisión del dueño: nunca puede hablar ni parpadear). |
+| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `observe` (núcleo D041) / `captureLateBaseline` (D041) / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAppTree` / `WatchConfig` / `LearningSink` | UN solo loop de aprendizaje desde D041: `watch` (baseline early = `fieldBefore`) y `captureLateBaseline` (baseline live post-wake) comparten `watchCore` — el gate de estabilidad+confirmación D036 vive en UN lugar. `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s, `minSimilarity` 0.55. D040: `force` es costura inyectable y `wakeAppTree` (atributos sobre AXWebAreas vía PID) corre en CADA poll — la vía VoiceOver está BORRADA del código (D040, decisión del dueño: nunca puede hablar ni parpadear). |
 | `Sources/VozaKit/Core/CorrectionStore.swift` · 248 l | `record` / `apply` / `apply(corrections:)` / `initialPrompt` / `diffCorrection` | Chokepoint único (D033 + matriz adversarial): dedupe case-insensitive, rechaza pares pure-case y > `maxLearnedChars` (400). `apply` reemplaza por límites de palabra espejando caso; `initialPrompt` alimenta whisper (presupuesto 200 chars). |
 | `Sources/VozaKit/Core/LearningLog.swift` · 102 l | `LearningLog.Event` / `event` / `isMutedForTests` | Bitácora `~/Library/Logs/voza/learning.log`: start/learned/expired/axNeverWoke (el evento `voWake` fue eliminado en D040; test pin prohibe líneas voiceover). `learned` solo cuando `record` aceptó (honestidad D034). Tests la silencian. |
 | `Sources/VozaKit/Core/AppPaths.swift` · 63 l | `AppPaths` | Rutas de datos (V01), seam para QA hermético. |
@@ -466,7 +466,7 @@ dueño); "Sintelia" es la palabra canónica de ejemplo de la doc.
 
 `watch()` y `watchLateBaseline()` duplicaban el gate de estabilidad+
 confirmación (D036 se parchó dos veces en paralelo por eso). Núcleo
-compartido `watchCore` con el baseline como seam: early (valor pre-paste)
+compartido `observe` con el baseline como seam: early (valor pre-paste)
 o late (captura en vivo tras el wake). Late-baseline ahora emite `.expired`
 como early al cerrar la ventana; el smoke mutea `LearningLog` en su suite de
 correcciones (su run por defecto corre `watch()` y la ventana expira).
@@ -474,7 +474,7 @@ Parámetro muerto `voWake` eliminado (sobreviviente de la cirugía D040).
 
 | Archivo | Cambio |
 |---|---|
-| `CorrectionWatcher.swift` | `watchCore` + `captureLateBaseline` sustituyen a `watchLateBaseline`; firma de `watch` sin `voWake`. |
+| `CorrectionWatcher.swift` | `observe` (núcleo compartido) + `captureLateBaseline` sustituyen a `watchLateBaseline`; firma de `watch` sin `voWake`. (Corregido P2-6: la doc decía `watchCore`, nombre que nunca existió.) |
 | `Tests/.../LateBaselineTests.swift` | Reescrita a semántica D041 (fakes obligatorios del wake); 2 pins nuevos del contrato unificado. |
 | `VozaSmoke/main.swift` | Suite de correcciones mutea el LearningLog. |
 

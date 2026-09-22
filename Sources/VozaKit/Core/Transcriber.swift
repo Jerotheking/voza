@@ -21,13 +21,25 @@ enum TranscriptionError: LocalizedError {
 
 /// Runs whisper.cpp (`whisper-cli`) against a WAV file. Fully local, Metal-accelerated.
 final class Transcriber {
-    /// Candidate locations for the whisper-cli binary (brew paths + bundled).
+    /// Candidate locations for the whisper-cli binary, in priority order:
+    /// user override → BUNDLED (P0-2, audit 2026-09-21: a Gumroad customer
+    /// has no Homebrew — the app must be self-sufficient) → brew paths.
     static func locateBinary() -> String? {
-        let candidates = [
+        let bundled = Bundle.main.executableURL?
+            .deletingLastPathComponent()
+            .appendingPathComponent("whisper-cli").path
+        return locateBinary(candidates: [
             Config.shared.resolvedWhisperBinary,
+            bundled,
             "/opt/homebrew/bin/whisper-cli",
             "/usr/local/bin/whisper-cli",
-        ]
+        ].compactMap { $0 })
+    }
+
+    /// Selection rule, testable hermetically: first candidate that EXISTS as
+    /// an executable file wins; none → nil (transcription fails with the
+    /// honest install error).
+    static func locateBinary(candidates: [String]) -> String? {
         for c in candidates where FileManager.default.isExecutableFile(atPath: c) {
             return c
         }

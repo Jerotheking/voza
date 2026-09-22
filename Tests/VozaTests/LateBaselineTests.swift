@@ -135,6 +135,56 @@ final class LateBaselineTests: XCTestCase {
         XCTAssertEqual(wakeCalls, 3, "wake fires every poll until the baseline appears")
     }
 
+    // MARK: P0-3 (audit 2026-09-21) — empty/whitespace readings are NOT a
+    // valid baseline: `pasted.contains("")` is always true in Swift, so an
+    // empty field reading used to capture "" instantly and wreck phase-2
+    // extraction in Electron apps.
+
+    func testEmptyReadingNeverCapturedAsBaseline() {
+        // Poll 1: empty field (paste not yet propagated). Poll 2: paste
+        // visible → baseline captured THEN. The bug would have captured ""
+        // at poll 1 and (a) returned early, (b) made phase 2 diff against "".
+        let script = Script(values: ["", "Sintelia.", "Sinteliä.", "Sinteliä."])
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watch(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
+            mode: .lateBaseline,
+            wake: { false }
+        )
+
+        XCTAssertTrue(learned, "correction after a late empty poll must still learn")
+        XCTAssertEqual(sink.pairs.count, 1)
+        XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
+        XCTAssertEqual(sink.pairs.first?.said, "Sinteliä")
+    }
+
+    func testWhitespaceOnlyReadingNeverCapturedAsBaseline() {
+        // Whitespace-only readings are equally invalid ("   " trims to "").
+        let script = Script(values: ["   ", "\n", "Sintelia.", "Sinteliä.", "Sinteliä."])
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watch(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
+            mode: .lateBaseline,
+            wake: { false }
+        )
+
+        XCTAssertTrue(learned)
+        XCTAssertEqual(sink.pairs.count, 1)
+        XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
+    }
+
     // MARK: D041 — one loop: the shared phase-2 core must behave identically
     // in both modes for the same field transcript.
 
@@ -193,6 +243,9 @@ final class LateBaselineTests: XCTestCase {
 /// LearningLog format/rotation — hermetic via the sink seam.
 final class LearningLogTests: XCTestCase {
     override class func setUp() { LearningLog.isMutedForTests = false }
+    // P1-4 (audit 2026-09-21): the desilencing used to leak — every suite
+    // ordered after this one could write the user's REAL learning.log.
+    override class func tearDown() { LearningLog.isMutedForTests = true }
     func testEventLines() {
         let log = LearningLog()
         var lines: [String] = []

@@ -160,6 +160,9 @@ enum Paster {
         var focused: CFTypeRef?
         guard AXUIElementCopyAttributeValue(sysWide, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let focusedEl = focused else { return nil }
+        // P2-4 (audit 2026-09-21): a misbehaving app can hand back kCFNull or
+        // an unexpected type — `as!` aborted the process. Type-check instead.
+        guard CFGetTypeID(focusedEl) == AXUIElementGetTypeID() else { return nil }
         return (focusedEl as! AXUIElement)
     }
 
