@@ -383,7 +383,7 @@ Estado verificado contra HEAD (101 tests, smoke 54 checks en verde).
 
 | Archivo | Símbolos | Lectura |
 |---|---|---|
-| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `watchLateBaseline` / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAppTree` / `WatchConfig` / `LearningSink` | Dos loops de aprendizaje: normal (sesión con `fieldBefore`) y late-baseline (Electron). `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s (D036), `minSimilarity` 0.55. D040: `force` es costura inyectable y `wakeAppTree` (atributos sobre AXWebAreas vía PID) corre en CADA poll de la ventana — la vía VoiceOver está BORRADA del código (D040, decisión del dueño: nunca puede hablar ni parpadear). |
+| `Sources/VozaKit/Core/CorrectionWatcher.swift` · 538 l | `watch` / `watchCore` (D041) / `captureLateBaseline` (D041) / `wordLevelPair` / `charLevelPair` / `trimmedToWordBoundaries` / `readField` / `wakeAppTree` / `WatchConfig` / `LearningSink` | UN solo loop de aprendizaje desde D041: `watch` (baseline early = `fieldBefore`) y `captureLateBaseline` (baseline live post-wake) comparten `watchCore` — el gate de estabilidad+confirmación D036 vive en UN lugar. `WatchConfig`: poll 0.8 s, estabilidad 2 muestras, ventana 20 s, confirmación 0.7 s, `minSimilarity` 0.55. D040: `force` es costura inyectable y `wakeAppTree` (atributos sobre AXWebAreas vía PID) corre en CADA poll — la vía VoiceOver está BORRADA del código (D040, decisión del dueño: nunca puede hablar ni parpadear). |
 | `Sources/VozaKit/Core/CorrectionStore.swift` · 248 l | `record` / `apply` / `apply(corrections:)` / `initialPrompt` / `diffCorrection` | Chokepoint único (D033 + matriz adversarial): dedupe case-insensitive, rechaza pares pure-case y > `maxLearnedChars` (400). `apply` reemplaza por límites de palabra espejando caso; `initialPrompt` alimenta whisper (presupuesto 200 chars). |
 | `Sources/VozaKit/Core/LearningLog.swift` · 102 l | `LearningLog.Event` / `event` / `isMutedForTests` | Bitácora `~/Library/Logs/voza/learning.log`: start/learned/expired/axNeverWoke (el evento `voWake` fue eliminado en D040; test pin prohibe líneas voiceover). `learned` solo cuando `record` aceptó (honestidad D034). Tests la silencian. |
 | `Sources/VozaKit/Core/AppPaths.swift` · 63 l | `AppPaths` | Rutas de datos (V01), seam para QA hermético. |
@@ -455,3 +455,46 @@ comportamiento. Skills instaladas en `~/Developer/sintelia/skills/matt/`
 (29, upstream github.com/mattpocock/skills).
 
 Verificación al cierre: 101/101 tests, smoke 54 checks, 0 warnings.
+
+## Addendum (2026-09-21, D041–D042) — loop unificado y pipeline como módulo profundo
+
+Glosario canónico en `CONTEXT.md` (skill domain-modeling); ronda 2 de
+grilling en `docs/plan-glm/GRILLING.md`. Producto EN-primero (decisión del
+dueño); "Sintelia" es la palabra canónica de ejemplo de la doc.
+
+### D041 — Un solo loop de aprendizaje
+
+`watch()` y `watchLateBaseline()` duplicaban el gate de estabilidad+
+confirmación (D036 se parchó dos veces en paralelo por eso). Núcleo
+compartido `watchCore` con el baseline como seam: early (valor pre-paste)
+o late (captura en vivo tras el wake). Late-baseline ahora emite `.expired`
+como early al cerrar la ventana; el smoke mutea `LearningLog` en su suite de
+correcciones (su run por defecto corre `watch()` y la ventana expira).
+Parámetro muerto `voWake` eliminado (sobreviviente de la cirugía D040).
+
+| Archivo | Cambio |
+|---|---|
+| `CorrectionWatcher.swift` | `watchCore` + `captureLateBaseline` sustituyen a `watchLateBaseline`; firma de `watch` sin `voWake`. |
+| `Tests/.../LateBaselineTests.swift` | Reescrita a semántica D041 (fakes obligatorios del wake); 2 pins nuevos del contrato unificado. |
+| `VozaSmoke/main.swift` | Suite de correcciones mutea el LearningLog. |
+
+### D042 — DictationPipeline como módulo profundo
+
+La orquestación post-grabación vivía en `AppState.pipeline(wavURL:)`
+mezclada con UI publicada — cero cobertura. Extraída a
+`Sources/VozaKit/Core/DictationPipeline.swift`: `run()` es `@MainActor` y
+posee TODO el orden del flujo como contrato pinneado: resolve → transcribe
+(fuera del MainActor; la costura conserva `Task.detached`) → RTF con reloj
+inyectable atribuido al modelo REALMENTE usado → audio borrado en TODAS las
+rutas → correcciones aprendidas → paste → log → aprendizaje condicional.
+Todas las dependencias son closures inyectables con default de producción.
+`AppState` solo mapea `Outcome` a UI publicada.
+
+| Archivo | Cambio |
+|---|---|
+| `Sources/VozaKit/Core/DictationPipeline.swift` · NUEVO | `DictationPipeline` / `Outcome` / 10 seams. |
+| `Sources/VozaKit/State/AppState.swift` | `pipeline(wavURL:)` eliminado; `runPipeline(wavURL:)` solo construye el pipeline y mapea el outcome (sonido, primer dictado, fase). |
+| `Tests/.../DictationPipelineTests.swift` · NUEVO | 10 tests: orden exacto por event-log, borrado del wav en las 4 rutas, RTF con reloj fijo + floor, fallback + notice, gates de aprendizaje. |
+
+Verificación al cierre: 113/113 tests, smoke 54 checks, release re-firmado,
+app relanzada.

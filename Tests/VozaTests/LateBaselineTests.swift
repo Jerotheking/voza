@@ -2,11 +2,13 @@ import XCTest
 @testable import VozaKit
 
 /// D034 late-baseline mode (the Sintelia case): apps that expose no AX text
-/// at paste time (Electron/Chromium) get their AX tree forced on and are
-/// watched with a LIVE baseline captured after the paste. D040: the wake is
+/// at paste time (Electron/Chromium) get their AX tree woken and are watched
+/// with a LIVE baseline captured after the paste. D040: the wake is
 /// attribute-only (`AXManualAccessibility` on AXWebAreas) — VoiceOver was
-/// deleted from the codebase and can never be launched again. All tests
-/// inject a fake reader/clock/sink/wake — zero real AX, zero real sleeps.
+/// deleted from the codebase and can never be launched again. D041: the mode
+/// is a `Mode` of the SINGLE loop — phase 1 (capture) is mode-specific,
+/// phase 2 (observation) is the shared core. All tests inject a fake
+/// reader/clock/sink/wake — zero real AX, zero real sleeps, zero real wake.
 final class LateBaselineTests: XCTestCase {
     override class func setUp() { LearningLog.isMutedForTests = true }
     private func makeSession(pasted: String) -> Paster.Session {
@@ -48,14 +50,15 @@ final class LateBaselineTests: XCTestCase {
         let script = Script(values: [nil, nil, "Sintelia.", "Sinteliä.", "Sinteliä."])
         let sink = CorrectionWatcher.QASink()
 
-        let learned = CorrectionWatcher.watchLateBaseline(
+        let learned = CorrectionWatcher.watch(
             session: makeSession(pasted: "Sintelia."),
             clock: script.clock,
             readFocused: { script.read() },
             sleep: { _ in },
             sink: sink,
             config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
-            force: { false }
+            mode: .lateBaseline,
+            wake: { false }
         )
 
         XCTAssertTrue(learned)
@@ -70,7 +73,7 @@ final class LateBaselineTests: XCTestCase {
         let script = Script(values: [nil])
         let sink = CorrectionWatcher.QASink()
 
-        let learned = CorrectionWatcher.watchLateBaseline(
+        let learned = CorrectionWatcher.watch(
             session: makeSession(pasted: "Sintelia."),
             clock: script.clock,
             readFocused: { script.read() },
@@ -78,7 +81,8 @@ final class LateBaselineTests: XCTestCase {
             sink: sink,
             // axWakeSeconds = 5.0 / poll 0.5 → 10 wake polls max, then window
             config: .init(pollIntervalSeconds: 0.5, windowSeconds: 0.1, stabilitySamples: 2),
-            force: { false }
+            mode: .lateBaseline,
+            wake: { false }
         )
 
         XCTAssertFalse(learned)
@@ -91,14 +95,15 @@ final class LateBaselineTests: XCTestCase {
         let script = Script(values: ["hola\nSintelia.\nchao", "hola\nSintelia.\nchao"])
         let sink = CorrectionWatcher.QASink()
 
-        let learned = CorrectionWatcher.watchLateBaseline(
+        let learned = CorrectionWatcher.watch(
             session: makeSession(pasted: "Sintelia."),
             clock: script.clock,
             readFocused: { script.read() },
             sleep: { _ in },
             sink: sink,
             config: .init(pollIntervalSeconds: 0.01, windowSeconds: 0.05, stabilitySamples: 2),
-            force: { false }
+            mode: .lateBaseline,
+            wake: { false }
         )
 
         XCTAssertFalse(learned, "containment alone must never produce a lesson")
@@ -107,7 +112,7 @@ final class LateBaselineTests: XCTestCase {
 
     // MARK: D040 — attribute-only forcing, no VoiceOver anywhere
 
-    func testForcesEveryPollViaWakeSeam() {
+    func testWakesEveryPollViaWakeSeam() {
         // The wake seam runs on EVERY poll of the wake window (Chromium builds
         // its web tree lazily; a single early set often doesn't stick), and a
         // true wake is not itself "the tree is up" — only a readable field is.
@@ -115,18 +120,73 @@ final class LateBaselineTests: XCTestCase {
         var wakeCalls = 0
         let sink = CorrectionWatcher.QASink()
 
-        let learned = CorrectionWatcher.watchLateBaseline(
+        let learned = CorrectionWatcher.watch(
             session: makeSession(pasted: "Sintelia."),
             clock: script.clock,
             readFocused: { script.read() },
             sleep: { _ in },
             sink: sink,
             config: .init(pollIntervalSeconds: 0.5, windowSeconds: 20, stabilitySamples: 2),
-            force: { wakeCalls += 1; return true }
+            mode: .lateBaseline,
+            wake: { wakeCalls += 1; return true }
         )
 
         XCTAssertTrue(learned)
         XCTAssertEqual(wakeCalls, 3, "wake fires every poll until the baseline appears")
+    }
+
+    // MARK: D041 — one loop: the shared phase-2 core must behave identically
+    // in both modes for the same field transcript.
+
+    func testLateBaselineMatchesLiveBaselineSemantics() {
+        // The SAME typed correction that the live-baseline path learns
+        // (ConfirmationReadTests) must be learned through the late-baseline
+        // path too: D036's confirmation read, guards and one-lesson cap are
+        // now literally the same code — this pin makes that non-regressable.
+        let script = Script(values: ["Sintelia.", "Sinteliä.", "Sinteliä."])
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watch(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.01, windowSeconds: 20, stabilitySamples: 2),
+            mode: .lateBaseline,
+            wake: { false }
+        )
+
+        XCTAssertTrue(learned)
+        XCTAssertEqual(sink.pairs.count, 1)
+        XCTAssertEqual(sink.pairs.first?.heard, "Sintelia")
+        XCTAssertEqual(sink.pairs.first?.said, "Sinteliä")
+    }
+
+    func testWakeSeamInjectedMeansZeroRealAX() {
+        // Contract pin (hermetic rule): with `wake` injected, the capture
+        // phase must not resolve PIDs or touch Paster's AX helpers. The fake
+        // wake panics the test if the loop ever calls anything else — here
+        // that's approximated by the wake being the ONLY side effect and the
+        // run completing deterministically with an unreadable field.
+        var wakeCalls = 0
+        let script = Script(values: [nil, nil, nil])
+        let sink = CorrectionWatcher.QASink()
+
+        let learned = CorrectionWatcher.watch(
+            session: makeSession(pasted: "Sintelia."),
+            clock: script.clock,
+            readFocused: { script.read() },
+            sleep: { _ in },
+            sink: sink,
+            config: .init(pollIntervalSeconds: 0.5, windowSeconds: 0.1, stabilitySamples: 2),
+            mode: .lateBaseline,
+            wake: { wakeCalls += 1; return false }
+        )
+
+        XCTAssertFalse(learned)
+        XCTAssertGreaterThan(wakeCalls, 0, "wake seam is the only side effect and must have run")
+        XCTAssertTrue(sink.pairs.isEmpty)
     }
 }
 

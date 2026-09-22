@@ -165,6 +165,11 @@ if CommandLine.arguments.contains("v01") {
 // CorrectionStore persistence, replacement semantics, diff extraction and
 // prompt generation.
 if CommandLine.arguments.contains("corrections") {
+    // D041 hermeticity: the unified watch loop logs `.expired` on window
+    // close via the shared LearningLog — without this global mute the smoke
+    // would write fake lines into the USER's real bitácora (the D034 class
+    // of leak, caught at design time this round).
+    LearningLog.isMutedForTests = true
     let root = FileManager.default.temporaryDirectory
         .appendingPathComponent("voza-tests", isDirectory: true)
         .appendingPathComponent(UUID().uuidString, isDirectory: true)

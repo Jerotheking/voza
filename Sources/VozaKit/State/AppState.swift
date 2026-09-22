@@ -99,75 +99,42 @@ final class AppState: ObservableObject {
             return
         }
         phase = .transcribing
-        Task { await self.pipeline(wavURL: wav) }
+        Task { await self.runPipeline(wavURL: wav) }
     }
 
-    private func pipeline(wavURL: URL) async {
-        let cfg = config
-
-        // 1. Transcribe (never leaves the Mac). The whisper.cpp process is blocking
-        // (it polls with Thread.sleep), so it MUST run off the MainActor — otherwise
-        // the menu bar and hotkeys freeze for the whole transcription (audit v2 §3.4).
-        let language = cfg.resolvedLanguage
-        let preferredId = cfg.resolvedModelId
-        var text: String
-        do {
-            // Resolve the model ACTUALLY used (descriptor + path together) so RTF is
-            // attributed to the real model, never a silently-fallen-back one (§3.3).
-            guard let resolved = ModelManager.shared.resolvedModel(preferredId: preferredId)
-                ?? ModelManager.shared.resolvedModel(preferredId: HardwareProfile.recommendedModel(language: language))
-            else { throw TranscriptionError.modelNotFound }
-            if resolved.model.id != preferredId {
-                statusMessage = L.t("Using fallback model \(resolved.model.id)",
-                                    es: "Usando modelo de respaldo \(resolved.model.id)")
+    /// D042: the flow itself lives in DictationPipeline (deep module with
+    /// injected seams). AppState only maps its outcome onto published UI
+    /// state — zero orchestration logic lives here anymore.
+    private func runPipeline(wavURL: URL) async {
+        var pipeline = DictationPipeline(
+            wavURL: wavURL,
+            recordedSeconds: recordedSeconds,
+            language: config.resolvedLanguage,
+            preferredModelId: config.resolvedModelId,
+            learnEnabled: config.autoLearn
+        )
+        pipeline.onNotice = { [weak self] message in
+            self?.statusMessage = message
+        }
+        let outcome = await pipeline.run()
+        switch outcome {
+        case .pasted:
+            if config.playSound {
+                NSSound(named: "Tink")?.play()
             }
-            let modelPath = resolved.path
-            // Learned vocabulary biases decoding BEFORE the model runs; captured
-            // OUTSIDE the timed block so it never pollutes the RTF measurement.
-            let prompt = CorrectionStore.shared.initialPrompt()
-            let startedAt = Date()
-            text = try await Task.detached(priority: .userInitiated) {
-                try Transcriber().transcribe(wavURL: wavURL, modelPath: modelPath, language: language, initialPrompt: prompt)
-            }.value
-            let rtf = Date().timeIntervalSince(startedAt) / max(recordedSeconds, 0.5)
-            PerformanceMonitor.shared.record(rtf: rtf, model: resolved.model.id)
-        } catch {
-            try? FileManager.default.removeItem(at: wavURL)
-            phase = .failed(error.localizedDescription)
-            return
-        }
-        try? FileManager.default.removeItem(at: wavURL) // audio deleted right after transcription
-        // Learned corrections are the source of truth for what gets pasted.
-        text = CorrectionStore.apply(text)
-
-        // 2. Paste + log. D032: no LLM cleanup stage — paste is instant after
-        // transcription (the Flow lesson: on-device 4B cleanup cannot win the
-        // latency/reliability war on real machines). Cloud cleanup returns as
-        // an explicit-opt-in feature; the pipeline hook point is documented in
-        // DECISIONS.md D032. ✨ history markers stay reserved for it.
-        guard Permissions.accessibilityGranted else {
-            TranscriptStore.shared.add(text: text, cleaned: false)
+            // First-dictation teaching moment: exactly once, right after the
+            // first successful paste — the gesture and the learn-by-typing
+            // habit are taught while they're happening, not in a setup screen.
+            if FirstRunExperience.firstDictationPending {
+                FirstRunExperience.markFirstDictationShown()
+                FirstDictationPanelController.shared.show()
+            }
             refresh()
-            phase = .failed(L.t("Accessibility permission needed for paste", es: "Falta permiso de Accesibilidad para pegar"))
-            return
+            phase = .idle
+        case .failed(let reason):
+            refresh()
+            phase = .failed(reason)
         }
-        Paster.paste(text)
-        TranscriptStore.shared.add(text: text, cleaned: false)
-        if cfg.autoLearn, let session = Paster.lastSession {
-            CorrectionWatcher.shared.start(for: session)
-        }
-        if cfg.playSound {
-            NSSound(named: "Tink")?.play()
-        }
-        // First-dictation teaching moment: exactly once, right after the first
-        // successful paste — the gesture and the learn-by-typing habit are
-        // taught while they're happening, not in a forgotten setup screen.
-        if FirstRunExperience.firstDictationPending {
-            FirstRunExperience.markFirstDictationShown()
-            FirstDictationPanelController.shared.show()
-        }
-        refresh()
-        phase = .idle
     }
 
     // MARK: - Models

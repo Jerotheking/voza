@@ -78,6 +78,13 @@ final class CorrectionWatcher {
 
     /// Begins watching the session's element. Cancels any previous watch
     /// (one session at a time — the newest paste wins).
+    ///
+    /// D041: ONE loop. `watch()` (live-baseline) and `watchLateBaseline()`
+    /// previously duplicated the stability+confirmation machinery — D036's
+    /// accent-menu fix had to be applied twice and the copies had already
+    /// started drifting (one logged expiry, the other didn't). The two modes
+    /// differ ONLY in how the expected field is obtained and whether a wake
+    /// runs first; everything after that is the shared `observe()` core.
     func start(for session: Paster.Session) {
         lock.lock()
         generation += 1
@@ -88,27 +95,14 @@ final class CorrectionWatcher {
         LearningLog.shared.event(.start(hasElement: session.element != nil))
 
         // No element → the paste landed in an app that doesn't expose text
-        // semantics yet (Electron/Chromium). Force its hidden AX support and
+        // semantics yet (Electron/Chromium). Wake its hidden AX support and
         // capture a LIVE baseline after the paste (D034, the Sintelia case).
-        guard session.element != nil else {
-            queue.async { [weak self] in
-                let continueCheck: (() -> Bool)? = self.map { watcher in
-                    { watcher.lock.lock(); defer { watcher.lock.unlock() }; return watcher.generation == gen && watcher.active }
-                }
-                _ = Self.watchLateBaseline(session: session, shouldContinue: continueCheck)
-                guard let self else { return }
-                self.lock.lock()
-                if self.generation == gen { self.active = false }
-                self.lock.unlock()
-            }
-            return
-        }
-
+        let mode: Mode = session.element == nil ? .lateBaseline : .liveBaseline
         queue.async { [weak self] in
             let continueCheck: (() -> Bool)? = self.map { watcher in
                 { watcher.lock.lock(); defer { watcher.lock.unlock() }; return watcher.generation == gen && watcher.active }
             }
-            _ = Self.watch(session: session, shouldContinue: continueCheck)
+            _ = Self.watch(session: session, shouldContinue: continueCheck, mode: mode)
             guard let self else { return }
             self.lock.lock()
             if self.generation == gen { self.active = false }
@@ -123,26 +117,89 @@ final class CorrectionWatcher {
         lock.unlock()
     }
 
-    /// The live watch loop, fully injectable for tests. Reads the session's
-    /// element every `config.pollIntervalSeconds` until `config.windowSeconds`
-    /// elapse (on the injected clock) or `shouldContinue` turns false. Learns
-    /// at most one pair: the first stabilized edit that passes every guard.
-    /// Returns true when a pair was recorded into the sink.
+    /// How the watcher knows what the field looked like right after our
+    /// paste — the ONLY difference between the two modes (D041).
+    enum Mode {
+        /// The pre-paste snapshot reconstructs the expected field exactly.
+        case liveBaseline
+        /// The app exposed no AX text at paste time: wake it, then adopt the
+        /// first readable field that contains our paste as the baseline.
+        case lateBaseline
+    }
+
+    /// The single watch loop, fully injectable for tests (D041). Phase 1
+    /// (mode-specific): establish the baseline — reconstructed from the
+    /// pre-paste snapshot, or captured live after waking a sleeping Chromium
+    /// tree. Phase 2 (shared): poll the field until the window closes,
+    /// learning at most one pair: the first stabilized, confirmed edit that
+    /// passes every guard. Returns true when a pair was recorded into the
+    /// sink.
+    ///
+    /// Injection seams: `readField` (live mode) reads the session element;
+    /// `readFocused` (late mode) reads whatever is focused. Tests inject the
+    /// one their mode needs; production defaults are built inside.
     @discardableResult
     static func watch(session: Paster.Session,
                       clock: Clock = SystemClock(),
                       readField: FieldReader? = nil,
+                      readFocused: (() -> String?)? = nil,
                       sleep: ((TimeInterval) -> Void)? = nil,
                       shouldContinue: (() -> Bool)? = nil,
                       sink: LearningSink = CorrectionStore.shared,
-                      config: WatchConfig = .production) -> Bool {
-        guard let element = session.element else { return false }
-        guard let expected = expectedField(after: session) else { return false } // corrupt pre-paste snapshot → nothing to verify against
-        let reader = readField ?? { el in
-            Paster.applyMessagingTimeout(el)
-            return Self.readField(el)
-        }
+                      config: WatchConfig = .production,
+                      mode: Mode = .liveBaseline,
+                      wake: (() -> Bool)? = nil) -> Bool {
         let doSleep = sleep ?? { Thread.sleep(forTimeInterval: $0) }
+
+        // ── Phase 1: establish the expected field (mode-specific) ─────────
+        let expected: String?
+        switch mode {
+        case .liveBaseline:
+            expected = expectedField(after: session) // nil → corrupt pre-paste snapshot, nothing to verify against
+        case .lateBaseline:
+            expected = captureLateBaseline(session: session,
+                                           readFocused: readFocused,
+                                           sleep: doSleep,
+                                           shouldContinue: shouldContinue,
+                                           config: config,
+                                           wake: wake)
+            if expected == nil { return false } // ax-never-woke already logged inside
+        }
+        guard let expected else { return false }
+
+        // ── Phase 2: shared observation (stability + confirmation + learn) ─
+        let reader: () -> String?
+        switch mode {
+        case .liveBaseline:
+            guard let element = session.element else { return false }
+            Paster.applyMessagingTimeout(element)
+            reader = { readField?(element) ?? Self.readField(element) }
+        case .lateBaseline:
+            reader = {
+                if let readFocused { return readFocused() }
+                guard let el = Paster.focusedElementPublic else { return nil }
+                Paster.applyMessagingTimeout(el)
+                return Self.readField(el)
+            }
+        }
+        return observe(expected: expected, pasted: session.pastedText,
+                       reader: reader, clock: clock, doSleep: doSleep,
+                       shouldContinue: shouldContinue, sink: sink, config: config)
+    }
+
+    /// Phase 2 core, shared by both modes — the ONE place where stability,
+    /// the D036 confirmation read, guard evaluation and learning happen.
+    /// Polls `reader()` until the injected clock passes the window deadline,
+    /// `shouldContinue` turns false, or one lesson is recorded.
+    @discardableResult
+    private static func observe(expected: String,
+                                pasted: String,
+                                reader: () -> String?,
+                                clock: Clock,
+                                doSleep: (TimeInterval) -> Void,
+                                shouldContinue: (() -> Bool)?,
+                                sink: LearningSink,
+                                config: WatchConfig) -> Bool {
         var lastValue: String?
         var stableCount = 0
         let deadline = clock.now.addingTimeInterval(config.windowSeconds)
@@ -151,14 +208,16 @@ final class CorrectionWatcher {
             if let shouldContinue, !shouldContinue() { return false }
             doSleep(config.pollIntervalSeconds)
 
-            guard let current = reader(element) else {
+            guard let current = reader() else {
                 // Element unreadable right now (app swallowed it, AX hiccup):
                 // reset stability and keep trying until the window closes.
                 lastValue = nil
                 stableCount = 0
                 continue
             }
-            if current == expected {
+            let unchanged = current == expected
+                || (current as NSString).contains(pasted) // our text still intact (chat-style larger fields)
+            if unchanged {
                 stableCount = 0 // user undid back to our text, or app restored it
                 lastValue = current
                 continue
@@ -173,17 +232,18 @@ final class CorrectionWatcher {
             // Stable for N consecutive samples ≈ typing paused. D036: a pause
             // is not proof — the confirm read (extra read after a pause)
             // catches resumed typing, reader hiccups and not-yet-valid
-            // fragments. Everything except a confirmed, valid, stable edit
-            // re-arms stability and keeps watching: only the window expiry
-            // ends a session, never a frozen half-typed value.
+            // fragments (accent menu, IME). Everything except a confirmed,
+            // valid, stable edit re-arms stability and keeps watching: only
+            // the window expiry ends a session, never a frozen half-typed value.
             if stableCount >= config.stabilitySamples {
                 doSleep(Self.confirmationPauseSeconds)
-                let confirmed = reader(element)
+                let confirmed = reader()
                 if let confirmed, confirmed == current,
-                   let pair = extractPair(pasted: session.pastedText, typed: confirmed, expected: expected) {
+                   let pair = extractPair(pasted: pasted, typed: confirmed, expected: expected) {
                     let stored = sink.record(heard: pair.heard, said: pair.said)
-                    // Same log honesty as the late-baseline path: tests (QASink)
-                    // never fake a "learned" line in the user's bitácora.
+                    // Log honesty (D034): "learned" only when the sink actually
+                    // accepted (record can refuse: caps, heard == said). Tests
+                    // (QASink) never fake a "learned" line in the user's bitácora.
                     LearningLog.shared.event(stored != nil
                         ? .learned(heard: pair.heard, said: pair.said)
                         : .expired)
@@ -199,6 +259,7 @@ final class CorrectionWatcher {
                 continue
             }
         }
+        LearningLog.shared.event(.expired)
         return false
     }
 
@@ -410,147 +471,75 @@ final class CorrectionWatcher {
         return stuck
     }
 
-    // MARK: - Late-baseline mode (Electron/Chromium, D034)
+    // MARK: - Late-baseline capture (Electron/Chromium, D034/D041)
 
-    /// Watches a paste whose target app exposed no AX text at capture time.
+    /// Phase 1 of late-baseline mode (D041): wake a sleeping Chromium AX tree
+    /// and adopt the first readable focused field that contains our paste as
+    /// the baseline. Observation afterwards happens in the SHARED core
+    /// (`observe`) — the old duplicate loop is gone (D036 used to be patched
+    /// in two places; that can never happen again).
     /// Electron apps (Slack, VS Code, Discord, Chromium browsers…) gate their
     /// web-content accessibility tree; we wake it with the attribute-only
     /// `wakeAppTree` (D040 — never VoiceOver). The tree takes a moment to
-    /// build, so we poll the
-    /// focused element for up to ~5 s until kAXValue reads our pasted text,
-    /// then diff the LIVE field against that baseline with the SAME guards as
-    /// the normal path. Difference rules: the baseline starts as `pasted` (it
-    /// IS what we pasted); if the app exposes a larger field, the paste is
-    /// contained within it — containment counts as "unchanged so far".
-    static func watchLateBaseline(session: Paster.Session,
-                                  clock: Clock = SystemClock(),
-                                  readFocused: (() -> String?)? = nil,
-                                  sleep: ((TimeInterval) -> Void)? = nil,
-                                  shouldContinue: (() -> Bool)? = nil,
-                                  sink: LearningSink = CorrectionStore.shared,
-                                  config: WatchConfig = .production,
-                                  force: (() -> Bool)? = nil,
-                                  voWake: (() -> Bool)? = nil) -> Bool {
-        let doSleep = sleep ?? { Thread.sleep(forTimeInterval: $0) }
-        let reader = readFocused ?? {
+    /// build, so we poll the focused element for up to ~5 s. Difference rules
+    /// are inherited from the shared core: the baseline IS what we pasted;
+    /// if the app exposes a larger field, the paste is contained within it.
+    /// Returns nil (and logs `ax-never-woke`) when the field never became
+    /// readable — a distinct failure mode from "woke but no approved edit".
+    static func captureLateBaseline(session: Paster.Session,
+                                    readFocused: (() -> String?)?,
+                                    sleep: (TimeInterval) -> Void,
+                                    shouldContinue: (() -> Bool)?,
+                                    config: WatchConfig,
+                                    wake: (() -> Bool)?) -> String? {
+        let reader: () -> String? = {
+            if let readFocused { return readFocused() }
             guard let el = Paster.focusedElementPublic else { return nil }
             Paster.applyMessagingTimeout(el)
             return readField(el)
         }
         // D040: the wake side effect is a seam. Tests MUST inject a fake —
-        // the default walks real AX trees. It is attribute-only: it can NEVER
-        // launch VoiceOver, post keystrokes or touch audio.
-        let forceFn = force ?? {
+        // the default (below) walks real AX trees. It is attribute-only: it
+        // can NEVER launch VoiceOver, post keystrokes or touch audio. The
+        // default resolves the pasted-into app by PID (element first, focus
+        // as fallback) so the wake targets the right app even if focus moves
+        // mid-session; with an injected wake, NO real AX runs — hermetic.
+        let defaultWake: () -> Bool = {
             var pid = pid_t(0)
-            if let el = Paster.focusedElementPublic,
-               AXUIElementGetPid(el, &pid) == .success {
-                _ = Self.wakeAppTree(pid: pid)
+            if let el = session.element { AXUIElementGetPid(el, &pid) }
+            if pid <= 0, let focused = Paster.focusedElementPublic {
+                AXUIElementGetPid(focused, &pid)
             }
+            if pid > 0 { _ = Self.wakeAppTree(pid: pid) }
             return Paster.forceAccessibilityOnFocusedApp()
         }
+        let wakeFn = wake ?? defaultWake
         let pollSeconds = config.pollIntervalSeconds
-        let settleSeconds = 1.0
         let axWakeSeconds = 5.0
 
-        // 1)+2) Wake the app's AX tree (manual overrides, the VO trick) and
-        // wait until the field reflects our paste — RE-FORCING on every poll,
-        // because Chromium builds its tree lazily and the first poke often
-        // doesn't stick (D034 field evidence: Freebuff needed repeats).
+        // Wake and wait until the field reflects our paste — re-waking on
+        // EVERY poll, because Chromium builds its tree lazily and the first
+        // poke often doesn't stick (D034 field evidence: Freebuff needed
+        // repeats). Field experiment (18 Sep 2026): Freebuff's web tree woke
+        // in ~1 s with the focused element readable.
         let pasted = session.pastedText.trimmingCharacters(in: .whitespacesAndNewlines)
-        var baseline: String?
         var waited = 0.0
-        var forcedAccepted = 0
-        var forcedUnsupported = 0
-        let wakeBudget = axWakeSeconds
-        // D040: resolve the pasted-into app by PID BEFORE anything else, so
-        // the wake targets the right app even if focus moves mid-session.
-        var appPID = pid_t(0)
-        if let el = session.element { AXUIElementGetPid(el, &appPID) }
-        if appPID <= 0, let focused = Paster.focusedElementPublic {
-            AXUIElementGetPid(focused, &appPID)
-        }
-        while waited < wakeBudget {
-            if let shouldContinue, !shouldContinue() { return false }
-            if forceFn() { forcedAccepted += 1 } else { forcedUnsupported += 1 }
-            // D040: EVERY poll also sets AXManualAccessibility on the app's
-            // AXWebAreas (walked via the app element by PID — readable even
-            // when web content is dark). This is the ONLY wake path in Voza:
-            // attribute-only; there is no VoiceOver fallback anywhere.
-            // Chromium builds the web tree lazily and a single early set
-            // often doesn't stick (D034 field evidence), so repeat it every
-            // poll. Field experiment (18 Sep 2026): Freebuff's web tree woke
-            // in ~1 s with the focused element readable.
-            if appPID > 0 { _ = Self.wakeAppTree(pid: appPID) }
-            doSleep(pollSeconds)
+        var wakeAccepted = 0
+        var wakeUnsupported = 0
+        while waited < axWakeSeconds {
+            if let shouldContinue, !shouldContinue() { return nil }
+            if wakeFn() { wakeAccepted += 1 } else { wakeUnsupported += 1 }
+            sleep(pollSeconds)
             waited += pollSeconds
             if let current = reader(), current.contains(pasted) || pasted.contains(current.trimmingCharacters(in: .whitespacesAndNewlines)) {
-                baseline = current
-                break
+                return current
             }
         }
-        if baseline == nil {
-            // Distinguish "AX never woke" (fixable later) from "woke but the
-            // user made no approved edit" — different remediation paths.
-            // accepted = the app ACKNOWLEDGED the override (tree just never
-            // built); unsupported = the app rejected the attribute outright
-            // (its Electron build doesn't implement the handler at all).
-            LearningLog.shared.event(.axNeverWoke(accepted: forcedAccepted, unsupported: forcedUnsupported))
-        }
-        guard let baseline else { return false }
-
-        // 3) Let the user's correction land (settle) and diff against baseline.
-        doSleep(settleSeconds)
-        let deadline = clock.now.addingTimeInterval(config.windowSeconds)
-        var lastValue: String?
-        var stableCount = 0
-        while clock.now < deadline {
-            if let shouldContinue, !shouldContinue() { return false }
-            doSleep(pollSeconds)
-            guard let current = reader() else { continue }
-            let unchanged = (current == baseline)
-                || (current as NSString).contains(pasted) // our text still intact
-            if unchanged {
-                stableCount = 0
-                lastValue = current
-                continue
-            }
-            if current == lastValue {
-                stableCount += 1
-            } else {
-                stableCount = 1
-            }
-            lastValue = current
-            if stableCount >= config.stabilitySamples {
-                // D036 confirmation pause (see watch()): a stable-looking field
-                // may be frozen mid-composition (accent menu / IME). Re-read
-                // after a pause; only a still-identical field whose edit is a
-                // valid lesson may learn — everything else re-arms and the
-                // window expiry remains the only failure exit.
-                doSleep(Self.confirmationPauseSeconds)
-                let confirmed = reader()
-                if let confirmed, confirmed == current,
-                   let pair = extractPair(pasted: session.pastedText, typed: confirmed, expected: baseline) {
-                    // Log HONESTY (D034): "learned" only when the sink actually
-                    // accepted (record can refuse: caps, heard == said). The
-                    // QASink returns nil — tests must never write "learned"
-                    // lines into the user's real bitácora.
-                    let stored = sink.record(heard: pair.heard, said: pair.said)
-                    LearningLog.shared.event(stored != nil
-                        ? .learned(heard: pair.heard, said: pair.said)
-                        : .expired)
-                    return stored != nil
-                }
-                if let confirmed {
-                    stableCount = 1
-                    lastValue = confirmed
-                } else {
-                    stableCount = 0
-                    lastValue = nil
-                }
-            }
-        }
-        LearningLog.shared.event(.expired)
-        return false
+        // accepted = the app ACKNOWLEDGED the override (tree just never
+        // built); unsupported = the app rejected the attribute outright
+        // (its Electron build doesn't implement the handler at all).
+        LearningLog.shared.event(.axNeverWoke(accepted: wakeAccepted, unsupported: wakeUnsupported))
+        return nil
     }
 }
 
