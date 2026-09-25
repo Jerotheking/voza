@@ -69,10 +69,18 @@ Precio decidido: **$15 Early Access** (ver §"Precio" abajo para el texto que su
 
 ## 7. Roadmap de distribución (de aquí a notarizado)
 
+⚠️ **2026-09-25, hallazgo crítico:** en macOS Tahoe 26.2 hay reportes de que "Open
+Anyway" también desapareció (r/MacOS + OSNews/15.1). El único bypass sin firma es
+`xattr -dr com.apple.quarantine` vía Terminal — fricción inaceptable para el comprador
+tipo. **La notarización dejó de ser fase 2: ahora es el bloqueo #1 del launch.**
+Recomendación: comprar Apple Developer ($99/año) ANTES de publicar, o lanzar declarando
+"requiere un comando de Terminal en macOS 26+" y aceptar la fricción en la macOS más
+nueva (los compradores en 14/15 no la sufren).
+
 | Fase | Gatillo | Acción |
 |---|---|---|
 | Hoy | — | DMG Early Access + guía (este doc) |
-| 2 | ~10 ventas | Apple Developer $99/año → `scripts/release.sh` completo |
-| 3 | dmg notarizado | Instalación de doble click; quitar el paso right-click de la copy |
-| 4 | Tracción | Landing estática (hero Literal/Pulido, demo sin cortes, comparación) |
+| ~~2~~ → **1** | ~10 ventas **o antes del launch** | Apple Developer $99/año → `scripts/release.sh` completo |
+| 3 | dmg notarizado | Instalación de doble click; quitar el paso Gatekeeper de la copy |
+| 4 | Tracción | Landing: reemplazar placeholder por demo sin cortes (BUSINESS.md §4) |
 | 5 | Volumen | Stripe/Polar como segunda tienda (BUSINESS.md §2: Polar Starter recomendado) |

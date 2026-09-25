@@ -7,8 +7,19 @@ EN — INSTALL
 ------------
 1. Double-click the DMG, then drag **Voza** onto the
    **Applications** folder.
-2. First launch only: right-click Voza → **Open** → **Open**.
-   (It is an unsigned Early Access build; macOS asks once.)
+2. First launch only — macOS blocks apps not signed by Apple.
+   Try in this order (you need ONE of them, once ever):
+   a. Right-click Voza → **Open** → **Open** again
+      (macOS 14 Sonoma and earlier).
+   b. Try to open Voza, let it fail, then go to
+      **System Settings → Privacy & Security**, scroll down,
+      click **Open Anyway** (macOS 15 Sequoia).
+   c. On the newest macOS, if neither works, open
+      **Terminal** (in Applications/Utilities) and run:
+         xattr -dr com.apple.quarantine /Applications/Voza.app
+      then open Voza normally. This removes the download
+      flag — it does NOT touch the app itself.
+   After any of these, Voza opens normally forever.
 3. Grant the permissions Voza requests, in-app:
    - Microphone   (hear you)
    - Accessibility (paste for you)
@@ -26,7 +37,8 @@ The source is MIT: https://github.com/jerotherey/voza
 
 TROUBLESHOOTING
 ---------------
-- "Voza can't be opened": use step 2 (right-click → Open).
+- "Voza can't be opened": use step 2 (b, then c — the
+  Terminal command always works).
 - Nothing gets pasted: System Settings → Privacy & Security
   → Accessibility → enable Voza.
 - Changed your mind? Quit Voza and drag it to Trash.
@@ -38,9 +50,21 @@ ES — INSTALACIÓN
 ----------------
 1. Abre el DMG y arrastra **Voza** a la carpeta
    **Aplicaciones**.
-2. Solo el primer arranque: clic derecho en Voza →
-   **Abrir** → **Abrir**. (Es un build Early Access sin
-   firma de Apple; macOS pregunta una sola vez.)
+2. Solo el primer arranque — macOS bloquea apps sin firma de
+   Apple. Prueba en este orden (necesitas UNO, una sola vez):
+   a. Clic derecho en Voza → **Abrir** → **Abrir** otra vez
+      (macOS 14 Sonoma y anteriores).
+   b. Intenta abrir Voza, deja que falle, y ve a **Ajustes
+      del Sistema → Privacidad y Seguridad**, baja hasta
+      **Abrir igualmente** (macOS 15 Sequoia).
+   c. En las versiones más nuevas, si nada de lo anterior
+      funciona, abre **Terminal** (en
+      Aplicaciones/Utilidades) y corre:
+         xattr -dr com.apple.quarantine /Applications/Voza.app
+      y abre Voza normal. Quita la marca de descarga — NO
+      toca la app en sí.
+   Con cualquiera de estos caminos, Voza abre normal para
+   siempre después.
 3. Otorga los permisos que Voza pide, dentro de la app:
    - Micrófono     (escucharte)
    - Accesibilidad  (pegar por ti)
@@ -59,8 +83,8 @@ El código es MIT: https://github.com/jerotherey/voza
 
 PROBLEMAS
 ---------
-- "Voza no se puede abrir": usa el paso 2
-  (clic derecho → Abrir).
+- "Voza no se puede abrir": usa el paso 2 (b y luego c —
+  el comando de Terminal siempre funciona).
 - No pega nada: Ajustes del Sistema → Privacidad y
   Seguridad → Accesibilidad → activa Voza.
 - ¿Te cambió de opinión? Cierra Voza y arrástralo a la

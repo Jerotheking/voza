@@ -1,0 +1,284 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Voza — Dictate. It pastes itself. Pay once.</title>
+<meta name="description" content="Push-to-talk dictation for macOS. Local Whisper, AI polish, one-time price. Dicta. Se pega solo. Pago único.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<style>
+/* Voza landing — no build step, no dependencies. EN/ES visibility via body class. */
+:root {
+  --bg: #0e1116;
+  --panel: #161b23;
+  --ink: #e8ecf1;
+  --muted: #9aa7b4;
+  --accent: #4f8cff;
+  --accent-ink: #ffffff;
+  --line: #263041;
+  --radius: 12px;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.wrap { max-width: 780px; margin: 0 auto; padding: 0 20px; }
+section { padding: 48px 20px; }
+h1, h2 { line-height: 1.2; }
+h2 { font-size: 26px; margin: 0 0 20px; }
+a { color: var(--accent); }
+
+/* EN/ES toggle: body.en shows .en spans, body.es shows .es spans */
+body.es [class]:not(.es) > .en,
+body.es .en { display: none; }
+body.en .es { display: none; }
+
+/* Header */
+header { border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--bg); z-index: 5; }
+.nav { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+.brand { display: flex; align-items: center; gap: 8px; color: var(--ink); text-decoration: none; font-weight: 600; }
+#langToggle {
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 999px; padding: 6px 14px; font-size: 13px; cursor: pointer;
+}
+#langToggle:hover { border-color: var(--accent); }
+
+/* Hero */
+.hero { text-align: center; padding-top: 72px; }
+.badge {
+  display: inline-block; margin: 0 0 16px; padding: 4px 12px;
+  border: 1px solid var(--line); border-radius: 999px;
+  color: var(--muted); font-size: 13px;
+}
+h1 { font-size: 40px; margin: 0 0 14px; }
+.sub { color: var(--muted); font-size: 18px; max-width: 560px; margin: 0 auto 28px; }
+.cta { display: flex; gap: 16px; align-items: center; justify-content: center; flex-wrap: wrap; margin: 0 0 10px; }
+.buy {
+  display: inline-block; background: var(--accent); color: var(--accent-ink);
+  text-decoration: none; font-weight: 600; font-size: 17px;
+  padding: 14px 28px; border-radius: var(--radius);
+}
+.buy:hover { filter: brightness(1.1); }
+.trial { color: var(--muted); font-size: 14px; }
+.fine { color: var(--muted); font-size: 13px; }
+
+/* Demo placeholder */
+.demo-slot {
+  display: flex; align-items: center; justify-content: center; min-height: 260px;
+  border: 1px dashed var(--line); border-radius: var(--radius);
+  color: var(--muted); background: var(--panel); font-size: 14px; text-align: center; padding: 20px;
+}
+
+/* Steps */
+.steps { list-style: none; counter-reset: step; padding: 0; margin: 0; display: grid; gap: 14px; }
+.steps li {
+  counter-increment: step; background: var(--panel); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 18px 16px 56px; position: relative;
+}
+.steps li::before {
+  content: counter(step); position: absolute; left: 16px; top: 16px;
+  width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px;
+}
+.steps b { display: block; }
+
+/* Comparison table */
+table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+thead th { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .04em; }
+tbody tr:last-child td { border-bottom: none; }
+tr.you td { background: rgba(79, 140, 255, .12); }
+
+/* Privacy */
+.privacy { list-style: none; padding: 0; margin: 0; display: grid; gap: 14px; }
+.privacy li { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; }
+.privacy b { display: block; }
+
+/* Early access notice */
+.notice { background: var(--panel); border-block: 1px solid var(--line); max-width: none; }
+.notice p { color: var(--muted); margin: 0; max-width: 640px; }
+
+/* FAQ */
+dt { font-weight: 600; margin-top: 16px; }
+dd { margin: 4px 0 0; color: var(--muted); }
+
+/* Footer */
+footer { border-top: 1px solid var(--line); padding: 24px 0; color: var(--muted); font-size: 14px; }
+
+@media (max-width: 560px) {
+  h1 { font-size: 30px; }
+  .sub { font-size: 16px; }
+  th, td { padding: 10px 12px; }
+}
+</style>
+</head>
+<body class="en">
+
+<header>
+  <div class="wrap nav">
+    <a class="brand" href="#top"><svg width="22" height="22" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs><linearGradient id="bgl" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF8A5C"/><stop offset="1" stop-color="#F4552B"/></linearGradient></defs><rect x="64" y="64" width="896" height="896" rx="200" fill="url(#bgl)"/><rect x="432" y="240" width="160" height="300" rx="80" fill="#fff"/><path d="M 340 470 C 340 580 420 640 512 640 C 604 640 684 580 684 470" fill="none" stroke="#fff" stroke-width="44" stroke-linecap="round"/><line x1="512" y1="640" x2="512" y2="730" stroke="#fff" stroke-width="44" stroke-linecap="round"/><line x1="412" y1="780" x2="612" y2="780" stroke="#fff" stroke-width="44" stroke-linecap="round"/><rect x="196" y="430" width="44" height="90" rx="22" fill="#fff" opacity="0.85"/><rect x="784" y="430" width="44" height="90" rx="22" fill="#fff" opacity="0.85"/></svg> Voza</a>
+    <button id="langToggle" type="button" aria-label="Switch language">ES</button>
+  </div>
+</header>
+
+<main id="top">
+  <!-- HERO -->
+  <section class="hero wrap">
+    <p class="badge"><span class="en">Early Access — macOS 14+, Apple Silicon</span><span class="es">Early Access — macOS 14+, Apple Silicon</span></p>
+    <h1>
+      <span class="en">Dictate. It pastes itself. Pay once.</span>
+      <span class="es">Dicta. Se pega solo. Pago único.</span>
+    </h1>
+    <p class="sub">
+      <span class="en">Hold a hotkey, speak, release — your words paste wherever your cursor is.
+      Whisper runs 100% on your Mac. Your audio never leaves it.</span>
+      <span class="es">Mantén un atajo, habla, suelta — tus palabras se pegan donde esté tu cursor.
+      Whisper corre 100% en tu Mac. Tu audio nunca sale de ella.</span>
+    </p>
+    <p class="cta">
+      <a class="buy" href="https://jerotherey.gumroad.com/l/voza" rel="noopener">
+        <span class="en">Get Voza — $15 once</span>
+        <span class="es">Conseguir Voza — $15 una vez</span>
+      </a>
+      <span class="trial">
+        <span class="en">14-day trial, no card</span>
+        <span class="es">Prueba 14 días, sin tarjeta</span>
+      </span>
+    </p>
+    <p class="fine">
+      <span class="en">Early Access price — it rises at 1.0. Your price never does.</span>
+      <span class="es">Precio Early Access — sube en 1.0. El tuyo, nunca.</span>
+    </p>
+  </section>
+
+  <!-- DEMO SLOT: replace with real no-cuts capture (BUSINESS.md §4) -->
+  <section class="wrap demo">
+    <div class="demo-slot">
+      <span class="en">Demo video goes here — real capture, no cuts.</span>
+      <span class="es">Aquí va el video demo — captura real, sin cortes.</span>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="wrap">
+    <h2><span class="en">How it works</span><span class="es">Cómo funciona</span></h2>
+    <ol class="steps">
+      <li><b><span class="en">Hold &amp; speak</span><span class="es">Mantén y habla</span></b>
+        <span class="en">Your hotkey, any text field, natural speech.</span>
+        <span class="es">Tu atajo, cualquier campo de texto, habla natural.</span></li>
+      <li><b><span class="en">Local transcription</span><span class="es">Transcripción local</span></b>
+        <span class="en">Whisper with Metal acceleration, on your Mac. Audio never uploaded.</span>
+        <span class="es">Whisper con aceleración Metal, en tu Mac. El audio nunca se sube.</span></li>
+      <li><b><span class="en">Pasted, your style</span><span class="es">Pegado, a tu estilo</span></b>
+        <span class="en">Literal or AI-polished — filler words out, punctuation in. Polish processes text only.</span>
+        <span class="es">Literal o pulido con IA — fuera muletillas, dentro puntuación. El pulido procesa solo texto.</span></li>
+    </ol>
+  </section>
+
+  <!-- PRICE COMPARISON (verified prices, Sep 2026 — docs/market-analysis.md) -->
+  <section class="wrap">
+    <h2><span class="en">The dictation tax</span><span class="es">El impuesto del dictado</span></h2>
+    <table>
+      <thead><tr><th></th><th><span class="en">Model</span><span class="es">Modelo</span></th><th><span class="en">Price</span><span class="es">Precio</span></th></tr></thead>
+      <tbody>
+        <tr class="you"><td>Voza</td><td><span class="en">One-time</span><span class="es">Pago único</span></td><td><b>$15</b> <span class="en">once</span><span class="es">una vez</span></td></tr>
+        <tr><td>Superwhisper</td><td><span class="en">Subscription / lifetime</span><span class="es">Suscripción / lifetime</span></td><td>$8.49<span class="en">/mo</span><span class="es">/mes</span> · $249.99 <span class="en">lifetime</span><span class="es">de por vida</span></td></tr>
+        <tr><td>Wispr Flow</td><td><span class="en">Subscription</span><span class="es">Suscripción</span></td><td>$15<span class="en">/mo</span><span class="es">/mes</span></td></tr>
+        <tr><td>MacWhisper</td><td><span class="en">One-time</span><span class="es">Pago único</span></td><td>€59+</td></tr>
+      </tbody>
+    </table>
+    <p class="fine"><span class="en">Vendor prices as of September 2026. Voza's source is MIT — build it yourself and pay nothing.</span>
+    <span class="es">Precios de los vendedores, septiembre 2026. El código de Voza es MIT — compílalo tú mismo y no pagas nada.</span></p>
+  </section>
+
+  <!-- PRIVACY -->
+  <section class="wrap">
+    <h2><span class="en">Private by architecture</span><span class="es">Privado por arquitectura</span></h2>
+    <ul class="privacy">
+      <li><b><span class="en">Audio stays local. Always.</span><span class="es">El audio se queda local. Siempre.</span></b>
+        <span class="en">Transcription runs on your Mac; nothing to upload even if we wanted to.</span>
+        <span class="es">La transcripción corre en tu Mac; no hay nada que subir aunque quisiéramos.</span></li>
+      <li><b><span class="en">Cloud polish is opt-in, text-only.</span><span class="es">El pulido cloud es opcional y solo texto.</span></b>
+        <span class="en">If you enable it, the transcribed text — never audio — goes to the provider you chose.</span>
+        <span class="es">Si lo activas, va el texto transcrito — nunca el audio — al proveedor que tú elegiste.</span></li>
+      <li><b><span class="en">No telemetry.</span><span class="es">Sin telemetría.</span></b>
+        <span class="en">Voza makes zero analytics calls. The only network it touches: model download, license check, your cloud provider.</span>
+        <span class="es">Voza no llama a ningún analytics. Su única red: descarga del modelo, verificación de licencia, tu proveedor cloud.</span></li>
+    </ul>
+  </section>
+
+  <!-- EARLY ACCESS NOTICE -->
+  <section class="wrap notice">
+    <h2><span class="en">Early Access, honestly</span><span class="es">Early Access, con honestidad</span></h2>
+    <p>
+      <span class="en">This build is not notarized by Apple yet: first launch needs one extra
+      approval — right-click → Open, “Open Anyway”, or one Terminal command
+      (30 seconds, illustrated guide included). Licenses cover all
+      Early Access builds; the update policy is finalized at 1.0.</span>
+      <span class="es">Este build aún no está notarizado por Apple: el primer arranque lleva una
+      aprobación extra — clic derecho → Abrir, “Abrir igualmente”, o un comando de
+      Terminal (30 segundos, guía ilustrada incluida). Las licencias
+      cubren todos los builds Early Access; la política de actualizaciones se define en 1.0.</span>
+    </p>
+  </section>
+
+  <!-- FAQ -->
+  <section class="wrap">
+    <h2>FAQ</h2>
+    <dl>
+      <dt><span class="en">Is my audio sent anywhere?</span><span class="es">¿Mi audio se envía a algún lado?</span></dt>
+      <dd><span class="en">No. Transcription is local. Only optional cloud Polish sends the transcribed text to your configured provider.</span>
+      <span class="es">No. La transcripción es local. Solo el pulido cloud opcional envía el texto a tu proveedor configurado.</span></dd>
+      <dt><span class="en">Does it work offline?</span><span class="es">¿Funciona sin internet?</span></dt>
+      <dd><span class="en">Yes, once the model is downloaded. The license is verified once and cached.</span>
+      <span class="es">Sí, con el modelo descargado. La licencia se verifica una vez y queda en caché.</span></dd>
+      <dt><span class="en">English or Spanish?</span><span class="es">¿Inglés o español?</span></dt>
+      <dd><span class="en">Both — the app, the docs and this page. Dictate in either language.</span>
+      <span class="es">Ambos — la app, los docs y esta página. Dicta en cualquiera de los dos idiomas.</span></dd>
+      <dt><span class="en">Refunds?</span><span class="es">¿Reembolsos?</span></dt>
+      <dd><span class="en">Gumroad handles them. If Voza doesn't paste for you, write to support and we'll make it right.</span>
+      <span class="es">Los maneja Gumroad. Si Voza no te pega, escribe a soporte y lo arreglamos.</span></dd>
+    </dl>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="hero wrap">
+    <p class="cta">
+      <a class="buy" href="https://jerotherey.gumroad.com/l/voza" rel="noopener">
+        <span class="en">Get Voza — $15 once</span>
+        <span class="es">Conseguir Voza — $15 una vez</span>
+      </a>
+    </p>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span class="en">MIT-licensed source · <a href="https://github.com/jerotherey/voza" rel="noopener">GitHub</a> · Bilingual EN/ES</span>
+    <span class="es">Código fuente MIT · <a href="https://github.com/jerotherey/voza" rel="noopener">GitHub</a> · Bilingüe EN/ES</span>
+  </div>
+</footer>
+
+<script>
+  const btn = document.getElementById('langToggle');
+  const saved = localStorage.getItem('voza-lang');
+  if (saved === 'es' || saved === 'en') {
+    document.body.className = saved;
+    btn.textContent = saved === 'en' ? 'ES' : 'EN';
+  }
+  btn.addEventListener('click', () => {
+    const next = document.body.classList.contains('en') ? 'es' : 'en';
+    document.body.className = next;
+    btn.textContent = next === 'en' ? 'ES' : 'EN';
+    localStorage.setItem('voza-lang', next);
+  });
+</script>
+</body>
+</html>
