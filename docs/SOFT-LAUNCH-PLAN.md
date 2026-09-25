@@ -7,7 +7,7 @@ Precio: $15 · Updates: 1 año → luego pay-what-you-want (D046) · Permalink: 
 ## Fase 0 — Preparación (hacer antes de darle el link a NADIE)
 
 - [ ] Sesión de campo Pulido ejecutada (docs/FIELD-SESSION-PULIDO.md) → veredicto en DECISIONS
-- [ ] Demo real en `site/demo.mp4` (docs/DEMO-VIDEO-GUIDE.md, lo ejecuta Luna 6)
+- [ ] Demo real en `site/demo.mp4` (docs/plan-glm/materiales/DEMO-VIDEO-GUIDE.md, lo ejecuta Luna 6)
 - [ ] Producto Gumroad creado: $15, License keys ON, permalink `voza`, DMG + sha256 subidos
 - [ ] Copy pegada de docs/GUMROAD-PAGE-COPY.md (EN arriba, ES abajo)
 - [ ] Loop de licencia probado con compra propia: activar → offline → reembolso → revoca
