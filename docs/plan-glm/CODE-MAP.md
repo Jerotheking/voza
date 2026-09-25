@@ -34,6 +34,7 @@ Baseline `44caaf145c4e1e77d53afbc31dfdd1e3c79aaabf`. Líneas y hashes en [eviden
 | [packaging/Info.plist](../../packaging/Info.plist) · 19 l | bundle/version/permissions | Version/build coherentes; textos permisos honestos; no cambiar bundle ID sin migración. | V16, V28 |
 | [scripts/release.sh](../../scripts/release.sh) · 61 l | sign/notarize/staple/DMG | Validar artefacto final con autorización; inside-out y no --deep. | V16, V28 |
 | [scripts/make-icons.sh](../../scripts/make-icons.sh) · 21 l | icon conversion | Sin cambio necesario salvo packaging bloqueado; no ejecutar por auditoría. | Sin cambios previstos |
+| [scripts/make-dmg.sh](../../scripts/make-dmg.sh) · ~30 l | DMG Early Access | Empaqueta el build firmado `voza-dev` en DMG con layout de compra (app + /Applications + INSTALL.txt bilingüe) + sha256. Para canal Gumroad SIN notarizar (D045). | D045 |
 | [design/landing.html](../../design/landing.html) · 295 l | hero/comparison/FAQ/buy | Blueprint Literal/Pulido; claims verificables y términos aceptados. | V29 |
 | [design/wireframes/wireframes.html](../../design/wireframes/wireframes.html) · 187 l | wireframes estáticos | Referencia visual histórica; no evidencia de UI instalada. | Sin cambios previstos |
 | [design/assets/voza-icon.svg](../../design/assets/voza-icon.svg) · 20 l | icono | Conservar hasta decisión de marca; no modificar como parte de bugs. | Sin cambios previstos |

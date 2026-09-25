@@ -1,0 +1,67 @@
+=====================================================
+ VOZA — EARLY ACCESS
+ Dictate. It pastes itself. Pay once.
+=====================================================
+
+EN — INSTALL
+------------
+1. Double-click the DMG, then drag **Voza** onto the
+   **Applications** folder.
+2. First launch only: right-click Voza → **Open** → **Open**.
+   (It is an unsigned Early Access build; macOS asks once.)
+3. Grant the permissions Voza requests, in-app:
+   - Microphone   (hear you)
+   - Accessibility (paste for you)
+   - Input Monitoring (learn your corrections)
+4. On first run Voza downloads the speech model
+   (Whisper, runs 100% on your Mac — no audio leaves it).
+5. Hold your hotkey, speak, release. Done.
+
+LICENSE
+-------
+Your Gumroad key activates Voza in Settings → License
+(verified once, then works offline). Without a key you
+get a 14-day trial, no card required.
+The source is MIT: https://github.com/jerotherey/voza
+
+TROUBLESHOOTING
+---------------
+- "Voza can't be opened": use step 2 (right-click → Open).
+- Nothing gets pasted: System Settings → Privacy & Security
+  → Accessibility → enable Voza.
+- Changed your mind? Quit Voza and drag it to Trash.
+  Support: voza.app/support
+
+-----------------------------------------------------
+
+ES — INSTALACIÓN
+----------------
+1. Abre el DMG y arrastra **Voza** a la carpeta
+   **Aplicaciones**.
+2. Solo el primer arranque: clic derecho en Voza →
+   **Abrir** → **Abrir**. (Es un build Early Access sin
+   firma de Apple; macOS pregunta una sola vez.)
+3. Otorga los permisos que Voza pide, dentro de la app:
+   - Micrófono     (escucharte)
+   - Accesibilidad  (pegar por ti)
+   - Monitoreo de entrada (aprender tus correcciones)
+4. En el primer arranque Voza descarga el modelo de voz
+   (Whisper, corre 100% en tu Mac — el audio nunca sale
+   de ella).
+5. Mantén tu atajo, habla, suelta. Listo.
+
+LICENCIA
+--------
+Tu llave de Gumroad activa Voza en Ajustes → Licencia
+(se verifica una vez y luego funciona offline). Sin llave
+tienes 14 días de prueba, sin tarjeta.
+El código es MIT: https://github.com/jerotherey/voza
+
+PROBLEMAS
+---------
+- "Voza no se puede abrir": usa el paso 2
+  (clic derecho → Abrir).
+- No pega nada: Ajustes del Sistema → Privacidad y
+  Seguridad → Accesibilidad → activa Voza.
+- ¿Te cambió de opinión? Cierra Voza y arrástralo a la
+  Papelera. Soporte: voza.app/support
