@@ -28,8 +28,9 @@ manage, no export step, no waiting room.
 2. Whisper (running 100% on your Mac) transcribes — your audio never leaves your machine.
 3. Optional **Polish** cleans up the text before it pastes: filler-word removal, punctuation,
    formatting. Choose **Literal** (raw, fast) or **Polished** per dictation.
-   Polish runs locally (Ollama) or against your own cloud provider — it processes the
-   *text*, never your audio.
+   Polish uses YOUR OWN cloud provider key (OpenAI/Anthropic), stored in your Mac's
+   Keychain — it processes the *text*, never your audio, and it never runs without
+   your explicit setup.
 
 **What your $15 includes**
 
@@ -62,7 +63,8 @@ manage, no export step, no waiting room.
 - *Is my audio sent anywhere?* No. Transcription is local. Only if you enable cloud
   Polish does the transcribed *text* go to the provider you configured.
 - *Does it work offline?* Transcription and Literal paste: yes, once the model is
-  downloaded. License checks: verified once, then cached. Local Polish: yes, with Ollama.
+  downloaded. License checks: verified once, then cached. (Optional cloud Polish
+  needs internet, by definition.)
 - *Can I get a refund?* Gumroad handles refunds; if Voza doesn't paste for you,
   write to support and we'll make it right.
 - *Why cheaper than the alternatives?* No subscription, no investor, no server bill.
@@ -93,8 +95,9 @@ ventanas que administrar, sin paso de exportación, sin sala de espera.
 2. Whisper (corriendo 100% en tu Mac) transcribe — tu audio nunca sale de tu máquina.
 3. El **Pulido** opcional limpia el texto antes de pegarlo: muletillas, puntuación,
    formato. Elige **Literal** (crudo, rápido) o **Pulido** por dictado.
-   El Pulido corre local (Ollama) o contra tu propio proveedor cloud — procesa el
-   *texto*, nunca tu audio.
+   El Pulido usa TU PROPIA key cloud (OpenAI/Anthropic), guardada en el Llavero de
+   tu Mac — procesa el *texto*, nunca tu audio, y nunca corre sin tu configuración
+   explícita.
 
 **Qué incluye tu pago de $15**
 
@@ -128,8 +131,8 @@ ventanas que administrar, sin paso de exportación, sin sala de espera.
 - *¿Mi audio se envía a algún lado?* No. La transcripción es local. Solo si activas
   el Pulido cloud va el *texto* transcrito al proveedor que tú configuraste.
 - *¿Funciona sin internet?* Transcripción y pegado Literal: sí, con el modelo
-  descargado. Verificación de licencia: una vez, luego queda en caché. Pulido local:
-  sí, con Ollama.
+  descargado. Verificación de licencia: una vez, luego queda en caché. (El Pulido
+  cloud opcional necesita internet, por definición.)
 - *¿Puedo pedir reembolso?* Gumroad maneja los reembolsos; si Voza no te pega,
   escríbenos a soporte y lo arreglamos.
 - *¿Por qué es más barato que las alternativas?* Sin suscripción, sin inversores, sin
