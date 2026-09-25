@@ -46,9 +46,10 @@ manage, no export step, no waiting room.
   Privacy & Security, or one Terminal command (30 seconds, illustrated
   guide inside the download).
 - The speech model downloads on first run and stays on your Mac.
-- Early Access licenses cover all Early Access builds. The update policy is
-  finalized at 1.0 — Early Access price will rise then.
-- Early Access price: **$15**. It rises at 1.0. Your price never does.
+- **Your license includes one year of updates.** After that, pay what you
+  want to stay current — or keep your last Early Access build forever; it
+  keeps working either way. The Early Access price ($15) rises at 1.0;
+  your price never does.
 
 **Requirements**
 
@@ -110,8 +111,10 @@ ventanas que administrar, sin paso de exportación, sin sala de espera.
   del Sistema → Privacidad y Seguridad, o un comando de Terminal (30
   segundos, guía ilustrada dentro de la descarga).
 - El modelo de voz se descarga en el primer arranque y se queda en tu Mac.
-- Las licencias Early Access cubren todos los builds Early Access. La política de
-  actualizaciones se define en 1.0 — el precio Early Access sube entonces.
+- **Tu licencia incluye un año de actualizaciones.** Después, paga lo que
+  quieras por seguir al día — o quédate con tu último build Early Access
+  para siempre; sigue funcionando de cualquier forma. El precio Early
+  Access ($15) sube en 1.0; el tuyo, nunca.
 - Precio Early Access: **$15**. Sube en 1.0. El tuyo, nunca.
 
 **Requisitos**

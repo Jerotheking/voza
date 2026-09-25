@@ -57,7 +57,9 @@ Precio decidido: **$15 Early Access** (ver §"Precio" abajo para el texto que su
 > - macOS 14+, Apple Silicon.
 >
 > *Early Access: this build is not notarized by Apple yet. Install takes one
-> extra right-click → Open (guide included in the download).*
+> extra approval (guide included). Your license includes one year of updates;
+> after that, pay what you want to stay current — or keep your last build
+> forever.*
 
 ## 6. Post-launch (reglas de BUSINESS.md §5/§7)
 

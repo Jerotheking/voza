@@ -68,7 +68,8 @@ h1 { font-size: 40px; margin: 0 0 14px; }
 .trial { color: var(--muted); font-size: 14px; }
 .fine { color: var(--muted); font-size: 13px; }
 
-/* Demo placeholder */
+/* Demo placeholder + video */
+.demo video { width: 100%; border-radius: var(--radius); display: block; background: var(--panel); }
 .demo-slot {
   display: flex; align-items: center; justify-content: center; min-height: 260px;
   border: 1px dashed var(--line); border-radius: var(--radius);
@@ -158,11 +159,16 @@ footer { border-top: 1px solid var(--line); padding: 24px 0; color: var(--muted)
     </p>
   </section>
 
-  <!-- DEMO SLOT: replace with real no-cuts capture (BUSINESS.md §4) -->
+  <!-- DEMO SLOT: demo.mp4 produced per docs/DEMO-VIDEO-GUIDE.md (Luna 6). -->
   <section class="wrap demo">
-    <div class="demo-slot">
-      <span class="en">Demo video goes here — real capture, no cuts.</span>
-      <span class="es">Aquí va el video demo — captura real, sin cortes.</span>
+    <video controls preload="none" poster="demo-poster.jpg" src="demo.mp4"
+           onerror="this.style.display='none';document.getElementById('demoFallback').style.display='flex'">
+      <span class="en">Demo video coming — real capture, no cuts.</span>
+      <span class="es">Video demo en camino — captura real, sin cortes.</span>
+    </video>
+    <div class="demo-slot" id="demoFallback">
+      <span class="en">Demo video coming — real capture, no cuts.</span>
+      <span class="es">Video demo en camino — captura real, sin cortes.</span>
     </div>
   </section>
 
@@ -220,12 +226,14 @@ footer { border-top: 1px solid var(--line); padding: 24px 0; color: var(--muted)
     <p>
       <span class="en">This build is not notarized by Apple yet: first launch needs one extra
       approval — right-click → Open, “Open Anyway”, or one Terminal command
-      (30 seconds, illustrated guide included). Licenses cover all
-      Early Access builds; the update policy is finalized at 1.0.</span>
+      (30 seconds, illustrated guide included). Your license includes a year of
+      updates; after that, pay what you want to stay current — or keep your
+      last build forever, it keeps working.</span>
       <span class="es">Este build aún no está notarizado por Apple: el primer arranque lleva una
       aprobación extra — clic derecho → Abrir, “Abrir igualmente”, o un comando de
-      Terminal (30 segundos, guía ilustrada incluida). Las licencias
-      cubren todos los builds Early Access; la política de actualizaciones se define en 1.0.</span>
+      Terminal (30 segundos, guía ilustrada incluida). Tu licencia incluye un año de
+      actualizaciones; después, paga lo que quieras por seguir al día — o quédate
+      con tu build actual para siempre, sigue funcionando.</span>
     </p>
   </section>
 
