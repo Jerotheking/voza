@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_on": "2026-09-10",
+  "updated_on": "2026-09-25",
   "canonical_checkout": "~/Developer/voza",
   "implementation_started": true,
   "product_gates": "NOT_RUN",
@@ -566,51 +566,49 @@
       }
     },
     "V12": {
-      "status": "todo",
-      "owner": null,
-      "session": null,
-      "branch": null,
-      "base_commit": null,
-      "worktree": null,
-      "code_revision": null,
-      "reviewed_by": null,
-      "handoff": null,
+      "status": "done",
+      "owner": "buffy",
+      "session": "v12-keychain-credentials",
+      "branch": "codex/voza-V02-xctest-ci",
+      "worktree": "~/Developer/voza",
+      "reviewed_by": "buffy (in-session, 151/151 + smoke 61)",
+      "handoff": "sessions/2026-09-25T1800Z-V12-buffy.md",
       "blocker": null,
       "acceptance": {
         "V12-AC01": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "sessions/2026-09-25T1800Z-V12-buffy.md",
+            "Tests/VozaTests/ProviderPrivacyTests.swift"
+          ]
         },
         "V12-AC02": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "sessions/2026-09-25T1800Z-V12-buffy.md",
+            "Tests/VozaTests/ProviderPrivacyTests.swift"
+          ]
         },
         "V12-AC03": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "sessions/2026-09-25T1800Z-V12-buffy.md",
+            "Tests/VozaTests/ProviderPrivacyTests.swift"
+          ]
         },
         "V12-AC04": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "sessions/2026-09-25T1800Z-V12-buffy.md",
+            "Tests/VozaTests/ProviderPrivacyTests.swift"
+          ]
         },
         "V12-AC05": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "sessions/2026-09-25T1800Z-V12-buffy.md",
+            "Tests/VozaTests/ProviderPrivacyTests.swift"
+          ]
         }
       }
     },

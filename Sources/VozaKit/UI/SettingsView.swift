@@ -327,15 +327,13 @@ struct DictationSettings: View {
                             .foregroundStyle(.secondary)
                     }
                 }
-                // P2-d (agy re-review 2026-09-22): discoverability. With no
-                // key configured the picker has ONE option and nothing tells
-                // a fresh buyer the cloud mode exists — a dead end for the
-                // paid feature. A one-line hint fixes it without offering
-                // anything the pipeline can't do (the option itself stays
-                // gated; this only explains HOW to unlock it).
+                // P2-d (agy re-review 2026-09-22) discoverability, V12-era:
+                // the key now has a GUI field (a buyer never edits .env) and
+                // lives in the macOS Keychain — not a plaintext file.
+                CloudKeySection()
                 if !appState.config.hasCleanupProvider {
-                    Text(L.t("Optional: AI cleanup with your own API key — add OPENAI_API_KEY (or ANTHROPIC_API_KEY) to ~/.config/voza/.env and it appears here.",
-                             es: "Opcional: limpieza IA con tu propia llave — agrega OPENAI_API_KEY (o ANTHROPIC_API_KEY) en ~/.config/voza/.env y aparecerá aquí."))
+                    Text(L.t("Optional: AI cleanup with your own API key — paste it below and the cloud option appears here. Advanced: you can also put OPENAI_API_KEY (or ANTHROPIC_API_KEY) in ~/.config/voza/.env.",
+                             es: "Opcional: limpieza IA con tu propia llave — pégala abajo y la opción cloud aparecerá aquí. Avanzado: también puedes poner OPENAI_API_KEY (o ANTHROPIC_API_KEY) en ~/.config/voza/.env."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -713,4 +711,77 @@ func gumroadURL(permalink: String) -> URL {
     let encoded = permalink.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? permalink
     return URL(string: "https://jerotherey.gumroad.com/l/\(encoded)")
         ?? URL(string: "https://jerotherey.gumroad.com/l/voza")!
+}
+
+/// V12 — GUI for the cloud cleanup key. A buyer never opens a terminal:
+/// paste the key here and it goes straight into the macOS Keychain (never a
+/// plaintext file). The field is SecureField; the stored value is never
+/// displayed back — only its presence (a status line + the picker gate).
+struct CloudKeySection: View {
+    @EnvironmentObject var appState: AppState
+    @State private var draftKey = ""
+    @State private var feedback: String?
+    @State private var showRemoveConfirm = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                SecureField(L.t("Your API key (OpenAI-compatible or Anthropic)",
+                                es: "Tu llave API (compatible OpenAI o Anthropic)"),
+                            text: $draftKey)
+                    .textFieldStyle(.roundedBorder)
+                Button(L.t("Save to Keychain", es: "Guardar en Llavero")) { save() }
+                    .disabled(draftKey.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            if appState.config.hasCleanupProvider {
+                HStack {
+                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).font(.caption)
+                    Text(L.t("Key stored in your Mac's Keychain", es: "Llave guardada en el Llavero de tu Mac"))
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(L.t("Remove", es: "Quitar"), role: .destructive) { showRemoveConfirm = true }
+                        .font(.caption)
+                }
+                .confirmationDialog(L.t("Remove the stored key? Cloud cleanup stops working.",
+                                         es: "¿Quitar la llave guardada? La limpieza IA deja de funcionar."),
+                                     isPresented: $showRemoveConfirm,
+                                     titleVisibility: .visible) {
+                    Button(L.t("Remove key", es: "Quitar llave"), role: .destructive) { remove() }
+                }
+            }
+            if let feedback {
+                Text(feedback).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func save() {
+        let value = draftKey.trimmingCharacters(in: .whitespaces)
+        guard !value.isEmpty else { return }
+        // Auto-detect the slot: Anthropic keys announce themselves; every
+        // other key rides the OpenAI-compatible slot (incl. OpenRouter/Groq).
+        let keyName = value.hasPrefix("sk-ant-") ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"
+        let keychain = Config.productionKeychain(for: AppPaths.default)
+        if appState.config.saveCleanupKey(keyName, value: value, keychain: keychain) {
+            feedback = L.t("Saved to the Keychain.", es: "Guardada en el Llavero.")
+            if appState.config.cleanupMode != "cloud" {
+                appState.config.setCleanupMode("cloud")
+            }
+        } else {
+            feedback = L.t("The Keychain refused the save — nothing was changed.",
+                           es: "El Llavero rechazó el guardado — no se cambió nada.")
+        }
+        draftKey = ""
+    }
+
+    private func remove() {
+        let keychain = Config.productionKeychain(for: AppPaths.default)
+        for key in Config.credentialKeys {
+            appState.config.deleteCleanupKey(key, keychain: keychain)
+        }
+        if appState.config.cleanupMode == "cloud" {
+            appState.config.setCleanupMode("plain")
+        }
+        feedback = L.t("Key removed.", es: "Llave eliminada.")
+    }
 }

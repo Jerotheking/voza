@@ -634,7 +634,43 @@ check("cleanup auto (legacy) = none", Cleaner.providerChain(for: "auto").isEmpty
       "local providers removed — legacy value must not resurrect them")
 check("cleanup cloud explicit", Cleaner.providerChain(for: "cloud") == ["openai", "anthropic"])
 
-// 11. Disk guard is per-model (audit v2 §3.10)
+// 11.5 V12 credential boundary (pure parts): loopback-only plain HTTP,
+// redirect tolerance predicate, layered precedence order, and keychain
+// refusal never reporting success.
+do {
+    let qa = SmokeQA(name: "v12")!
+    defer { qa.tearDown() }
+    let keychain = InMemoryKeychainStore()
+    let cfg = Config(paths: qa.paths, keychain: keychain)
+    keychain.set("OPENAI_API_KEY", value: "sk-smoke")
+    cfg.reload()
+    check("v12 keychain layer read", cfg.env["OPENAI_API_KEY"] == "sk-smoke")
+    check("v12 file layer empty in QA", cfg.envFileValues["OPENAI_API_KEY"] == nil,
+          "no .env file exists in the QA root")
+
+    let http = URL(string: "http://api.provider.com/v1")!
+    let loop = URL(string: "http://127.0.0.1:11434/v1")!
+    var refused = false
+    do { try SecureCleanupTransport.validateEndpoint(http) } catch { refused = true }
+    check("v12 plain-HTTP remote refused", refused)
+    check("v12 loopback allowed", (try? SecureCleanupTransport.validateEndpoint(loop)) != nil)
+
+    let from = URL(string: "https://api.openai.com/v1/chat/completions")!
+    let evil = URL(string: "https://evil.example.com/c")!
+    check("v12 cross-host redirect not tolerated", !SecureCleanupTransport.redirectIsTolerable(from: from, to: evil))
+
+    let failing = FakeSmokeKeychain()
+    check("v12 failed write reported", cfg.saveCleanupKey("OPENAI_API_KEY", value: "x", keychain: failing) == false)
+}
+
+/// Controllable failure for the smoke keychain checks.
+final class FakeSmokeKeychain: KeychainStore {
+    func get(_ key: String) -> String? { nil }
+    func set(_ key: String, value: String) -> Bool { false }
+    func delete(_ key: String) -> Bool { false }
+}
+
+// 12. Disk guard is per-model (audit v2 §3.10)
 if let small = WhisperCatalog.byId("small-q5_1"), let big = WhisperCatalog.byId("large-v3-turbo") {
     check("disk guard per-model", ReadinessChecker.requiredFreeMB(for: big) > ReadinessChecker.requiredFreeMB(for: small),
           "small=\(ReadinessChecker.requiredFreeMB(for: small))MB big=\(ReadinessChecker.requiredFreeMB(for: big))MB")

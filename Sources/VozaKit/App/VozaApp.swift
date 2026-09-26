@@ -110,6 +110,9 @@ struct MenuBarLabel: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        // V12 FIRST: adopt the Keychain and migrate any plaintext .env keys
+        // before the first dictation can read credentials.
+        Config.adoptProductionKeychain()
         HotKeyManager.shared.start()
         TranscriptStore.shared.loadRecent(limit: 10)
 

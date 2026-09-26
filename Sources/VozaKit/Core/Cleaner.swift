@@ -37,7 +37,12 @@ enum Cleaner {
         }
     }
 
-    static func clean(_ text: String, config: Config) async -> CleaningOutcome {
+    /// `transport` is the V12 boundary seam: production uses the hardened
+    /// SecureCleanupTransport (HTTPS-only/loopback, redirects cancelled);
+    /// tests inject a transport over a stub URLProtocol to prove the
+    /// privacy/redirect contracts without sockets.
+    static func clean(_ text: String, config: Config,
+                      transport: SecureCleanupTransport = SecureCleanupTransport()) async -> CleaningOutcome {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard config.resolvedCleanupMode == "cloud",
               !trimmed.isEmpty else { return CleaningOutcome(text: text, applied: false, provider: nil) }
@@ -45,8 +50,8 @@ enum Cleaner {
         for provider in providerChain(for: config.resolvedCleanupMode) {
             let result: String?
             switch provider {
-            case "openai":    result = await openAIClean(trimmed, config: config)
-            case "anthropic": result = await anthropicClean(trimmed, config: config)
+            case "openai":    result = await openAIClean(trimmed, config: config, transport: transport)
+            case "anthropic": result = await anthropicClean(trimmed, config: config, transport: transport)
             default:          result = nil
             }
             if let cleanedText = result {
@@ -152,7 +157,8 @@ enum Cleaner {
         let choices: [Choice]?
     }
 
-    private static func openAIClean(_ text: String, config: Config) async -> String? {
+    private static func openAIClean(_ text: String, config: Config,
+                                    transport: SecureCleanupTransport) async -> String? {
         guard let key = config.env["OPENAI_API_KEY"], !key.isEmpty else { return nil }
         guard let request = openAIRequest(text: text, apiKey: key,
                                           baseURL: config.env["OPENAI_BASE_URL"],
@@ -161,16 +167,16 @@ enum Cleaner {
         req.httpMethod = "POST"
         for (field, value) in request.headers { req.setValue(value, forHTTPHeaderField: field) }
         guard let payload = try? JSONSerialization.data(withJSONObject: request.body) else { return nil }
-        req.httpBody = payload
-        guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        guard let (data, response) = try? await transport.send(req, body: payload),
+              response.statusCode == 200 else { return nil }
         let out = stripThinkingJunk(parseOpenAIResponse(data) ?? "")
         return out.isEmpty ? nil : out
     }
 
     // MARK: - Anthropic
 
-    private static func anthropicClean(_ text: String, config: Config) async -> String? {
+    private static func anthropicClean(_ text: String, config: Config,
+                                       transport: SecureCleanupTransport) async -> String? {
         guard let key = config.env["ANTHROPIC_API_KEY"], !key.isEmpty else { return nil }
         guard let request = anthropicRequest(text: text, apiKey: key,
                                              model: config.env["CLEANUP_MODEL"]) else { return nil }
@@ -178,9 +184,8 @@ enum Cleaner {
         req.httpMethod = "POST"
         for (field, value) in request.headers { req.setValue(value, forHTTPHeaderField: field) }
         guard let payload = try? JSONSerialization.data(withJSONObject: request.body) else { return nil }
-        req.httpBody = payload
-        guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+        guard let (data, response) = try? await transport.send(req, body: payload),
+              response.statusCode == 200 else { return nil }
         let out = stripThinkingJunk(parseAnthropicResponse(data) ?? "")
         return out.isEmpty ? nil : out
     }
