@@ -1,51 +1,58 @@
 import AVFoundation
 import Foundation
 
-enum AudioRecorderError: LocalizedError {
+enum AudioRecorderError: LocalizedError, Equatable {
     case deviceUnavailable
     case conversionFailed
+    case writeFailed
+    case byteLimitExceeded
+
     var errorDescription: String? {
         switch self {
         case .deviceUnavailable: return L.t("Mic not available", es: "Micrófono no disponible")
         case .conversionFailed: return L.t("Audio conversion failed", es: "Fallo al convertir el audio")
+        case .writeFailed: return L.t("Audio disk write failed", es: "Fallo al escribir el audio en disco")
+        case .byteLimitExceeded: return L.t("Recording reached maximum length", es: "La grabación alcanzó la duración máxima")
         }
     }
 }
 
-/// Records microphone audio with AVAudioEngine and writes a 16 kHz mono WAV file.
-/// The heavy lifting (capture → PCM → WAV header) is implemented without external
-/// binaries so the app works on a clean machine with zero dependencies.
+/// Records microphone audio with AVAudioEngine and writes a 16 kHz mono IEEE Float32 WAV file (V05 / D059).
 final class AudioRecorder {
     static let shared = AudioRecorder()
+
+    /// Maximum PCM payload bytes per recording (~16.7 minutes at 16 kHz mono Float32 = 64 MB).
+    /// Prevents unbounded disk/memory growth if a key or session is left open (V05-AC05).
+    static let defaultMaxPCMBytes: UInt64 = 64 * 1024 * 1024
 
     private var engine: AVAudioEngine?
     private var targetFormat: AVAudioFormat?
     private var converter: AVAudioConverter?
     private var fileHandle: FileHandle?
     private var pcmBytes: UInt64 = 0
+    private var writeErrorOccurred = false
     private(set) var outputURL: URL?
-    private(set) var isRecording = false
-    private var startedAt: Date?
-    /// P1-5 (audit 2026-09-21): ALL file writes and byte accounting live on
-    /// this serial queue. `enqueue` runs on the real-time audio thread and
-    /// `stop()`/`cancel()` on main — the old direct `fileHandle?.write` from
-    /// the capture thread raced the main-thread close (an ObjC
-    /// NSFileHandleOperationException that Swift cannot catch → crash) and
-    /// `pcmBytes` was a genuine data race. `stop` drains the queue
-    /// synchronously BEFORE closing: happens-after is established by
-    /// construction (removeTap returns with no enqueue in flight or pending).
+    private(set) var lastAsset: AudioAsset?
+
+    private let stateLock = NSLock()
+    private var _isRecording = false
+    private var _startedAt: Date?
+
+    var isRecording: Bool {
+        stateLock.lock(); defer { stateLock.unlock() }
+        return _isRecording
+    }
+
     private let ioQueue = DispatchQueue(label: "voza.audiorecorder.io")
+    let maxPCMBytes: UInt64
 
     // MARK: - Level meter (D021: audio-reactive HUD)
 
     private let levelLock = NSLock()
     private var _level: Double = 0
 
-    /// Normalized 0...1 mic loudness (dB-mapped, -60 dB floor), written on the
-    /// capture thread, read from the main thread via the lock. 0 when idle.
     var level: Double {
-        levelLock.lock()
-        defer { levelLock.unlock() }
+        levelLock.lock(); defer { levelLock.unlock() }
         return _level
     }
 
@@ -55,8 +62,6 @@ final class AudioRecorder {
         levelLock.unlock()
     }
 
-    /// Pure RMS → meter mapping: −60 dB floor maps to 0, −6 dB to 1.
-    /// Testable without any audio hardware.
     static func meterLevel(rms: Double) -> Double {
         let clamped = min(max(rms, 1e-7), 1.0)
         let db = 20 * log10(clamped)
@@ -64,14 +69,30 @@ final class AudioRecorder {
     }
 
     var elapsedSeconds: Double {
-        guard let startedAt, isRecording else { return 0 }
-        return Date().timeIntervalSince(startedAt)
+        stateLock.lock()
+        let active = _isRecording
+        let start = _startedAt
+        stateLock.unlock()
+        guard active, let start else { return 0 }
+        return Date().timeIntervalSince(start)
+    }
+
+    init(maxPCMBytes: UInt64 = AudioRecorder.defaultMaxPCMBytes) {
+        self.maxPCMBytes = maxPCMBytes
     }
 
     // MARK: - Lifecycle
 
-    func start() throws {
-        guard !isRecording else { return }
+    func start(
+        directory: URL? = nil,
+        engineStartHook: (() throws -> Void)? = nil
+    ) throws {
+        stateLock.lock()
+        if _isRecording {
+            stateLock.unlock()
+            return
+        }
+        stateLock.unlock()
 
         let engine = AVAudioEngine()
         let input = engine.inputNode
@@ -85,103 +106,191 @@ final class AudioRecorder {
             sampleRate: Config.targetSampleRate,
             channels: 1,
             interleaved: false
-        ) else {
-            throw AudioRecorderError.conversionFailed
-        }
-        guard let converter = AVAudioConverter(from: hardwareFormat, to: target) else {
+        ), let converter = AVAudioConverter(from: hardwareFormat, to: target) else {
             throw AudioRecorderError.conversionFailed
         }
 
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("voza-\(Int(Date().timeIntervalSince1970))-\(Int.random(in: 100...999)).wav")
-        FileManager.default.createFile(atPath: url.path, contents: nil)
-        guard let handle = try? FileHandle(forWritingTo: url) else {
-            throw AudioRecorderError.conversionFailed
+        let targetDir = directory ?? FileManager.default.temporaryDirectory
+        let url = try Self.createPrivateWAVFile(in: targetDir)
+        let handle: FileHandle
+        do {
+            handle = try FileHandle(forWritingTo: url)
+            try handle.write(contentsOf: Data(repeating: 0, count: 44))
+        } catch {
+            try? FileManager.default.removeItem(at: url)
+            throw AudioRecorderError.writeFailed
         }
 
-        handle.write(Data(repeating: 0, count: 44)) // WAV header placeholder
+        ioQueue.sync {
+            self.fileHandle = handle
+            self.pcmBytes = 0
+            self.writeErrorOccurred = false
+        }
 
         self.engine = engine
-        targetFormat = target
+        self.targetFormat = target
         self.converter = converter
-        outputURL = url
-        fileHandle = handle
-        pcmBytes = 0
-        startedAt = Date()
+        self.outputURL = url
+        self.lastAsset = nil
+
+        stateLock.lock()
+        self._startedAt = Date()
+        self._isRecording = true
+        stateLock.unlock()
 
         input.installTap(onBus: 0, bufferSize: 4096, format: hardwareFormat) { [weak self] buffer, _ in
             self?.enqueue(buffer)
         }
         engine.prepare()
         do {
-            try engine.start()
+            if let engineStartHook {
+                try engineStartHook()
+            } else {
+                try engine.start()
+            }
         } catch {
-            // P2-3 (audit 2026-09-21): a failed start used to leak the 44-byte
-            // temp file and the open handle. Full cleanup before rethrowing.
+            stateLock.lock()
+            self._isRecording = false
+            self._startedAt = nil
+            stateLock.unlock()
             input.removeTap(onBus: 0)
-            try? handle.close()
-            fileHandle = nil
+            self.engine = nil
+            self.converter = nil
+            self.targetFormat = nil
+            ioQueue.sync {
+                try? self.fileHandle?.close()
+                self.fileHandle = nil
+                self.pcmBytes = 0
+                self.writeErrorOccurred = false
+            }
             try? FileManager.default.removeItem(at: url)
-            outputURL = nil
-            pcmBytes = 0
-            startedAt = nil
+            self.outputURL = nil
             throw error
         }
-        isRecording = true
+    }
+
+    /// Creates a private (`0o600`) temporary WAV placeholder with a random UUID name (V05 Step 3).
+    static func createPrivateWAVFile(in directory: URL) throws -> URL {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent("voza-\(UUID().uuidString).wav")
+        guard FileManager.default.createFile(
+            atPath: url.path,
+            contents: Data(),
+            attributes: [.posixPermissions: 0o600]
+        ) else {
+            throw AudioRecorderError.writeFailed
+        }
+        return url
+    }
+
+    /// Appends raw Float32 mono samples on `ioQueue` (used by both live capture and hermetic V05 tests).
+    func appendSamplesForTesting(_ samples: [Float], directory: URL) throws {
+        if !isRecording {
+            let url = try Self.createPrivateWAVFile(in: directory)
+            let handle = try FileHandle(forWritingTo: url)
+            try handle.write(contentsOf: Data(repeating: 0, count: 44))
+            ioQueue.sync {
+                self.fileHandle = handle
+                self.pcmBytes = 0
+                self.writeErrorOccurred = false
+            }
+            self.outputURL = url
+            stateLock.lock()
+            self._startedAt = Date()
+            self._isRecording = true
+            stateLock.unlock()
+        }
+        let data = samples.withUnsafeBufferPointer { Data(buffer: $0) }
+        var threw: Error?
+        ioQueue.sync {
+            do {
+                try self.writePCMDataOnIOQueue(data)
+            } catch {
+                threw = error
+            }
+        }
+        if let threw { throw threw }
     }
 
     func stop() -> URL? {
-        guard isRecording else { return nil }
-        isRecording = false
+        stateLock.lock()
+        guard _isRecording else {
+            stateLock.unlock()
+            return nil
+        }
+        _isRecording = false
+        _startedAt = nil
+        stateLock.unlock()
+
         setLevel(0)
         engine?.inputNode.removeTap(onBus: 0)
         engine?.stop()
         engine = nil
         converter = nil
+        targetFormat = nil
 
-        // P1-5: drain pending capture-thread writes BEFORE closing — no
-        // writer can exist past this point (tap removed + queue drained).
-        ioQueue.sync { }
-        if let handle = fileHandle {
-            try? handle.close()
+        var finalBytes: UInt64 = 0
+        var hadWriteError = false
+        ioQueue.sync {
+            finalBytes = self.pcmBytes
+            hadWriteError = self.writeErrorOccurred
+            try? self.fileHandle?.close()
+            self.fileHandle = nil
+            self.pcmBytes = 0
+            self.writeErrorOccurred = false
         }
-        fileHandle = nil
 
         guard let url = outputURL else { return nil }
-        finalizeWAVHeader(at: url, pcmBytes: pcmBytes)
-        // Full state reset: the file's ownership transfers to the caller; the
-        // recorder must not retain anything from the finished session.
         outputURL = nil
-        pcmBytes = 0
-        startedAt = nil
+
+        if hadWriteError {
+            try? FileManager.default.removeItem(at: url)
+            lastAsset = nil
+            return nil
+        }
+
+        Self.finalizeWAVHeader(at: url, pcmBytes: finalBytes)
+        lastAsset = try? AudioAsset.inspectWAV(at: url, ownsFile: true)
         return url
     }
 
     func cancel() {
-        if isRecording {
+        stateLock.lock()
+        let wasRecording = _isRecording
+        _isRecording = false
+        _startedAt = nil
+        stateLock.unlock()
+
+        if wasRecording {
             engine?.inputNode.removeTap(onBus: 0)
             engine?.stop()
         }
-        isRecording = false
         setLevel(0)
         engine = nil
         converter = nil
-        ioQueue.sync { } // P1-5: same drain discipline as stop()
-        try? fileHandle?.close()
-        fileHandle = nil
+        targetFormat = nil
+
+        ioQueue.sync {
+            try? self.fileHandle?.close()
+            self.fileHandle = nil
+            self.pcmBytes = 0
+            self.writeErrorOccurred = false
+        }
+
         if let url = outputURL {
             try? FileManager.default.removeItem(at: url)
         }
         outputURL = nil
-        pcmBytes = 0
+        lastAsset = nil
     }
 
-    // MARK: - Conversion (thread-safe via serial queue inside AVAudioConverter)
+    // MARK: - Conversion & Serialized I/O
 
     private func enqueue(_ buffer: AVAudioPCMBuffer) {
-        // P1-5: a block still in flight while stop() tears down must not
-        // enqueue after the drain — the flag is the latch.
-        guard isRecording, let converter, let target = targetFormat else { return }
+        stateLock.lock()
+        let active = _isRecording
+        stateLock.unlock()
+        guard active, let converter, let target = targetFormat else { return }
 
         let inputFrames = AVAudioFrameCount(Double(buffer.frameLength) * target.sampleRate / buffer.format.sampleRate + 64)
         guard let converted = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: max(inputFrames, 1024)) else { return }
@@ -202,22 +311,35 @@ final class AudioRecorder {
         let frames = Int(converted.frameLength)
         guard frames > 0 else { return }
 
-        // Level meter: RMS over this converted chunk (capture thread).
         var sum: Float = 0
         for i in 0..<frames { let s = channel[i]; sum += s * s }
         setLevel(Self.meterLevel(rms: Double(sqrt(sum / Float(frames)))))
 
-        let bytes = Data(buffer: UnsafeBufferPointer(start: channel, count: frames))
-        let data = bytes
+        let data = Data(buffer: UnsafeBufferPointer(start: channel, count: frames))
         ioQueue.async { [weak self] in
             guard let self else { return }
-            self.fileHandle?.write(data)
-            self.pcmBytes += UInt64(data.count)
+            try? self.writePCMDataOnIOQueue(data)
         }
     }
 
-    private func finalizeWAVHeader(at url: URL, pcmBytes: UInt64) {
-        let header = Self.wavHeader(dataBytes: UInt32(pcmBytes))
+    private func writePCMDataOnIOQueue(_ data: Data) throws {
+        guard let handle = fileHandle, !writeErrorOccurred else { return }
+        if pcmBytes + UInt64(data.count) > maxPCMBytes {
+            writeErrorOccurred = true
+            throw AudioRecorderError.byteLimitExceeded
+        }
+        do {
+            try handle.write(contentsOf: data)
+            pcmBytes += UInt64(data.count)
+        } catch {
+            writeErrorOccurred = true
+            throw AudioRecorderError.writeFailed
+        }
+    }
+
+    static func finalizeWAVHeader(at url: URL, pcmBytes: UInt64) {
+        let clampedBytes = UInt32(min(pcmBytes, UInt64(UInt32.max - 36)))
+        let header = Self.wavHeader(dataBytes: clampedBytes)
         if let handle = try? FileHandle(forWritingTo: url) {
             defer { try? handle.close() }
             try? handle.seek(toOffset: 0)
@@ -225,13 +347,6 @@ final class AudioRecorder {
         }
     }
 
-    /// Canonical 44-byte WAV header for 16 kHz mono Float32.
-    /// FIX (audit v2 §3.5 + deeper): (1) the format code must be 3
-    /// (WAVE_FORMAT_IEEE_FLOAT), not 1 — the payload IS Float32; (2) every field
-    /// must carry an EXPLICIT integer type — bare literals infer Int and write
-    /// 8 bytes each, producing a 64-byte malformed header (caught by the new
-    /// smoke check; whisper-cli never consumed our own WAVs before, only
-    /// external files, so it went unnoticed).
     static func wavHeader(dataBytes: UInt32, sampleRate: UInt32 = UInt32(Config.targetSampleRate)) -> Data {
         var header = Data(capacity: 44)
         func appendStr(_ s: String) { header.append(Data(s.utf8)) }
@@ -243,7 +358,7 @@ final class AudioRecorder {
         appendU16(3)                              // WAVE_FORMAT_IEEE_FLOAT (payload is Float32)
         appendU16(1)                              // mono
         appendU32(sampleRate)
-        appendU32(sampleRate * 4)                 // byte rate = rate × 1 ch × 4 bytes/sample
+        appendU32(sampleRate * 4)                 // byte rate = rate * 1 ch * 4 bytes/sample
         appendU16(4)                              // block align
         appendU16(32)                             // bits per sample
         appendStr("data"); appendU32(dataBytes)

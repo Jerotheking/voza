@@ -692,6 +692,101 @@ if let small = WhisperCatalog.byId("small-q5_1"), let big = WhisperCatalog.byId(
     check("disk guard covers model size", ReadinessChecker.requiredFreeMB(for: small) >= 190)
 }
 
+// 13. V03 (D057 pstack): Ground-truth keycodes + HotkeySessionReducer owner isolation & tap-disabled recovery
+do {
+    check("v03 ac01 rightOption=0x3D leftOption=0x3A",
+          VozaKeyCodes.rightOption == 0x3D &&
+          VozaKeyCodes.leftOption == 0x3A &&
+          VozaKeyCodes.rightControl == 0x3E &&
+          VozaKeyCodes.rightCommand == 0x36)
+    var hkReducer = HotkeySessionReducer()
+    let hkT1 = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: true, ctrl: false, cmd: false, shift: false,
+        rawFlags: VozaKeyCodes.deviceRightOptionMask
+    )
+    let hkT2 = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.leftOption,
+        alt: true, ctrl: false, cmd: false, shift: false,
+        rawFlags: VozaKeyCodes.deviceRightOptionMask | VozaKeyCodes.deviceLeftOptionMask
+    )
+    let hkT3 = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.leftOption,
+        alt: true, ctrl: false, cmd: false, shift: false,
+        rawFlags: VozaKeyCodes.deviceRightOptionMask
+    )
+    let hkT4 = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: false, ctrl: false, cmd: false, shift: false,
+        rawFlags: 0
+    )
+    check("v03 ac02 pressA->pressB->releaseB->releaseA owner isolation",
+          hkT1 == .started(ownerKeyCode: 0x3D) &&
+          hkT2 == .ignoredBusy(activeOwnerKeyCode: 0x3D, ignoredKeyCode: 0x3A) &&
+          hkT3 == .ignoredBusy(activeOwnerKeyCode: 0x3D, ignoredKeyCode: 0x3A) &&
+          hkT4 == .released(ownerKeyCode: 0x3D) &&
+          hkReducer.activeOwnerKeyCode == nil)
+    _ = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: true, ctrl: false, cmd: false, shift: false,
+        rawFlags: VozaKeyCodes.deviceRightOptionMask
+    )
+    let hkRepeat = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: true, ctrl: false, cmd: false, shift: false,
+        rawFlags: VozaKeyCodes.deviceRightOptionMask
+    )
+    let hkCancel = hkReducer.reset()
+    let hkLateUp = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: false, ctrl: false, cmd: false, shift: false,
+        rawFlags: 0
+    )
+    check("v03 ac03 repeat ignored + tapDisabled/stop unlatches cleanly",
+          hkRepeat == .none &&
+          hkCancel == .cancelled(previousOwnerKeyCode: 0x3D) &&
+          hkLateUp == .none &&
+          hkReducer.activeOwnerKeyCode == nil)
+    let hkChordDown = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: true, ctrl: false, cmd: true, shift: false
+    )
+    let hkChordUp = hkReducer.handleFlagsChanged(
+        keyCode: VozaKeyCodes.rightOption,
+        alt: false, ctrl: false, cmd: true, shift: false
+    )
+    check("v03 pstack chord shortcut never fires spurious release",
+          hkChordDown == .none && hkChordUp == .none)
+
+    // V04 (D058 pstack + opencode muse-spark): ProcessRunner bounded drain, cancellation, and SIGKILL escalation
+    let prRunner = ProcessRunner(maxStdoutBytes: 4096, maxStderrBytes: 4096, sigkillGraceSeconds: 0.1)
+    let prOk = try? prRunner.run(executablePath: "/bin/echo", arguments: ["voza-v04-ok"], timeout: 2.0)
+    check("v04 ac01 process runner stdout capture", prOk?.stdout.trimmingCharacters(in: .whitespacesAndNewlines) == "voza-v04-ok" && prOk?.exitCode == 0)
+    let prToken = ProcessCancellationToken()
+    prToken.cancel()
+    var prCancelled = false
+    do {
+        _ = try prRunner.run(executablePath: "/bin/sleep", arguments: ["5"], timeout: 5.0, cancellationToken: prToken)
+    } catch ProcessRunnerError.cancelled {
+        prCancelled = true
+    } catch {}
+    check("v04 ac02 pre-cancelled token throws cancelled", prCancelled)
+
+    // V05 (D059 pstack): AudioAsset WAV inspection, ownership discipline, and bounded AudioRecorder lifecycle
+    let v05Dir = FileManager.default.temporaryDirectory.appendingPathComponent("voza-v05-smoke-\(UUID().uuidString)", isDirectory: true)
+    defer { try? FileManager.default.removeItem(at: v05Dir) }
+    let v05Rec = AudioRecorder(maxPCMBytes: 128 * 1024)
+    try? v05Rec.appendSamplesForTesting([Float](repeating: 0.25, count: 1600), directory: v05Dir)
+    let v05URL = v05Rec.stop()
+    let v05Asset = v05URL.flatMap { try? AudioAsset.inspectWAV(at: $0, ownsFile: true) }
+    check("v05 ac01 wav inspect 16k float32 duration", v05Asset?.frameCount == 1600 && abs((v05Asset?.durationSeconds ?? 0) - 0.1) < 0.001)
+    let v05ReadOnly = v05URL.flatMap { try? AudioAsset.inspectWAV(at: $0, ownsFile: false) }
+    v05ReadOnly?.cleanupIfOwned()
+    check("v05 ac02 readOnly asset never deleted by cleanupIfOwned", v05URL.map { FileManager.default.fileExists(atPath: $0.path) } == true)
+    v05Asset?.cleanupIfOwned()
+    check("v05 ac03 owned asset deleted + second stop nil", v05Rec.stop() == nil && v05URL.map { !FileManager.default.fileExists(atPath: $0.path) } == true)
+}
+
 // V02-AC05: explicit accounting — SKIPs are listed, never counted as passes.
 if smokeSkips > 0 {
     print("[INFO] \(smokeSkips) opt-in suite(s) skipped — run with --integration / --live-real / e2e to include them.")

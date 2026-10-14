@@ -1,24 +1,8 @@
 import AppKit
 import CoreGraphics
 
-/// Global push-to-talk hotkeys via CGEventTap.
-/// Hold Option (either side) → dictation; release → paste (D032).
-///
-/// KEYCODE GROUND TRUTH (verified against Apple's HIToolbox Events.h, SDK 15.2):
-/// kVK_Option=0x3A(58, LEFT), kVK_RightOption=0x3D(61).
-///
-/// BINDING HISTORY: a second "cleanup" hotkey lived on Right ⌘, then LEFT
-/// Option (D021), until D032 (2026-09-15) removed the cleanup mode entirely —
-/// the owner measured that local-LLM polish could not win the latency war
-/// (D027-D031 guards kept tripping on a real machine). The owner's stated
-/// end-state — ONE behavior, ONE button — is now literal: both Options do
-/// the same thing, so muscle memory built on either key keeps working.
-/// Bare-modifier rule preserved: ⌥ held together with ⌃/⌘/⇧ is a real
-/// shortcut and never starts a dictation.
-enum VozaKeyCodes {
-    /// Both Option keys (D032): one behavior, no mode ambiguity.
-    static let dictation: Set<Int64> = [0x3D, 0x3A] // kVK_RightOption, kVK_Option (LEFT)
-}
+/// Global push-to-talk hotkeys via CGEventTap (V03 / D032 / D057).
+/// Hold Option (either side, 0x3D Right or 0x3A Left) -> dictation; release owner key -> paste.
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
@@ -26,19 +10,23 @@ final class HotKeyManager {
     var onRelease: (@MainActor () -> Void)?
 
     private var tap: CFMachPort?
-    private var normalDown = false
-    /// Watchdog that resurrects a dead tap. P1-3 (audit 2026-09-21): it used
-    /// to be un-owned — `stop()` left it running and 30 s later it silently
-    /// RE-CREATED the tap that had just been stopped. Owned + invalidated.
+    private var runLoopSource: CFRunLoopSource?
+    private(set) var reducer = HotkeySessionReducer()
+
+    /// True while a dictation key owns an active push-to-talk session.
+    var normalDown: Bool { reducer.activeOwnerKeyCode != nil }
+    /// The keyCode (`0x3D` or `0x3A`) that started the current session, if any.
+    var activeOwnerKeyCode: Int64? { reducer.activeOwnerKeyCode }
+
+    /// Watchdog that resurrects a dead tap. Invalidated on `stop()` so stopped
+    /// instances never resurrect their tap in the background (V03-AC03).
     private(set) var watchdog: Timer?
+
     /// Installation seam (hermetic tests inject a counting no-op; never
-    /// create real event taps from a test process). Default weakly captures
-    /// self and routes to the real installer.
+    /// create real event taps from a test process).
     var tapInstaller: () -> Void
 
     init(tapInstaller: (() -> Void)? = nil) {
-        // Two-phase: an injected closure initializes the property directly;
-        // the default needs self, which is only legal after phase 1.
         self.tapInstaller = tapInstaller ?? {}
         if tapInstaller == nil {
             self.tapInstaller = { [weak self] in self?.installTap() }
@@ -56,19 +44,18 @@ final class HotKeyManager {
     }
 
     private func installTap() {
+        tearDownTap()
         let mask = (1 << CGEventType.flagsChanged.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
             options: .listenOnly,
             eventsOfInterest: CGEventMask(mask),
-            callback: { proxy, type, event, refcon -> Unmanaged<CGEvent>? in
+            callback: { proxy, type, event, _ -> Unmanaged<CGEvent>? in
                 HotKeyManager.handle(proxy: proxy, type: type, event: event)
             },
             userInfo: nil
         ) else {
-            // Tap creation failed (usually missing Input Monitoring). Expose it
-            // instead of failing silently — "ready" must never be a lie (audit v2 §3.6).
             tapActive = false
             lastTapError = L.t("Global hotkey unavailable — grant Input Monitoring",
                                es: "Hotkey global no disponible — otorga Input Monitoring")
@@ -76,36 +63,57 @@ final class HotKeyManager {
         }
         self.tap = tap
         let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        self.runLoopSource = src
         CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
         tapActive = true
         lastTapError = nil
     }
 
-    /// True when the event tap was created and enabled. The watchdog retries
-    /// periodically, so this can flip back to true without relaunching.
+    private func tearDownTap() {
+        if let src = runLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), src, .commonModes)
+            CFRunLoopSourceInvalidate(src)
+            runLoopSource = nil
+        }
+        if let tap {
+            CGEvent.tapEnable(tap: tap, enable: false)
+            CFMachPortInvalidate(tap)
+            self.tap = nil
+        }
+    }
+
     private(set) var tapActive = false
-    /// Human-readable reason the tap is not active, for the Status home.
     private(set) var lastTapError: String?
 
-    /// Creates or re-enables the event tap on demand. Internal so the
-    /// onboarding's Input Monitoring step can trigger the OS prompt at the
-    /// moment the user clicks (rather than on their first dictation attempt).
     func ensureTapAlive() {
         guard let tap else {
             tapInstaller()
             return
         }
         if !CGEvent.tapIsEnabled(tap: tap) {
+            let transition = reducer.reset()
+            if case .cancelled(let previousOwner) = transition, previousOwner != nil {
+                Task { @MainActor [weak self] in self?.onRelease?() }
+            }
             CGEvent.tapEnable(tap: tap, enable: true)
+            tapActive = CGEvent.tapIsEnabled(tap: tap)
         }
     }
 
     private static func handle(proxy: CGEventTapProxy, type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
-        // Listen-only tap: we never modify or swallow events, so hand them back
-        // unretained. passRetained here would leak one CGEvent per keystroke.
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            let byTimeout = (type == .tapDisabledByTimeout)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    _ = shared.handleTapDisabled(byTimeout: byTimeout)
+                }
+            }
+            return Unmanaged.passUnretained(event)
+        }
         guard type == .flagsChanged else { return Unmanaged.passUnretained(event) }
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+        let rawFlags = event.flags.rawValue
         let alt = event.flags.contains(.maskAlternate)
         let ctrl = event.flags.contains(.maskControl)
         let cmd = event.flags.contains(.maskCommand)
@@ -113,38 +121,75 @@ final class HotKeyManager {
 
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                shared.handleFlagsChanged(keyCode: keyCode, alt: alt, ctrl: ctrl, cmd: cmd, shift: shift)
+                _ = shared.processFlagsChanged(
+                    keyCode: keyCode,
+                    alt: alt,
+                    ctrl: ctrl,
+                    cmd: cmd,
+                    shift: shift,
+                    rawFlags: rawFlags
+                )
             }
         }
         return Unmanaged.passUnretained(event)
     }
 
-    @MainActor private func handleFlagsChanged(keyCode: Int64, alt: Bool, ctrl: Bool, cmd: Bool, shift: Bool) {
-        let isDictationKey = VozaKeyCodes.dictation.contains(keyCode)
-
-        if isDictationKey {
-            // Fire only as a BARE modifier: if ⌃/⌘/⇧ is already held, this is
-            // a real shortcut (⌥⇧…, ⌥⌘…) — never hijack it for dictation.
-            if alt && !ctrl && !cmd && !shift && !normalDown {
-                normalDown = true
-                onPressNormal?()
-            } else if !alt {
-                normalDown = false
-            }
-            // Stop only when no hotkey is held anymore.
-            if !normalDown {
-                onRelease?()
-            }
+    @MainActor
+    @discardableResult
+    func processFlagsChanged(
+        keyCode: Int64,
+        alt: Bool,
+        ctrl: Bool,
+        cmd: Bool,
+        shift: Bool,
+        rawFlags: UInt64 = 0,
+        explicitIsDown: Bool? = nil
+    ) -> HotkeySessionReducer.Transition {
+        let transition = reducer.handleFlagsChanged(
+            keyCode: keyCode,
+            alt: alt,
+            ctrl: ctrl,
+            cmd: cmd,
+            shift: shift,
+            rawFlags: rawFlags,
+            explicitIsDown: explicitIsDown
+        )
+        switch transition {
+        case .started:
+            onPressNormal?()
+        case .released:
+            onRelease?()
+        case .none, .ignoredBusy, .cancelled:
+            break
         }
+        return transition
     }
 
+    @MainActor
+    @discardableResult
+    func handleTapDisabled(byTimeout: Bool) -> HotkeySessionReducer.Transition {
+        let transition = reducer.reset()
+        if case .cancelled(let previousOwner) = transition, previousOwner != nil {
+            onRelease?()
+        }
+        if byTimeout, let tap {
+            CGEvent.tapEnable(tap: tap, enable: true)
+            tapActive = CGEvent.tapIsEnabled(tap: tap)
+        } else {
+            tapActive = false
+        }
+        return transition
+    }
+
+    @MainActor
     func stop() {
         watchdog?.invalidate()
         watchdog = nil
-        if let tap {
-            CGEvent.tapEnable(tap: tap, enable: false)
+        tearDownTap()
+        tapActive = false
+        let transition = reducer.reset()
+        if case .cancelled(let previousOwner) = transition, previousOwner != nil {
+            onRelease?()
         }
-        tap = nil
-        normalDown = false
     }
 }

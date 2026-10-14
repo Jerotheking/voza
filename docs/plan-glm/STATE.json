@@ -125,151 +125,184 @@
       }
     },
     "V03": {
-      "status": "todo",
-      "owner": null,
-      "session": null,
-      "branch": null,
-      "base_commit": null,
-      "worktree": null,
-      "code_revision": null,
-      "reviewed_by": null,
-      "handoff": null,
+      "status": "done",
+      "owner": "jero-pstack",
+      "session": "2026-10-14-V03-pstack",
+      "branch": "codex/voza-V02-xctest-ci",
+      "base_commit": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f",
+      "worktree": "~/Developer/voza",
+      "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f",
+      "reviewed_by": "pstack-audit-2026-10-14",
+      "handoff": "sessions/2026-10-14-V03-pstack.md",
       "blocker": null,
       "acceptance": {
         "V03-AC01": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V03/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T19:48:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V03-AC02": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V03/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T19:48:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V03-AC03": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V03/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T19:48:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V03-AC04": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V03/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T19:48:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V03-AC05": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V03/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T19:48:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         }
-      }
+      },
+      "reviewed_at": "2026-10-14T19:48:00Z"
     },
     "V04": {
-      "status": "todo",
-      "owner": null,
-      "session": null,
-      "branch": null,
-      "base_commit": null,
-      "worktree": null,
-      "code_revision": null,
-      "reviewed_by": null,
-      "handoff": null,
+      "status": "done",
+      "owner": "jero-pstack-opencode",
+      "session": "2026-10-14-V04-pstack-opencode",
+      "branch": "codex/voza-V02-xctest-ci",
+      "base_commit": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f",
+      "worktree": "~/Developer/voza",
+      "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f",
+      "reviewed_by": "opencode-muse-spark-1.3-contributor + pstack",
+      "handoff": "sessions/2026-10-14-V04-pstack-opencode.md",
       "blocker": null,
       "acceptance": {
         "V04-AC01": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V04/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:02:00Z",
+          "verified_by": "jero-pstack-opencode",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V04-AC02": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V04/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:02:00Z",
+          "verified_by": "jero-pstack-opencode",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V04-AC03": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V04/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:02:00Z",
+          "verified_by": "jero-pstack-opencode",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V04-AC04": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V04/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:02:00Z",
+          "verified_by": "jero-pstack-opencode",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V04-AC05": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V04/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:02:00Z",
+          "verified_by": "jero-pstack-opencode",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         }
-      }
+      },
+      "reviewed_at": "2026-10-14T20:02:00Z"
     },
     "V05": {
-      "status": "todo",
-      "owner": null,
-      "session": null,
-      "branch": null,
-      "base_commit": null,
-      "worktree": null,
-      "code_revision": null,
-      "reviewed_by": null,
-      "handoff": null,
+      "status": "done",
+      "owner": "jero-pstack",
+      "session": "2026-10-14-V05-pstack",
+      "branch": "codex/voza-V02-xctest-ci",
+      "base_commit": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f",
+      "worktree": "~/Developer/voza",
+      "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f",
+      "reviewed_by": "pstack-audit-2026-10-14",
+      "handoff": "sessions/2026-10-14-V05-pstack.md",
       "blocker": null,
       "acceptance": {
         "V05-AC01": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V05/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:16:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V05-AC02": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V05/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:16:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V05-AC03": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V05/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:16:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V05-AC04": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V05/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:16:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         },
         "V05-AC05": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V05/review-89b65cf.md"
+          ],
+          "verified_at": "2026-10-14T20:16:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "89b65cffc0f247d9670c4a32c3a16c4f4a47057f"
         }
-      }
+      },
+      "reviewed_at": "2026-10-14T20:16:00Z"
     },
     "V06": {
       "status": "todo",

@@ -111,42 +111,18 @@ final class Transcriber {
     }
 
     private func runProcess(launchPath: String, arguments: [String], timeout: TimeInterval) throws -> (stdout: String, stderr: String, exitCode: Int32) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: launchPath)
-        process.arguments = arguments
-        let outPipe = Pipe(), errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-        try process.run()
-
-        // D050 (F-05 fix): drain stdout and stderr concurrently while the child
-        // runs so a >64 KB output never fills the kernel pipe buffer and deadlocks.
-        var outData = Data()
-        var errData = Data()
-        let drainGroup = DispatchGroup()
-        drainGroup.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            outData = outPipe.fileHandleForReading.readDataToEndOfFile()
-            drainGroup.leave()
-        }
-        drainGroup.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            errData = errPipe.fileHandleForReading.readDataToEndOfFile()
-            drainGroup.leave()
-        }
-
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning && Date() < deadline {
-            Thread.sleep(forTimeInterval: 0.05)
-        }
-        if process.isRunning {
-            process.terminate()
-            drainGroup.wait()
+        let runner = ProcessRunner()
+        do {
+            let output = try runner.run(
+                executablePath: launchPath,
+                arguments: arguments,
+                timeout: timeout
+            )
+            return (output.stdout, output.stderr, output.exitCode)
+        } catch ProcessRunnerError.timedOut {
             throw TranscriptionError.transcriptionFailed("timeout")
+        } catch {
+            throw TranscriptionError.transcriptionFailed(error.localizedDescription)
         }
-        drainGroup.wait()
-        let out = String(data: outData, encoding: .utf8) ?? ""
-        let err = String(data: errData, encoding: .utf8) ?? ""
-        return (out, err, process.terminationStatus)
     }
 }

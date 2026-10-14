@@ -308,18 +308,10 @@ final class DictationPipelineTests: XCTestCase {
         XCTAssertEqual(w.events.list, ["resolve", "prompt", "transcribe", "rtf", "apply", "ax", "paste", "log"])
         XCTAssertTrue(w.learned.isEmpty)
     }
-}
-
-extension TranscriptionError {
-    /// Matches the pipeline's accessibility-denied failure message (D042 flow).
-    static var accessibilityDeniedMessage: String {
-        L.t("Accessibility permission needed for paste", es: "Falta permiso de Accesibilidad para pegar")
-    }
 
     func testSecureDestinationRefusesBeforeTranscribingOrLogging() async {
-        let wav = tempWAV()
-        var events: [String] = []
-        var p = makePipeline(wavURL: wav, events: &events)
+        let (mutP, w) = World.make(dir: try! makeDir())
+        var p = mutP
         p.isSecureDestination = { true }
 
         let outcome = await p.run()
@@ -328,7 +320,14 @@ extension TranscriptionError {
         } else {
             XCTFail("secure destination must fail closed")
         }
-        XCTAssertEqual(events, [], "must not resolve, transcribe, clean, paste, or log on a password field")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: wav.path), "temp WAV must still be deleted")
+        XCTAssertEqual(w.events.list, [], "must not resolve, transcribe, clean, paste, or log on a password field")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: w.wav.path), "temp WAV must still be deleted")
+    }
+}
+
+extension TranscriptionError {
+    /// Matches the pipeline's accessibility-denied failure message (D042 flow).
+    static var accessibilityDeniedMessage: String {
+        L.t("Accessibility permission needed for paste", es: "Falta permiso de Accesibilidad para pegar")
     }
 }

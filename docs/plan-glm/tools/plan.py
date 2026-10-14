@@ -397,6 +397,9 @@ def main():
     watcher_path = REPO / "Sources/VozaKit/Core/CorrectionWatcher.swift"
     if watcher_path.is_file() and "isLetter" not in watcher_path.read_text(encoding="utf-8"):
         errors.append("D051/D055 violado: CorrectionWatcher.swift debe exigir isLetter en ambos lados")
+    hk_binding_path = REPO / "Sources/VozaKit/Core/HotkeyBinding.swift"
+    if not hk_binding_path.is_file() or "HotkeySessionReducer" not in hk_binding_path.read_text(encoding="utf-8"):
+        errors.append("D057 (V03) violado: Sources/VozaKit/Core/HotkeyBinding.swift debe definir HotkeySessionReducer")
     print(json.dumps({"ok": not errors, "tickets": len(plan["tickets"]), "acceptance_criteria": sum(len(t["acceptance"]) for t in plan["tickets"]), "local_links_checked": checked, "errors": errors, "scope": "documentation_structure_only_not_product_verification"}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 
