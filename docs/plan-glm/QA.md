@@ -1,5 +1,7 @@
 # QA, evidencia y gates
 
+> **Palanca canónica de verificación (`D055` / `D056`):** Ejecutar `./scripts/verify.sh` desde la raíz del repositorio. Este script selecciona automáticamente un SDK compatible (`MacOSX15.2.sdk`) para evitar el fallo de `dyld` / `MacOSX27.0.sdk` de CommandLineTools, compila `VozaKit` y `VozaSmoke` sin warnings, corre las 3 suites herméticas (`default`, `v01`, `corrections` — 129 checks) y ejecuta `python3 -B docs/plan-glm/tools/plan.py validate`.
+
 Estado inicial: ningún gate de producto PASS. [evidence/baseline.json](evidence/baseline.json) prueba qué archivos se auditaron, no que la app funcione.
 
 ## 1. Pruebas herméticas antes de ejecutar suites

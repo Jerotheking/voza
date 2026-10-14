@@ -78,6 +78,7 @@ final class CorrectionStore {
         let h = heard.trimmingCharacters(in: .whitespacesAndNewlines)
         let s = said.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !h.isEmpty, !s.isEmpty, h != s else { return nil }
+        guard h.contains(where: \.isLetter), s.contains(where: \.isLetter) else { return nil }
         guard h.count <= CorrectionWatcher.maxLearnedChars,
               s.count <= CorrectionWatcher.maxLearnedChars else { return nil }
         // Same letter shape on a single token ("tiago" → "Tiago"): the

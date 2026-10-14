@@ -165,6 +165,9 @@ def validate_data(plan, state, root=ROOT, check_evidence=True):
                 errors.append(f"ownership solapado {left['id']}/{right['id']}: {sorted(overlaps)}")
     if not state.get("implementation_started") and any(s.get("status") in {"in_progress", "review", "done"} for s in states.values()):
         errors.append("Hay trabajo iniciado pero implementation_started=false")
+    for obsolete_tid in ("V21", "V22", "V23", "V24", "V25"):
+        if obsolete_tid in states and states[obsolete_tid].get("status") != "deferred":
+            errors.append(f"{obsolete_tid}: debe permanecer 'deferred' por D032/D054 (LLM local eliminado)")
     return errors
 
 
@@ -245,10 +248,11 @@ def check_links():
             if target.startswith(("https://", "http://", "app://", "#", "mailto:")):
                 continue
             target = re.sub(r":\d+$", "", target.split("#", 1)[0])
-            if target.startswith("~"):
-                # FIX 2026-09-08: privacy scrub rewrote /Users/<name> → ~ inside
-                # the plan package, but check_links never expanded ~, so links to
-                # existing repo files reported as broken. Expand like any shell.
+            if target.startswith("~/Developer/voza"):
+                # Resolve ~/Developer/voza against REPO even inside sandboxed AI
+                # agent shells where $HOME differs from the user's real home dir.
+                target = str(REPO) + target[len("~/Developer/voza"):]
+            elif target.startswith("~"):
                 target = os.path.expanduser(target)
             resolved = Path(target) if target.startswith("/") else p.parent / target
             checked += 1
@@ -273,11 +277,12 @@ def selftest(plan, state):
         ("ciclo", lambda p, s: p["tickets"][0]["depends_on"].append("V02")),
         ("dependencia_inexistente", lambda p, s: p["tickets"][0]["depends_on"].append("V999")),
         ("id_duplicado", lambda p, s: p["tickets"].append(copy.deepcopy(p["tickets"][0]))),
-        ("done_sin_evidencia", lambda p, s: s["tickets"]["V01"].update(status="done")),
-        ("pass_sin_evidencia", lambda p, s: s["tickets"]["V01"]["acceptance"]["V01-AC01"].update(status="PASS")),
+        ("done_sin_evidencia", lambda p, s: s["tickets"]["V01"].update(status="done", reviewed_by=None, code_revision=None)),
+        ("pass_sin_evidencia", lambda p, s: s["tickets"]["V01"]["acceptance"]["V01-AC01"].update(status="PASS", evidence=[])),
         ("bloqueo_sin_razon", lambda p, s: s["tickets"]["V01"].update(status="blocked")),
         ("ruta_fuera_repo", lambda p, s: p["tickets"][0]["files"].append("../../private")),
         ("ac_perdido", lambda p, s: s["tickets"]["V01"]["acceptance"].pop("V01-AC01")),
+        ("v21_no_deferred_d032", lambda p, s: s["tickets"]["V21"].update(status="todo")),
     ]
     for name, mutate in tests:
         p, s = copy.deepcopy(plan), copy.deepcopy(state)
@@ -371,6 +376,27 @@ def main():
                 errors.append(f"CODE-MAP no contiene {path}")
     checked, link_errors = check_links()
     errors += link_errors
+    # D056 (pstack encode-lessons-in-structures-not-prose): invariantes de código, empaquetado y precio
+    ent_path = REPO / "packaging/Voza.entitlements"
+    if ent_path.is_file() and "com.apple.security.automation.apple-events" in ent_path.read_text(encoding="utf-8"):
+        errors.append("D052 violado: packaging/Voza.entitlements no debe incluir com.apple.security.automation.apple-events")
+    verify_sh = REPO / "scripts/verify.sh"
+    if not verify_sh.is_file() or not os.access(verify_sh, os.X_OK):
+        errors.append("D055 violado: scripts/verify.sh debe existir y ser ejecutable (+x)")
+    for pub_doc in ("README.md", "site/index.html"):
+        pub_path = REPO / pub_doc
+        if pub_path.is_file():
+            pub_txt = pub_path.read_text(encoding="utf-8")
+            if "$9.99" in pub_txt:
+                errors.append(f"D053 violado: {pub_doc} contiene el precio obsoleto $9.99")
+            if "$15" not in pub_txt:
+                errors.append(f"D053 violado: {pub_doc} debe reflejar el precio Early Access canónico ($15)")
+    paster_path = REPO / "Sources/VozaKit/Core/Paster.swift"
+    if paster_path.is_file() and "isFocusedElementSecure" not in paster_path.read_text(encoding="utf-8"):
+        errors.append("D049/D055 violado: Paster.swift debe mantener isFocusedElementSecure()")
+    watcher_path = REPO / "Sources/VozaKit/Core/CorrectionWatcher.swift"
+    if watcher_path.is_file() and "isLetter" not in watcher_path.read_text(encoding="utf-8"):
+        errors.append("D051/D055 violado: CorrectionWatcher.swift debe exigir isLetter en ambos lados")
     print(json.dumps({"ok": not errors, "tickets": len(plan["tickets"]), "acceptance_criteria": sum(len(t["acceptance"]) for t in plan["tickets"]), "local_links_checked": checked, "errors": errors, "scope": "documentation_structure_only_not_product_verification"}, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

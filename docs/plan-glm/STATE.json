@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_on": "2026-09-25",
+  "updated_on": "2026-10-14",
   "canonical_checkout": "~/Developer/voza",
   "implementation_started": true,
   "product_gates": "NOT_RUN",
@@ -569,48 +569,61 @@
       "status": "done",
       "owner": "buffy",
       "session": "v12-keychain-credentials",
-      "branch": "codex/voza-V02-xctest-ci",
+      "branch": "codex/voza-V12-keychain",
       "worktree": "~/Developer/voza",
-      "reviewed_by": "buffy (in-session, 151/151 + smoke 61)",
+      "reviewed_by": "buffy + auditoria-2026-10-14",
       "handoff": "sessions/2026-09-25T1800Z-V12-buffy.md",
       "blocker": null,
       "acceptance": {
         "V12-AC01": {
           "status": "PASS",
           "evidence": [
-            "sessions/2026-09-25T1800Z-V12-buffy.md",
-            "Tests/VozaTests/ProviderPrivacyTests.swift"
-          ]
+            "evidence/V12/review-6df2016.md"
+          ],
+          "verified_at": "2026-09-25T18:00:00Z",
+          "verified_by": "buffy",
+          "code_revision": "6df20168f76b00f8a04a6ff9c45c8d2573a7c6ba"
         },
         "V12-AC02": {
           "status": "PASS",
           "evidence": [
-            "sessions/2026-09-25T1800Z-V12-buffy.md",
-            "Tests/VozaTests/ProviderPrivacyTests.swift"
-          ]
+            "evidence/V12/review-6df2016.md"
+          ],
+          "verified_at": "2026-09-25T18:00:00Z",
+          "verified_by": "buffy",
+          "code_revision": "6df20168f76b00f8a04a6ff9c45c8d2573a7c6ba"
         },
         "V12-AC03": {
           "status": "PASS",
           "evidence": [
-            "sessions/2026-09-25T1800Z-V12-buffy.md",
-            "Tests/VozaTests/ProviderPrivacyTests.swift"
-          ]
+            "evidence/V12/review-6df2016.md"
+          ],
+          "verified_at": "2026-09-25T18:00:00Z",
+          "verified_by": "buffy",
+          "code_revision": "6df20168f76b00f8a04a6ff9c45c8d2573a7c6ba"
         },
         "V12-AC04": {
           "status": "PASS",
           "evidence": [
-            "sessions/2026-09-25T1800Z-V12-buffy.md",
-            "Tests/VozaTests/ProviderPrivacyTests.swift"
-          ]
+            "evidence/V12/review-6df2016.md"
+          ],
+          "verified_at": "2026-09-25T18:00:00Z",
+          "verified_by": "buffy",
+          "code_revision": "6df20168f76b00f8a04a6ff9c45c8d2573a7c6ba"
         },
         "V12-AC05": {
           "status": "PASS",
           "evidence": [
-            "sessions/2026-09-25T1800Z-V12-buffy.md",
-            "Tests/VozaTests/ProviderPrivacyTests.swift"
-          ]
+            "evidence/V12/review-6df2016.md"
+          ],
+          "verified_at": "2026-09-25T18:00:00Z",
+          "verified_by": "buffy",
+          "code_revision": "6df20168f76b00f8a04a6ff9c45c8d2573a7c6ba"
         }
-      }
+      },
+      "base_commit": "e6e4684afa361d968d20818da23af29292517774",
+      "code_revision": "6df20168f76b00f8a04a6ff9c45c8d2573a7c6ba",
+      "reviewed_at": "2026-09-25T18:00:00Z"
     },
     "V13": {
       "status": "todo",
@@ -1005,7 +1018,7 @@
       }
     },
     "V21": {
-      "status": "todo",
+      "status": "deferred",
       "owner": null,
       "session": null,
       "branch": null,
@@ -1054,7 +1067,7 @@
       }
     },
     "V22": {
-      "status": "todo",
+      "status": "deferred",
       "owner": null,
       "session": null,
       "branch": null,
@@ -1103,7 +1116,7 @@
       }
     },
     "V23": {
-      "status": "todo",
+      "status": "deferred",
       "owner": null,
       "session": null,
       "branch": null,
@@ -1152,7 +1165,7 @@
       }
     },
     "V24": {
-      "status": "todo",
+      "status": "deferred",
       "owner": null,
       "session": null,
       "branch": null,
@@ -1201,7 +1214,7 @@
       }
     },
     "V25": {
-      "status": "todo",
+      "status": "deferred",
       "owner": null,
       "session": null,
       "branch": null,

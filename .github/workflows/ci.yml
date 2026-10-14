@@ -27,6 +27,9 @@ jobs:
       - name: Smoke (V01 isolation suite)
         run: swift run VozaSmoke v01
 
+      - name: Smoke (Corrections & Auto-Learn suite)
+        run: swift run VozaSmoke corrections
+
       # V02-AC04 (inspection): this workflow builds debug, runs tests and
       # hermetic smokes ONLY — no release build, no model downloads, no mic
       # capture, no network calls to providers, no secrets.

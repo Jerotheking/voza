@@ -71,8 +71,8 @@ struct OnboardingView: View {
                         : whisperFound
                             ? L.t("One download. Voza picks the right size for your Mac automatically.",
                                   es: "Una descarga. Voza elige el tamaño correcto para tu Mac automáticamente.")
-                            : L.t("Requires whisper.cpp (brew install whisper-cpp) — or one click in Settings → Status.",
-                                  es: "Requiere whisper.cpp (brew install whisper-cpp) — o un clic en Ajustes → Estado."),
+                            : L.t("Bundled whisper.cpp engine not found — rebuild Voza or check Settings → Status.",
+                                  es: "Motor whisper.cpp integrado no encontrado — recompila Voza o revisa Ajustes → Estado."),
                     actionTitle: engineReady || !whisperFound ? nil : L.t("Download recommended", es: "Descargar recomendado")
                 ) {
                     appState.downloadModel(id: appState.recommendedModelId)

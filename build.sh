@@ -2,6 +2,7 @@
 # Builds Voza.app from the SwiftPM package (no Xcode project needed).
 # Usage: ./build.sh [debug|release]
 set -euo pipefail
+rm -f .build/.lock
 cd "$(dirname "$0")"
 
 CONFIG="${1:-release}"

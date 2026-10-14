@@ -80,15 +80,23 @@ struct DictationPipeline {
     /// Pastes and returns the session the paste created (nil if none).
     var paste: (String) -> Paster.Session? = { text in
         Paster.paste(text)
-        return Paster.lastSession
     }
     var logTranscript: (String, _ cleaned: Bool) -> Void = { TranscriptStore.shared.add(text: $0, cleaned: $1) }
     var startLearning: (Paster.Session) -> Void = { CorrectionWatcher.shared.start(for: $0) }
     var accessibilityGranted: () -> Bool = { Permissions.accessibilityGranted }
+    var isSecureDestination: () -> Bool = { Paster.isFocusedElementSecure() }
 
     // MARK: Flow
 
     func run() async -> Outcome {
+        // 0. D049 (F-03): refuse to dictate into password / secure fields
+        // before transcribing, logging to ~/Dictation, or sending to Cloud AI.
+        if isSecureDestination() {
+            removeAudio()
+            return .failed(L.t("Voza doesn't dictate into password fields",
+                               es: "Voza no dicta en campos de contraseña"))
+        }
+
         // 1. Resolve the model ACTUALLY used (descriptor + path together) so
         // RTF is attributed to the real model, never a silently-fallen-back one.
         guard let resolved = resolveModel(preferredModelId, language) else {
@@ -117,6 +125,12 @@ struct DictationPipeline {
         // 3. Audio deleted right after transcription — before paste, on the
         // success path too. From here on the recording no longer exists.
         removeAudio()
+
+        // Re-check secure destination right before cloud/paste/log in case focus moved.
+        if isSecureDestination() {
+            return .failed(L.t("Voza doesn't dictate into password fields",
+                               es: "Voza no dicta en campos de contraseña"))
+        }
 
         // 4. Learned corrections are the source of truth for what gets pasted.
         text = applyCorrections(text)

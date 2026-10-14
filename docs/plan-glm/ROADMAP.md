@@ -1,5 +1,7 @@
 # Roadmap ejecutable y dependencias
 
+> **Nota operativa (`D054`–`D056`):** En `HEAD` actual, `V01`–`V12` están completados (`done`) y `V21`–`V25` están diferidos (`deferred` por `D032`, ahorrando 8.5 días de ingeniería). El siguiente ticket ejecutable del DAG es [V13](tickets/V13.md), pero para **lanzar y cobrar en Early Access ($15 USD)** la ruta crítica real es configurar [Polar.sh](https://polar.sh) y correr `./scripts/release.sh` (ver [START-HERE.md](START-HERE.md)).
+
 ## 1. Presupuesto corregido al detallar el plan
 
 [ASSUMED] Los 30 tickets comprometidos suman **54 días de ingeniería**; V31/V32 son backlog y suman 5 días orientativos adicionales de definición/implementación si se autorizan. Es una estimación por tareas, no una fecha garantizada. El informe histórico estimaba 35–42 días: el desglose amplió aislamiento, corpus, seguridad, UI y validación; prevalece este presupuesto operativo.

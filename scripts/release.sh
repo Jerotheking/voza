@@ -19,7 +19,13 @@ DMG="build/Voza-${VERSION}.dmg"
 echo "==> Building release"
 ./build.sh release
 
-echo "==> Signing with Developer ID (runtime hardened)"
+echo "==> Signing embedded whisper-cli helper with Developer ID (runtime hardened)"
+codesign --force --sign "$VOZA_SIGNING_ID" \
+  --options runtime \
+  --timestamp \
+  "$APP/Contents/MacOS/whisper-cli"
+
+echo "==> Signing app bundle with Developer ID (runtime hardened)"
 codesign --force --sign "$VOZA_SIGNING_ID" \
   --entitlements packaging/Voza.entitlements \
   --options runtime \

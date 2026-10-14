@@ -8,7 +8,8 @@ enum TranscriptionError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .binaryNotFound:
-            return L.t("whisper.cpp not found. Install with: brew install whisper-cpp", es: "whisper.cpp no encontrado. Instala con: brew install whisper-cpp")
+            return L.t("whisper.cpp not found. Reinstall Voza or set a binary in Advanced settings.",
+                       es: "whisper.cpp no encontrado. Reinstala Voza o configura el binario en Avanzado.")
         case .modelNotFound:
             return L.t("Whisper model not found. Download it from Voza settings.", es: "Modelo Whisper no encontrado. Descárgalo desde los ajustes de Voza.")
         case .transcriptionFailed(let msg):
@@ -22,14 +23,14 @@ enum TranscriptionError: LocalizedError {
 /// Runs whisper.cpp (`whisper-cli`) against a WAV file. Fully local, Metal-accelerated.
 final class Transcriber {
     /// Candidate locations for the whisper-cli binary, in priority order:
-    /// user override → BUNDLED (P0-2, audit 2026-09-21: a Gumroad customer
-    /// has no Homebrew — the app must be self-sufficient) → brew paths.
+    /// explicit user override (`whisperBinary`) → BUNDLED static v1.9.4 with
+    /// embedded Metal (D043/D050) → brew fallback paths.
     static func locateBinary() -> String? {
         let bundled = Bundle.main.executableURL?
             .deletingLastPathComponent()
             .appendingPathComponent("whisper-cli").path
         return locateBinary(candidates: [
-            Config.shared.resolvedWhisperBinary,
+            Config.shared.whisperBinary,
             bundled,
             "/opt/homebrew/bin/whisper-cli",
             "/usr/local/bin/whisper-cli",
@@ -118,16 +119,34 @@ final class Transcriber {
         process.standardError = errPipe
         try process.run()
 
+        // D050 (F-05 fix): drain stdout and stderr concurrently while the child
+        // runs so a >64 KB output never fills the kernel pipe buffer and deadlocks.
+        var outData = Data()
+        var errData = Data()
+        let drainGroup = DispatchGroup()
+        drainGroup.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+            drainGroup.leave()
+        }
+        drainGroup.enter()
+        DispatchQueue.global(qos: .userInitiated).async {
+            errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+            drainGroup.leave()
+        }
+
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline {
             Thread.sleep(forTimeInterval: 0.05)
         }
         if process.isRunning {
             process.terminate()
+            drainGroup.wait()
             throw TranscriptionError.transcriptionFailed("timeout")
         }
-        let out = String(data: outPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        drainGroup.wait()
+        let out = String(data: outData, encoding: .utf8) ?? ""
+        let err = String(data: errData, encoding: .utf8) ?? ""
         return (out, err, process.terminationStatus)
     }
 }

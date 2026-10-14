@@ -1,5 +1,7 @@
 # Contrato de producto: Literal y Pulido
 
+> **Nota de supersesión (`D032`, `D048`–`D051`):** El modo Pulido local (MLX/Ollama) fue eliminado en `D032` tras medir contención de GPU y swap en Macs reales. El modo predeterminado es **Literal** (100% local con `whisper.cpp` v1.9.4 + Metal embebido) enriquecido con **Auto-Learn local (`CorrectionWatcher` + `CorrectionStore`)**. El modo **AI cleanup (`cloud`)** es opt-in explícito con llaves en el Keychain de macOS (`V12`). Los tickets `V21`–`V25` están marcados como `deferred` en `STATE.json`.
+
 Estado: diseño propuesto, salvo D001/D002 aceptadas. Leer [DECISIONS.md](DECISIONS.md) antes de tratar defaults propuestos como aprobaciones comerciales.
 
 ## 1. Trabajo del usuario

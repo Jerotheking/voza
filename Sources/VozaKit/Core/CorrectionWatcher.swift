@@ -328,7 +328,12 @@ final class CorrectionWatcher {
         // guards (lengths, non-identity, containment in OUR paste).
         func valid(_ pair: (heard: String, said: String)?) -> (heard: String, said: String)? {
             guard let (h, fix) = pair else { return nil }
-            guard h.count >= 2, fix.count >= minSaidLength, h.count <= maxLearnedChars,
+            // D051 + D055 (pstack blast-radius): require at least one letter on both sides
+            // so pure number edits ("10" -> "45") never poison the dictionary, while 2-3 char
+            // acronyms and alphanumeric tokens ("ia" -> "AI", "v2" -> "v3", "s3" -> "S3") pass.
+            guard h.contains(where: \.isLetter), fix.contains(where: \.isLetter) else { return nil }
+            let effectiveMinSaid = fix.contains(where: { $0.isUppercase || $0.isNumber }) ? 2 : minSaidLength
+            guard h.count >= 2, fix.count >= effectiveMinSaid, h.count <= maxLearnedChars,
                   fix.count <= maxLearnedChars else { return nil }
             guard h != fix else { return nil } // nothing left to learn
             // Pure-case single-token pair ("tiago" → "Tiago"): dead weight —
@@ -430,8 +435,8 @@ final class CorrectionWatcher {
     /// period when the diff cut inside a word (mid-word expansion path).
     static func trimmedToWordBoundaries(_ s: String) -> String {
         var t = s
-        while let f = t.first, !f.isLetter, t.count > 1 { t.removeFirst() }
-        while let l = t.last, !l.isLetter, t.count > 1 { t.removeLast() }
+        while let f = t.first, !f.isLetter && !f.isNumber, t.count > 1 { t.removeFirst() }
+        while let l = t.last, !l.isLetter && !l.isNumber, t.count > 1 { t.removeLast() }
         return t
     }
 

@@ -44,9 +44,8 @@ struct StatusView: View {
                 if let suggestion = appState.perfSuggestion {
                     suggestionCard(suggestion)
                 }
-                if !readiness.engineFound && readiness.brewAvailable {
-                    brewCard
-                }
+                // D055 (subtract-before-you-add): whisper-cli is bundled statically (D043);
+                // never surface the legacy Homebrew installer card to end users.
                 if !appState.recent.isEmpty {
                     recentMiniList
                 }
@@ -113,11 +112,8 @@ struct StatusView: View {
         } else if !readiness.engineFound {
             hero(icon: "cpu", tint: .orange,
                  title: L.t("Speech engine missing", es: "Falta el motor de voz"),
-                 detail: L.t("Voza needs whisper.cpp (free, runs on your Mac). Install it with Homebrew in one click.",
-                             es: "Voza necesita whisper.cpp (gratis, corre en tu Mac). Instálalo con Homebrew en un clic."),
-                 buttonTitle: L.t("Install for me", es: "Instalar por mí")) {
-                brew.installEngine() // no-ops while a previous install is running
-            }
+                 detail: L.t("Voza's bundled whisper.cpp engine was not found. Reinstall Voza.app or check Settings → Advanced.",
+                             es: "No se encontró el motor whisper.cpp integrado de Voza. Reinstala Voza.app o revisa Ajustes → Avanzado."))
         } else if !readiness.modelAvailable {
             hero(icon: "arrow.down.circle", tint: Theme.accent,
                  title: L.t("Download your voice model", es: "Descarga tu modelo de voz"),
@@ -314,8 +310,8 @@ struct DictationSettings: View {
                 }
                 if appState.config.cleanupMode == "cloud" && appState.config.hasCleanupProvider {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(L.t("Runs on OpenAI-compatible APIs (OpenAI, OpenRouter, Groq…), then Anthropic as backup. Put your key in ~/.config/voza/.env:",
-                                 es: "Corre en APIs compatibles con OpenAI (OpenAI, OpenRouter, Groq…), con Anthropic de respaldo. Pon tu llave en ~/.config/voza/.env:"))
+                        Text(L.t("Runs on OpenAI-compatible APIs (OpenAI, Groq, OpenRouter…), with Anthropic as backup. Your key is stored securely in the macOS Keychain:",
+                                 es: "Corre en APIs compatibles con OpenAI (OpenAI, Groq, OpenRouter…), con Anthropic de respaldo. Tu llave se guarda segura en el Llavero de macOS:"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
                         Text("OPENAI_API_KEY=sk-…    # or ANTHROPIC_API_KEY=sk-ant-…")

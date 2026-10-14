@@ -67,11 +67,18 @@ final class AdversarialMatrixTests: XCTestCase {
             pasted: "cita a las 4 pm", typed: "cita a las 16 pm", expected: "cita a las 4 pm"))
     }
 
-    /// Alphanumeric token ("v2" → "v3") also dies on min said length —
-    /// documented silent skip, covered by manual ✏️ editing.
-    func testShortAlphanumericVersionBumpSkipped() {
-        XCTAssertNil(CorrectionWatcher.extractPair(
-            pasted: "el api v2 falla", typed: "el api v3 falla", expected: "el api v2 falla"))
+    /// D051 (F-09): Alphanumeric & uppercase technical tokens ("v2" → "v3",
+    /// "ia" → "AI", "ese tres" → "S3") are now learned (>= 2 chars with uppercase or digit).
+    func testShortAlphanumericAndAcronymLearned() {
+        let vPair = CorrectionWatcher.extractPair(
+            pasted: "el api v2 falla", typed: "el api v3 falla", expected: "el api v2 falla")
+        XCTAssertEqual(vPair?.heard, "v2")
+        XCTAssertEqual(vPair?.said, "v3")
+
+        let aiPair = CorrectionWatcher.extractPair(
+            pasted: "modelo de ia local", typed: "modelo de AI local", expected: "modelo de ia local")
+        XCTAssertEqual(aiPair?.heard, "ia")
+        XCTAssertEqual(aiPair?.said, "AI")
     }
 
     // MARK: - 3. Replacer semantics (apply must be surgical)

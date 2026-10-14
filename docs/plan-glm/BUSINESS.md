@@ -1,5 +1,10 @@
 # Negocio, distribución y operación
 
+> **Actualización ejecutiva (2026-10-14, D048–D054):**
+> - **Propuesta de valor (Hero):** *"Dicta. Se pega solo. Y aprende cuando corriges una palabra."* El diferenciador competitivo frente a opciones gratuitas (Spokenly, TypeWhisper, Handy) es el **bucle de Auto-Learn invisible (`CorrectionWatcher` + `CorrectionStore`, incl. Electron/Chromium sin VoiceOver)** + **soporte bilingüe EN/ES nativo** + **Daily Log en Markdown (`~/Dictation/YYYY-MM.md`)** + **Cloud AI opt-in en Keychain (Groq / OpenAI / Anthropic)**.
+> - **Precio y pasarela en 2 etapas (`D053`):** Etapa 1 (Early Access): **$15 pago único** en Gumroad (`jerotherey.gumroad.com/l/voza`, incluye 1 año de actualizaciones + pay-what-you-want opcional posterior per `D046`). Etapa 2 (v1.0 notarizado): **$29 pago único**, migrando nuevas ventas a **Polar.sh** (~4%+$0.40 MoR, ~8.3% efectivo vs ~18.2% en Gumroad) y manteniendo compatibilidad Gumroad en `LicenseManager` para compradores EA.
+> - **Informe completo de auditoría:** Ver [AUDITORIA-INTEGRAL-2026-10.md](../AUDITORIA-INTEGRAL-2026-10.md).
+
 Estado: propuestas; ver decisiones D010–D013. La investigación y cálculos completos están preservados en AUDITORIA-ORIGINAL, secciones 4 y 6. No reconsultados en esta fase de documentación; tarifas y licencias deben revalidarse antes de usarse para una decisión real.
 
 ## 1. Posicionamiento a validar

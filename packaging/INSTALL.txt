@@ -42,7 +42,7 @@ TROUBLESHOOTING
 - Nothing gets pasted: System Settings → Privacy & Security
   → Accessibility → enable Voza.
 - Changed your mind? Quit Voza and drag it to Trash.
-  Support: voza.app/support
+  Support: https://github.com/Jerotheking/voza/discussions
 
 -----------------------------------------------------
 
@@ -88,4 +88,4 @@ PROBLEMAS
 - No pega nada: Ajustes del Sistema → Privacidad y
   Seguridad → Accesibilidad → activa Voza.
 - ¿Te cambió de opinión? Cierra Voza y arrástralo a la
-  Papelera. Soporte: voza.app/support
+  Papelera. Soporte: https://github.com/Jerotheking/voza/discussions

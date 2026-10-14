@@ -177,6 +177,7 @@ if CommandLine.arguments.contains("corrections") {
     let clock = FixedClock(wall: Date(timeIntervalSince1970: 1_700_000_000))
 
     // AC-doctrine (V01-AC01): construction and reads create nothing.
+    let realCorrectionsBefore = try? Data(contentsOf: AppPaths.default.appSupport.appendingPathComponent("corrections.json"))
     let store = CorrectionStore(paths: paths, clock: clock)
     check("corrections construct+read creates nothing", !FileManager.default.fileExists(atPath: root.path))
     check("corrections empty store applies unchanged", CorrectionStore.apply("hola mundo", corrections: []) == "hola mundo")
@@ -184,10 +185,10 @@ if CommandLine.arguments.contains("corrections") {
 
     // Recording writes inside the QA root only.
     clock.advance(seconds: 1)
-    let first = store.record(heard: "tiago", said: "Tiago")
+    let first = store.record(heard: "tiego", said: "Tiago")
     check("corrections record returns entry", first != nil)
     check("corrections file inside qa root", FileManager.default.fileExists(atPath: paths.appSupport.appendingPathComponent("corrections.json").path))
-    check("corrections nothing outside qa root", !FileManager.default.fileExists(atPath: AppPaths.default.appSupport.appendingPathComponent("corrections.json").path))
+    check("corrections nothing outside qa root", (try? Data(contentsOf: AppPaths.default.appSupport.appendingPathComponent("corrections.json"))) == realCorrectionsBefore)
 
     // Invalid inputs rejected.
     check("corrections rejects empty heard", store.record(heard: "  ", said: "x") == nil)
@@ -195,7 +196,7 @@ if CommandLine.arguments.contains("corrections") {
 
     // Re-recording the same heard updates in place (no duplicates).
     clock.advance(seconds: 1)
-    _ = store.record(heard: "tiago", said: "Tiago Rey")
+    _ = store.record(heard: "tiego", said: "Tiago Rey")
     check("corrections re-record updates not duplicates", store.count == 1, "count=\(store.count)")
     check("corrections re-record keeps said", store.all().first?.said == "Tiago Rey")
 
@@ -214,8 +215,8 @@ if CommandLine.arguments.contains("corrections") {
                         Correction(id: UUID(), heard: "tiago rey", said: "Tiago Rey", createdAt: Date(timeIntervalSince1970: 0))]) == "Tiago Rey")
 
     // Diff extraction: word-level swap, char-level case fix, non-learnables.
-    let wordPair = CorrectionStore.diffCorrection(original: "hola tiago como estas", corrected: "hola Tiago como estas")
-    check("corrections diff word level", wordPair?.heard == "tiago" && wordPair?.said == "Tiago", "\(String(describing: wordPair))")
+    let wordPair = CorrectionStore.diffCorrection(original: "hola tiego como estas", corrected: "hola Tiago como estas")
+    check("corrections diff word level", wordPair?.heard == "tiego" && wordPair?.said == "Tiago", "\(String(describing: wordPair))")
     let casePair = CorrectionStore.diffCorrection(original: "tiago rey", corrected: "Tiago Rey")
     check("corrections diff case fix", casePair?.heard.lowercased() == "tiago rey", "\(String(describing: casePair))")
     check("corrections diff identical nil", CorrectionStore.diffCorrection(original: "a", corrected: "a") == nil)
@@ -223,7 +224,7 @@ if CommandLine.arguments.contains("corrections") {
     check("corrections diff pure deletion nil", CorrectionStore.diffCorrection(original: "hola mundo", corrected: "hola") == nil)
     // End-to-end pure: the diff feeds apply and changes the text.
     if let p = wordPair {
-        let fixed = CorrectionStore.apply("hola tiago como estas",
+        let fixed = CorrectionStore.apply("hola tiego como estas",
                                           corrections: [Correction(id: UUID(), heard: p.heard, said: p.said, createdAt: Date(timeIntervalSince1970: 0))])
         check("corrections diff feeds apply", fixed == "hola Tiago como estas", fixed)
     }
@@ -289,7 +290,7 @@ if CommandLine.arguments.contains("corrections") {
     check("watcher refuses too-short",
           CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "Hola, ok", expected: "Hola, esto es una prueva") == nil)
     check("watcher refuses insertion-only",
-          CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "Hola, esto es unaa prueva", expected: "Hola, esto es una prueva") == nil)
+          CorrectionWatcher.extractPair(pasted: "esto es una prueva", typed: "Hola, esto es muy una prueva", expected: "Hola, esto es una prueva") == nil)
     check("watcher refuses nothing-changed",
           CorrectionWatcher.extractPair(pasted: "hola", typed: "hola", expected: "hola") == nil)
     // Edits to the user's OWN surrounding context are never attributed to the model.
@@ -379,7 +380,7 @@ if CommandLine.arguments.contains("corrections") {
     do {
         let cfg = CorrectionWatcher.WatchConfig(pollIntervalSeconds: 0.8, windowSeconds: 10, stabilitySamples: 2)
         let expected = "Hola, esto es una prueva"
-        let samples = [expected, expected, "Hola, esto es una prueba", "Hola, esto es una prueba", "Hola, esto es una prueba"]
+        let samples = [expected, expected, "Hola, esto es una prueba", "Hola, esto es una prueba", "Hola, esto es una prueba", "Hola, esto es una prueba", "Hola, esto es una prueba"]
         let liveElement = AXUIElementCreateSystemWide() // never read for real: the fake reader ignores it
 
         func reader(for clock: FixedClock) -> (AXUIElement) -> String? {
@@ -413,6 +414,20 @@ if CommandLine.arguments.contains("corrections") {
                                         sleep: { clockC.advance(seconds: $0) }, sink: sinkC, config: cfg)
         check("watch integration refuses rewrite", c == false && sinkC.pairs.isEmpty)
     }
+
+    // D051 + D055: technical acronyms & alphanumeric tokens pass; pure numbers fail closed
+    let fixAcronym = CorrectionWatcher.extractPair(pasted: "modelo de ia local",
+                                                   typed: "modelo de AI local",
+                                                   expected: "modelo de ia local")
+    check("watcher learns 2-char uppercase acronym (D051)", fixAcronym?.heard == "ia" && fixAcronym?.said == "AI", "\(String(describing: fixAcronym))")
+    let fixAlphaNum = CorrectionWatcher.extractPair(pasted: "el api v2 falla",
+                                                    typed: "el api v3 falla",
+                                                    expected: "el api v2 falla")
+    check("watcher learns 2-char alphanumeric token (D051)", fixAlphaNum?.heard == "v2" && fixAlphaNum?.said == "v3", "\(String(describing: fixAlphaNum))")
+    let fixPureNumber = CorrectionWatcher.extractPair(pasted: "compra 10 entradas",
+                                                      typed: "compra 45 entradas",
+                                                      expected: "compra 10 entradas")
+    check("watcher refuses numeric-only replacement (D055 blast-radius)", fixPureNumber == nil, "\(String(describing: fixPureNumber))")
 
     // Teardown: remove only what this run owns.
     try? FileManager.default.removeItem(at: root)

@@ -218,7 +218,8 @@
         "Prueba física en perfil QA, sin registrar pulsaciones personales."
       ],
       "stop_conditions": [
-        "No asumir que Fn de teclados externos funciona igual que Apple; si API de estado lateral es incierta, documentar y verificar SDK."
+        "No asumir que Fn de teclados externos funciona igual que Apple; si API de estado lateral es incierta, documentar y verificar SDK.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1,
       "gate": "G0",
@@ -290,7 +291,8 @@
         "Ejecutar suite repetida bajo concurrencia controlada para doble completion."
       ],
       "stop_conditions": [
-        "Si el helper de tests requiere compilar/instalar otra herramienta, usar target/fixture Swift propio o herramientas ya presentes; no añadir dependencia sin necesidad."
+        "Si el helper de tests requiere compilar/instalar otra herramienta, usar target/fixture Swift propio o herramientas ya presentes; no añadir dependencia sin necesidad.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G0",
@@ -361,7 +363,8 @@
         "Registrar hardware, sample rate, frames y memoria; nunca contenido personal."
       ],
       "stop_conditions": [
-        "Si no hay hardware Bluetooth/USB, sus AC siguen pendientes y se documenta cobertura disponible."
+        "Si no hay hardware Bluetooth/USB, sus AC siguen pendientes y se documenta cobertura disponible.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G0",
@@ -436,7 +439,8 @@
         "swift build registrando warnings de concurrencia nuevos."
       ],
       "stop_conditions": [
-        "Una divergencia entre tipos del contrato y necesidades reales se registra antes de cambiar callers; no inventar confidence de motor."
+        "Una divergencia entre tipos del contrato y necesidades reales se registra antes de cambiar callers; no inventar confidence de motor.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1,
       "gate": "G0",
@@ -510,7 +514,8 @@
         "Fakes controlados con continuaciones para intercalar downloadFailed, stop, cancel y completion."
       ],
       "stop_conditions": [
-        "No introducir un actor que llama a AppState.shared para resolver dependencias; eso vuelve a crear acoplamiento y ciclos."
+        "No introducir un actor que llama a AppState.shared para resolver dependencias; eso vuelve a crear acoplamiento y ciclos.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G0",
@@ -582,7 +587,8 @@
         "Protocolo manual lock/sleep/session switch y secure fields en perfil QA; registrar cada variante."
       ],
       "stop_conditions": [
-        "Sin señal fiable de sesión/target, mantener inserción bloqueada o recoveryOnly; no fingir protección completa."
+        "Sin señal fiable de sesión/target, mantener inserción bloqueada o recoveryOnly; no fingir protección completa.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G1",
@@ -655,7 +661,8 @@
         "Matriz clipboard string/RTF/HTML/image/fileURLs/múltiples y copia en dos momentos distintos."
       ],
       "stop_conditions": [
-        "Si no es posible preservar un tipo lazy, documentar comportamiento antes de afirmar fidelidad total."
+        "Si no es posible preservar un tipo lazy, documentar comportamiento antes de afirmar fidelidad total.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G1",
@@ -732,7 +739,8 @@
         "Fixtures de DST/calendario/mes y archivos grandes sintéticos."
       ],
       "stop_conditions": [
-        "No migrar automáticamente datos reales durante desarrollo; usar fixtures. Resolver decisión de defaults legacy si existe uso."
+        "No migrar automáticamente datos reales durante desarrollo; usar fixtures. Resolver decisión de defaults legacy si existe uso.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G1",
@@ -806,7 +814,8 @@
         "Fixtures de JSON versión futura, TOML inválido, ruta inexistente y archivo sin permisos."
       ],
       "stop_conditions": [
-        "No añadir parser grande o dependencia nueva sin justificar compatibilidad real; no inventar soporte TOML completo con regex."
+        "No añadir parser grande o dependencia nueva sin justificar compatibilidad real; no inventar soporte TOML completo con regex.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G1",
@@ -821,7 +830,7 @@
       "id": "V12",
       "title": "Guardar credenciales en Keychain y fijar frontera de proveedores",
       "depends_on": [
-        "V11"
+        "V01"
       ],
       "files": [
         "Sources/VozaKit/Core/KeychainStore.swift",
@@ -947,7 +956,8 @@
         "Fixtures de HTTP status × JSON shape × cached/new activation; reloj atrasado/adelantado."
       ],
       "stop_conditions": [
-        "API externa ambigua requiere fuente oficial o sandbox; nunca usar clearCache como default de un error desconocido."
+        "API externa ambigua requiere fuente oficial o sandbox; nunca usar clearCache como default de un error desconocido.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G1",
@@ -1021,7 +1031,8 @@
         "Tests parametrizados de todos los modelos × auto/en/es × instalado/ausente/corrupto."
       ],
       "stop_conditions": [
-        "No recomendar un modelo que no tiene metadata lingüística verificable; unknown no equivale multilingual."
+        "No recomendar un modelo que no tiene metadata lingüística verificable; unknown no equivale multilingual.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G1",
@@ -1094,7 +1105,8 @@
         "Servidor/URLProtocol fixture local en memoria; cero descargas reales requeridas."
       ],
       "stop_conditions": [
-        "No descargar GB ni cortar red del equipo real por iniciativa propia."
+        "No descargar GB ni cortar red del equipo real por iniciativa propia.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G1",
@@ -1173,7 +1185,8 @@
         "Instalación manual de QA desde artefacto propio; no usar equipo de desarrollo como único clean-room."
       ],
       "stop_conditions": [
-        "Si binario/weights tienen licencia no resuelta o dylib no redistribuible, bloquear empaquetado de ese artefacto y documentar alternativa."
+        "Si binario/weights tienen licencia no resuelta o dylib no redistribuible, bloquear empaquetado de ese artefacto y documentar alternativa.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2.5,
       "gate": "G2",
@@ -1250,7 +1263,8 @@
         "Fakes de permisos y observadores con transiciones dirigidas; no sleeps como prueba de sincronización."
       ],
       "stop_conditions": [
-        "Si la API no confirma una capacidad, reportar unknown y acción de diagnóstico; no poner check verde por existencia de binario."
+        "Si la API no confirma una capacidad, reportar unknown y acción de diagnóstico; no poner check verde por existencia de binario.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G2",
@@ -1335,7 +1349,8 @@
         "Inspección runtime de switch, persistencia, acceso Settings y estado de licencia asíncrono."
       ],
       "stop_conditions": [
-        "No cambiar logo/nombre por preferencia de diseño; D012 sigue pendiente."
+        "No cambiar logo/nombre por preferencia de diseño; D012 sigue pendiente.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G2",
@@ -1409,7 +1424,8 @@
         "Recorrido fresh/denied/offline/poco disco/modelo corrupto y vuelta desde System Settings."
       ],
       "stop_conditions": [
-        "Sin preparación Pulido completa mostrarlo pendiente; no bloquear Literal funcional ni habilitar una feature falsa."
+        "Sin preparación Pulido completa mostrarlo pendiente; no bloquear Literal funcional ni habilitar una feature falsa.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G2",
@@ -1485,7 +1501,8 @@
         "Checklist manual UX con capturas sintéticas autorizadas y versión OS."
       ],
       "stop_conditions": [
-        "No capturar screenshots con transcripciones personales; preparar fixtures visuales."
+        "No capturar screenshots con transcripciones personales; preparar fixtures visuales.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G2",
@@ -1932,7 +1949,8 @@
         "Simular 8/16/32 GB, presión, red ausente y cambio de modo; luego benchmark real separado."
       ],
       "stop_conditions": [
-        "Si mayor modelo no tiene evidencia de mejor calidad, no vender ajuste como más preciso."
+        "Si mayor modelo no tiene evidencia de mejor calidad, no vender ajuste como más preciso.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G3",
@@ -2017,7 +2035,8 @@
         "Ejecutar protocolos manuales sin tccutil en perfil productivo y sin leer secretos."
       ],
       "stop_conditions": [
-        "Faltan apps/hardware: solicitar evidencia o reducir soporte comprometido mediante decisión, nunca marcar como PASS."
+        "Faltan apps/hardware: solicitar evidencia o reducir soporte comprometido mediante decisión, nunca marcar como PASS.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 3,
       "gate": "G4",
@@ -2100,7 +2119,8 @@
         "Registrar comandos exactos actuales del updater, no copiar flags obsoletos del informe."
       ],
       "stop_conditions": [
-        "Sin Developer ID/notarización autorizada mantener ticket bloqueado/review; no afirmar release listo usando firma local."
+        "Sin Developer ID/notarización autorizada mantener ticket bloqueado/review; no afirmar release listo usando firma local.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2.5,
       "gate": "G4",
@@ -2177,7 +2197,8 @@
         "No publicar landing ni enviar campañas en este ticket sin autorización específica."
       ],
       "stop_conditions": [
-        "Si decisiones del propietario siguen pendientes, entregar documento revisable y mantener criterio correspondiente pendiente."
+        "Si decisiones del propietario siguen pendientes, entregar documento revisable y mantener criterio correspondiente pendiente.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 1.5,
       "gate": "G4",
@@ -2246,7 +2267,8 @@
         "Registrar resultados de cohorte y soporte sin audios/transcripciones personales."
       ],
       "stop_conditions": [
-        "Sin beta consentida o permiso de publicación no simular participación ni conversiones."
+        "Sin beta consentida o permiso de publicación no simular participación ni conversiones.",
+        "D056 (pstack blast-radius): prohibido revertir las guardias de HEAD (D048–D055: isFocusedElementSecure en Paster/DictationPipeline, marcadores TransientType en NSPasteboard, guardia isLetter en CorrectionWatcher/CorrectionStore, prioridad del whisper-cli integrado en Transcriber, firma inside-out en scripts/release.sh y precio $15/$29). Ejecutar ./scripts/verify.sh antes de cerrar."
       ],
       "estimated_engineering_days": 2,
       "gate": "G5",

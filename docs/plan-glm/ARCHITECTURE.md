@@ -1,5 +1,7 @@
 # Arquitectura objetivo y contratos entre tickets
 
+> **Estado real en `HEAD` (`D048`–`D056`):** Los tickets `V01`–`V12` están `done`, `V21`–`V25` están `deferred` (`D032`: sin LLM local) y las guardias de seguridad/UX/release `D048`–`D055` ya están integradas en `Sources/VozaKit/`. Consultar siempre [DECISIONS.md](DECISIONS.md) y [STATE.json](STATE.json) antes de tocar cualquier componente.
+
 Estado: propuesta de implementación. No contiene APIs que ya existan por haber sido escritas aquí. Los nombres nuevos están asignados en PLAN.json/CODE-MAP; verificar el árbol antes de crearlos. Rutas relativas al repositorio, resueltas desde el checkout de la sesión.
 
 ## 1. Situación actual y frontera del cambio
