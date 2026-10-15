@@ -169,4 +169,98 @@ final class HotKeyManagerTests: XCTestCase {
         XCTAssertEqual(presses, 0)
         XCTAssertEqual(releases, 0, "Chord shortcut release must never trigger onRelease")
     }
+
+    // D064: Quick tap (< 0.28s) latches hands-free recording; second tap stops and transcribes;
+    // holding >= 0.28s acts as push-to-talk; pressing a regular key while holding Option cancels.
+    func testHybridTapToToggleAndHoldToTalk() {
+        let mgr = HotKeyManager(tapInstaller: {})
+        var presses = 0
+        var latches = 0
+        var releases = 0
+        var cancels = 0
+        mgr.onPressNormal = { presses += 1 }
+        mgr.onLatchHandsFree = { latches += 1 }
+        mgr.onRelease = { releases += 1 }
+        mgr.onCancel = { cancels += 1 }
+
+        // 1. Quick tap (< 0.28s): down at t=10.00, up at t=10.09 -> latches hands-free!
+        let tapDown = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.rightOption,
+            alt: true, ctrl: false, cmd: false, shift: false,
+            rawFlags: VozaKeyCodes.deviceRightOptionMask,
+            uptimeSeconds: 10.00
+        )
+        XCTAssertEqual(tapDown, .started(ownerKeyCode: 0x3D))
+        XCTAssertEqual(presses, 1)
+
+        let tapUp = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.rightOption,
+            alt: false, ctrl: false, cmd: false, shift: false,
+            rawFlags: 0,
+            uptimeSeconds: 10.09
+        )
+        XCTAssertEqual(tapUp, .latched(ownerKeyCode: 0x3D))
+        XCTAssertTrue(mgr.isLatchedHandsFree)
+        XCTAssertEqual(latches, 1)
+        XCTAssertEqual(releases, 0)
+
+        // 2. Second tap at t=14.00 stops and transcribes; its key-up at t=14.08 is absorbed cleanly.
+        let stopDown = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.rightOption,
+            alt: true, ctrl: false, cmd: false, shift: false,
+            rawFlags: VozaKeyCodes.deviceRightOptionMask,
+            uptimeSeconds: 14.00
+        )
+        XCTAssertEqual(stopDown, .released(ownerKeyCode: 0x3D))
+        XCTAssertFalse(mgr.isLatchedHandsFree)
+        XCTAssertNil(mgr.activeOwnerKeyCode)
+        XCTAssertEqual(releases, 1)
+
+        let stopUp = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.rightOption,
+            alt: false, ctrl: false, cmd: false, shift: false,
+            rawFlags: 0,
+            uptimeSeconds: 14.08
+        )
+        XCTAssertEqual(stopUp, .none)
+        XCTAssertEqual(presses, 1)
+        XCTAssertEqual(releases, 1)
+
+        // 3. Hold >= 0.28s: down at t=20.00, up at t=21.50 -> push-to-talk release!
+        _ = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.leftOption,
+            alt: true, ctrl: false, cmd: false, shift: false,
+            rawFlags: VozaKeyCodes.deviceLeftOptionMask,
+            uptimeSeconds: 20.00
+        )
+        let holdUp = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.leftOption,
+            alt: false, ctrl: false, cmd: false, shift: false,
+            rawFlags: 0,
+            uptimeSeconds: 21.50
+        )
+        XCTAssertEqual(holdUp, .released(ownerKeyCode: 0x3A))
+        XCTAssertEqual(presses, 2)
+        XCTAssertEqual(latches, 1)
+        XCTAssertEqual(releases, 2)
+
+        // 4. Option + regular key (e.g. ⌥+n for ñ) cancels embryonic session and absorbs Option key-up.
+        _ = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.rightOption,
+            alt: true, ctrl: false, cmd: false, shift: false,
+            rawFlags: VozaKeyCodes.deviceRightOptionMask,
+            uptimeSeconds: 30.00
+        )
+        let keyDownCancel = mgr.processKeyDown(keyCode: 45) // 'n'
+        XCTAssertEqual(keyDownCancel, .cancelled(previousOwnerKeyCode: 0x3D))
+        XCTAssertEqual(cancels, 1)
+        let absorbedUp = mgr.processFlagsChanged(
+            keyCode: VozaKeyCodes.rightOption,
+            alt: false, ctrl: false, cmd: false, shift: false,
+            rawFlags: 0,
+            uptimeSeconds: 30.08
+        )
+        XCTAssertEqual(absorbedUp, .none, "Option release after ⌥+key shortcut must not latch hands-free")
+        XCTAssertEqual(latches, 1)
+    }
 }

@@ -76,19 +76,35 @@ struct PopoverView: View {
 
     private var phaseTitle: String {
         switch appState.phase {
-        case .idle: return L.t("Hold Option to talk", es: "Mantén Option para hablar")
-        case .recording: return L.t("Recording…", es: "Grabando…")
-        case .transcribing: return L.t("Transcribing…", es: "Transcribiendo…")
-        case .failed(let msg): return msg
+        case .idle:
+            return L.t("Tap or hold Option to talk", es: "Toca o mantén Option para hablar")
+        case .recording:
+            return appState.isHandsFree
+                ? L.t("Recording (hands-free)…", es: "Grabando (manos libres)…")
+                : L.t("Recording…", es: "Grabando…")
+        case .transcribing:
+            return L.t("Transcribing…", es: "Transcribiendo…")
+        case .failed(let msg):
+            return msg
         }
     }
 
     private var phaseDetail: String {
         switch appState.phase {
-        case .idle: return L.t("100% local · nothing leaves your Mac", es: "100% local · nada sale de tu Mac")
-        case .recording: return String(format: "%.0f s", appState.elapsedSeconds)
-        case .transcribing: return L.t("100% on your Mac", es: "100% en tu Mac")
-        case .failed: return L.t("Hold Option to try again", es: "Mantén Option para intentar de nuevo")
+        case .idle:
+            return L.t("Tap = hands-free · Hold = push-to-talk · 100% local",
+                       es: "Toca = manos libres · Mantén = push-to-talk · 100% local")
+        case .recording:
+            let secs = String(format: "%.0f s", appState.elapsedSeconds)
+            if appState.isHandsFree {
+                return L.t("\(secs) · tap Option to finish (Esc cancels)",
+                           es: "\(secs) · toca Option para terminar (Esc cancela)")
+            }
+            return secs
+        case .transcribing:
+            return L.t("100% on your Mac", es: "100% en tu Mac")
+        case .failed:
+            return L.t("Tap or hold Option to try again", es: "Toca o mantén Option para intentar de nuevo")
         }
     }
 
@@ -128,30 +144,39 @@ struct PopoverView: View {
 
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(L.t("Last 10 transcripts", es: "Últimos 10 dictados"))
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 12).padding(.top, 8).padding(.bottom, 4)
+            HStack {
+                Text(L.t("Recent transcripts", es: "Transcripciones recientes"))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !appState.recent.isEmpty {
+                    Text("\(min(appState.recent.count, 20))")
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
 
             if appState.recent.isEmpty {
-                Text(L.t("Nothing yet — hold Option and speak.", es: "Nada aún — mantén Option y habla."))
-                    .font(.caption)
+                Text(L.t("Nothing yet — tap or hold Option and speak.",
+                         es: "Nada aún — toca o mantén Option y habla."))
+                    .font(.callout)
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12).padding(.bottom, 12)
+                    .padding(.horizontal, 14).padding(.bottom, 14)
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(appState.recent.prefix(10)) { entry in
+                        ForEach(appState.recent.prefix(20)) { entry in
                             TranscriptRow(entry: entry) {
                                 appState.copyToClipboard(entry.text)
                             } onEdit: { corrected in
                                 appState.learnCorrection(entry: entry, corrected: corrected)
                             }
-                            Divider().padding(.leading, 12)
+                            Divider().padding(.leading, 14)
                         }
                     }
                 }
-                .frame(maxHeight: 260)
+                .frame(minHeight: 280, maxHeight: 460)
             }
         }
     }
@@ -193,14 +218,16 @@ struct TranscriptRow: View {
     @State private var copied = false
     @State private var copyResetTask: Task<Void, Never>?
     @State private var isEditing = false
+    @State private var isExpanded = false
     @State private var draft = ""
 
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(alignment: .top, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
                 if isEditing {
                     TextField(L.t("Corrected text — Voza learns from this", es: "Texto corregido — Voza aprende de esto"), text: $draft, axis: .vertical)
-                        .font(.system(size: 11))
+                        .font(.system(size: 12.5))
+                        .lineLimit(3...8)
                         .textFieldStyle(.roundedBorder)
                         .onSubmit { commitEdit() }
                     HStack(spacing: 8) {
@@ -208,30 +235,49 @@ struct TranscriptRow: View {
                             commitEdit()
                         } label: {
                             Label(L.t("Save & teach", es: "Guardar y enseñar"), systemImage: "checkmark.circle.fill")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 11, weight: .semibold))
                         }
                         .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                         Button(role: .cancel) {
                             isEditing = false
                         } label: {
-                            Text(L.t("Cancel", es: "Cancelar")).font(.system(size: 10))
+                            Text(L.t("Cancel", es: "Cancelar")).font(.system(size: 11))
                         }
                         .buttonStyle(.borderless)
                     }
                 } else {
                     Text(entry.text)
-                        .font(.system(size: 11))
-                        .lineLimit(2)
+                        .font(.system(size: 12.5))
+                        .lineSpacing(2)
+                        .lineLimit(isExpanded ? nil : 8)
+                        .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .onTapGesture {
+                            if entry.text.count > 140 {
+                                isExpanded.toggle()
+                            }
+                        }
                 }
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Text("\(entry.dayLabel) \(entry.timeLabel)")
                     if entry.cleaned {
                         Image(systemName: "sparkles").foregroundStyle(Theme.accent)
                     }
+                    if !isEditing && entry.text.count > 220 {
+                        Button {
+                            isExpanded.toggle()
+                        } label: {
+                            Text(isExpanded
+                                 ? L.t("Show less", es: "Ver menos")
+                                 : L.t("Show full", es: "Ver completo"))
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(Theme.accent)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .font(.system(size: 9))
+                .font(.system(size: 10))
                 .foregroundStyle(.secondary)
             }
             HStack(spacing: 6) {
@@ -260,10 +306,11 @@ struct TranscriptRow: View {
                         .foregroundStyle(copied ? Color.green : Color.secondary)
                 }
                 .buttonStyle(.borderless)
+                .help(L.t("Copy transcript", es: "Copiar transcripción"))
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onDisappear {
             copyResetTask?.cancel()

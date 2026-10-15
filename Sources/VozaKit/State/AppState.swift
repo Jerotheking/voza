@@ -35,6 +35,7 @@ final class AppState: ObservableObject {
     @Published var showOnboarding = false
     @Published var statusMessage: String?
     @Published var elapsedSeconds: Double = 0
+    @Published var isHandsFree: Bool = false
 
     let license = LicenseManager.shared
 
@@ -61,7 +62,7 @@ final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Push to talk
+    // MARK: - Push to talk & Tap to toggle (D064)
 
     func startDictation() {
         // V07-AC03: Busy phases block new starts; never spawn a second recorder/process.
@@ -78,6 +79,7 @@ final class AppState: ObservableObject {
             try recorder.start()
             activeSessionID = sessionID
             activeSessionSnapshot = snapshot
+            isHandsFree = false
             elapsedSeconds = 0
             tickTimer?.invalidate()
             tickTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -91,14 +93,22 @@ final class AppState: ObservableObject {
         } catch {
             activeSessionID = nil
             activeSessionSnapshot = nil
+            isHandsFree = false
             phase = .failed(error.localizedDescription)
         }
+    }
+
+    /// D064: Quick tap on Option (< 0.28s) latches the current recording into hands-free mode.
+    func latchHandsFree() {
+        guard case .recording = phase, activeSessionID != nil else { return }
+        isHandsFree = true
     }
 
     func stopDictation() {
         guard case .recording = phase, let sessionID = activeSessionID else { return }
         tickTimer?.invalidate()
         tickTimer = nil
+        isHandsFree = false
         // D062 (P2-5): read exact wall-clock duration from recorder before stopping
         // instead of the 0.25s-quantized UI timer property.
         let exactElapsed = max(recorder.elapsedSeconds, elapsedSeconds)
@@ -131,6 +141,7 @@ final class AppState: ObservableObject {
     func cancelDictation() {
         activeSessionID = nil
         activeSessionSnapshot = nil
+        isHandsFree = false
         tickTimer?.invalidate()
         tickTimer = nil
         activePipelineTask?.cancel()

@@ -114,13 +114,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // before the first dictation can read credentials.
         Config.adoptProductionKeychain()
         HotKeyManager.shared.start()
-        TranscriptStore.shared.loadRecent(limit: 10)
+        TranscriptStore.shared.loadRecent(limit: 20)
 
-        // Wire push-to-talk to the shared AppState. D032: one behavior — any
-        // Option key dictates and the raw transcript is pasted instantly.
+        // Wire hybrid push-to-talk + tap-to-toggle (D064) to the shared AppState.
         let appState = AppState.shared
         HotKeyManager.shared.onPressNormal = { appState.startDictation() }
+        HotKeyManager.shared.onLatchHandsFree = { appState.latchHandsFree() }
         HotKeyManager.shared.onRelease = { appState.stopDictation() }
+        HotKeyManager.shared.onCancel = { appState.cancelDictation() }
         appState.refresh()
         // HUD may need to hide if the app relaunches mid-busy-phase (D020).
         DictationHUDController.shared.update(phase: appState.phase)

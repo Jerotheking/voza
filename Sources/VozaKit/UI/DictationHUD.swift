@@ -14,7 +14,7 @@ final class DictationHUDController {
     static let shared = DictationHUDController()
 
     private var panel: NSPanel?
-    private let hudSize = NSSize(width: 148, height: 42)
+    private let hudSize = NSSize(width: 184, height: 42)
 
     func update(phase: VozaPhase) {
         if phase.isBusy {
@@ -77,9 +77,14 @@ struct DictationHUDView: View {
                 LevelBars(tint: .red)
                     .environmentObject(levelModel)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(L.t("Recording", es: "Grabando"))
+                    Text(appState.isHandsFree
+                         ? L.t("Hands-free", es: "Manos libres")
+                         : L.t("Recording", es: "Grabando"))
                         .font(.system(size: 11, weight: .semibold))
-                    Text(String(format: "%.0f s", appState.elapsedSeconds))
+                    Text(appState.isHandsFree
+                         ? L.t("\(String(format: "%.0f s", appState.elapsedSeconds)) · tap ⌥",
+                               es: "\(String(format: "%.0f s", appState.elapsedSeconds)) · toca ⌥")
+                         : String(format: "%.0f s", appState.elapsedSeconds))
                         .font(.system(size: 10))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)

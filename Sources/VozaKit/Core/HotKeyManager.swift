@@ -1,20 +1,25 @@
 import AppKit
 import CoreGraphics
 
-/// Global push-to-talk hotkeys via CGEventTap (V03 / D032 / D057).
-/// Hold Option (either side, 0x3D Right or 0x3A Left) -> dictation; release owner key -> paste.
+/// Global push-to-talk + tap-to-toggle hotkeys via CGEventTap (V03 / D032 / D057 / D064).
+/// - Hold Option (either side, 0x3D Right or 0x3A Left) -> dictation while held; release -> paste.
+/// - Quick tap Option (< 0.28s) -> latches hands-free dictation; tap Option again -> paste (or Esc -> cancel).
 final class HotKeyManager {
     static let shared = HotKeyManager()
 
     var onPressNormal: (@MainActor () -> Void)?
+    var onLatchHandsFree: (@MainActor () -> Void)?
     var onRelease: (@MainActor () -> Void)?
+    var onCancel: (@MainActor () -> Void)?
 
     private var tap: CFMachPort?
     private var runLoopSource: CFRunLoopSource?
     private(set) var reducer = HotkeySessionReducer()
 
-    /// True while a dictation key owns an active push-to-talk session.
+    /// True while a dictation key owns an active session (held or latched hands-free).
     var normalDown: Bool { reducer.activeOwnerKeyCode != nil }
+    /// True when the active session was latched via a quick tap on Option.
+    var isLatchedHandsFree: Bool { reducer.isLatchedHandsFree }
     /// The keyCode (`0x3D` or `0x3A`) that started the current session, if any.
     var activeOwnerKeyCode: Int64? { reducer.activeOwnerKeyCode }
 
@@ -45,7 +50,7 @@ final class HotKeyManager {
 
     private func installTap() {
         tearDownTap()
-        let mask = (1 << CGEventType.flagsChanged.rawValue)
+        let mask = (1 << CGEventType.flagsChanged.rawValue) | (1 << CGEventType.keyDown.rawValue)
         guard let tap = CGEvent.tapCreate(
             tap: .cghidEventTap,
             place: .headInsertEventTap,
@@ -94,7 +99,13 @@ final class HotKeyManager {
         if !CGEvent.tapIsEnabled(tap: tap) {
             let transition = reducer.reset()
             if case .cancelled(let previousOwner) = transition, previousOwner != nil {
-                Task { @MainActor [weak self] in self?.onRelease?() }
+                Task { @MainActor [weak self] in
+                    if let onCancel = self?.onCancel {
+                        onCancel()
+                    } else {
+                        self?.onRelease?()
+                    }
+                }
             }
             CGEvent.tapEnable(tap: tap, enable: true)
             tapActive = CGEvent.tapIsEnabled(tap: tap)
@@ -111,6 +122,15 @@ final class HotKeyManager {
             }
             return Unmanaged.passUnretained(event)
         }
+        if type == .keyDown {
+            let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    _ = shared.processKeyDown(keyCode: keyCode)
+                }
+            }
+            return Unmanaged.passUnretained(event)
+        }
         guard type == .flagsChanged else { return Unmanaged.passUnretained(event) }
         let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
         let rawFlags = event.flags.rawValue
@@ -118,6 +138,7 @@ final class HotKeyManager {
         let ctrl = event.flags.contains(.maskControl)
         let cmd = event.flags.contains(.maskCommand)
         let shift = event.flags.contains(.maskShift)
+        let uptime = ProcessInfo.processInfo.systemUptime
 
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
@@ -127,7 +148,8 @@ final class HotKeyManager {
                     ctrl: ctrl,
                     cmd: cmd,
                     shift: shift,
-                    rawFlags: rawFlags
+                    rawFlags: rawFlags,
+                    uptimeSeconds: uptime
                 )
             }
         }
@@ -143,7 +165,8 @@ final class HotKeyManager {
         cmd: Bool,
         shift: Bool,
         rawFlags: UInt64 = 0,
-        explicitIsDown: Bool? = nil
+        explicitIsDown: Bool? = nil,
+        uptimeSeconds: TimeInterval? = nil
     ) -> HotkeySessionReducer.Transition {
         let transition = reducer.handleFlagsChanged(
             keyCode: keyCode,
@@ -152,15 +175,40 @@ final class HotKeyManager {
             cmd: cmd,
             shift: shift,
             rawFlags: rawFlags,
-            explicitIsDown: explicitIsDown
+            explicitIsDown: explicitIsDown,
+            uptimeSeconds: uptimeSeconds
         )
         switch transition {
         case .started:
             onPressNormal?()
+        case .latched:
+            onLatchHandsFree?()
         case .released:
             onRelease?()
-        case .none, .ignoredBusy, .cancelled:
+        case .cancelled(let previousOwner):
+            if previousOwner != nil {
+                if let onCancel {
+                    onCancel()
+                } else {
+                    onRelease?()
+                }
+            }
+        case .none, .ignoredBusy:
             break
+        }
+        return transition
+    }
+
+    @MainActor
+    @discardableResult
+    func processKeyDown(keyCode: Int64) -> HotkeySessionReducer.Transition {
+        let transition = reducer.handleNonModifierKeyDown(keyCode: keyCode)
+        if case .cancelled(let previousOwner) = transition, previousOwner != nil {
+            if let onCancel {
+                onCancel()
+            } else {
+                onRelease?()
+            }
         }
         return transition
     }
@@ -170,7 +218,11 @@ final class HotKeyManager {
     func handleTapDisabled(byTimeout: Bool) -> HotkeySessionReducer.Transition {
         let transition = reducer.reset()
         if case .cancelled(let previousOwner) = transition, previousOwner != nil {
-            onRelease?()
+            if let onCancel {
+                onCancel()
+            } else {
+                onRelease?()
+            }
         }
         if byTimeout, let tap {
             CGEvent.tapEnable(tap: tap, enable: true)
@@ -189,7 +241,11 @@ final class HotKeyManager {
         tapActive = false
         let transition = reducer.reset()
         if case .cancelled(let previousOwner) = transition, previousOwner != nil {
-            onRelease?()
+            if let onCancel {
+                onCancel()
+            } else {
+                onRelease?()
+            }
         }
     }
 }
