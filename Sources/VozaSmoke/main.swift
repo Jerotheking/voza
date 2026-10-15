@@ -785,6 +785,18 @@ do {
     check("v05 ac02 readOnly asset never deleted by cleanupIfOwned", v05URL.map { FileManager.default.fileExists(atPath: $0.path) } == true)
     v05Asset?.cleanupIfOwned()
     check("v05 ac03 owned asset deleted + second stop nil", v05Rec.stop() == nil && v05URL.map { !FileManager.default.fileExists(atPath: $0.path) } == true)
+
+    // V06 & V07 (D060 pstack): SessionSettingsSnapshot immutability, ProcessingOutcome, and pipeline cancellation
+    let v06Snap = SessionSettingsSnapshot(language: "es", preferredModelId: "large-v3-turbo", requestedMode: .polished, autoLearn: true, playSound: true)
+    let v06Data = try? JSONEncoder().encode(v06Snap)
+    let v06Decoded = v06Data.flatMap { try? JSONDecoder().decode(SessionSettingsSnapshot.self, from: $0) }
+    check("v06 ac01 snapshot codable roundtrip", v06Decoded == v06Snap && SessionMode.literal.rawValue == "literal")
+    let v06Out1 = ProcessingOutcome.polishedSuccess(original: "hola", result: "hola")
+    let v06Out2 = ProcessingOutcome.polishedFallback(rawText: "hola", status: .unavailable, reason: "offline")
+    check("v06 ac02 processing outcome unchanged vs unavailable", !v06Out1.didRewrite && v06Out1.status == .unchanged && v06Out2.status == .unavailable && v06Out2.appliedMode == .literal)
+    let v07CancelOut = ProcessingOutcome.cancelled(rawText: "obsoleto", requestedMode: .polished)
+    check("v07 ac02 cancelled outcome preserves literal fallback without rewrite",
+          v07CancelOut.status == .cancelled && !v07CancelOut.didRewrite && v07CancelOut.appliedMode == .literal)
 }
 
 // V02-AC05: explicit accounting — SKIPs are listed, never counted as passes.

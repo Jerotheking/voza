@@ -239,9 +239,9 @@ final class Config {
 
     // MARK: - Explicit setters (persist to config.toml)
 
-    func setModel(_ v: String?)            { modelId = v;        if let v { raw["model"] = v }; persist() }
-    func setWhisperBinary(_ v: String?)    { whisperBinary = v;  if let v { raw["whisper_binary"] = v }; persist() }
-    func setModelsDirectory(_ v: String?)  { modelsDirectory = v; if let v { raw["models_dir"] = v }; persist() }
+    func setModel(_ v: String?)            { modelId = v;        if let v { raw["model"] = v } else { raw.removeValue(forKey: "model") }; persist() }
+    func setWhisperBinary(_ v: String?)    { whisperBinary = v;  if let v { raw["whisper_binary"] = v } else { raw.removeValue(forKey: "whisper_binary") }; persist() }
+    func setModelsDirectory(_ v: String?)  { modelsDirectory = v; if let v { raw["models_dir"] = v } else { raw.removeValue(forKey: "models_dir") }; persist() }
     /// D032: only two modes exist. "plain" (default) never touches the
     /// network; "cloud" is the explicit opt-in. Anything else is clamped to
     /// plain — the privacy invariant (no net without explicit consent) is
@@ -292,5 +292,5 @@ final class Config {
     var resolvedLogDirectory: String {
         logDirectory ?? paths.history.path
     }
-    var resolvedWhisperBinary: String { whisperBinary ?? "/opt/homebrew/bin/whisper-cli" }
+    var resolvedWhisperBinary: String { Transcriber.locateBinary() ?? whisperBinary ?? "/opt/homebrew/bin/whisper-cli" }
 }

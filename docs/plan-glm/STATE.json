@@ -305,102 +305,124 @@
       "reviewed_at": "2026-10-14T20:16:00Z"
     },
     "V06": {
-      "status": "todo",
-      "owner": null,
-      "session": null,
-      "branch": null,
-      "base_commit": null,
-      "worktree": null,
-      "code_revision": null,
-      "reviewed_by": null,
-      "handoff": null,
+      "status": "done",
+      "owner": "jero-pstack",
+      "session": "2026-10-15-V06-pstack",
+      "branch": "codex/voza-V02-xctest-ci",
+      "base_commit": "c11d1c888fa53ac8a52df0860080fe2cb8484b23",
+      "worktree": "~/Developer/voza",
+      "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23",
+      "reviewed_by": "pstack-audit-2026-10-15",
+      "handoff": "sessions/2026-10-15-V06-pstack.md",
       "blocker": null,
       "acceptance": {
         "V06-AC01": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V06/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V06-AC02": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V06/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V06-AC03": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V06/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V06-AC04": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V06/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V06-AC05": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V06/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         }
-      }
+      },
+      "reviewed_at": "2026-10-15T09:55:00Z"
     },
     "V07": {
-      "status": "todo",
-      "owner": null,
-      "session": null,
-      "branch": null,
-      "base_commit": null,
-      "worktree": null,
-      "code_revision": null,
-      "reviewed_by": null,
-      "handoff": null,
+      "status": "done",
+      "owner": "jero-pstack",
+      "session": "2026-10-15-V07-pstack",
+      "branch": "codex/voza-V02-xctest-ci",
+      "base_commit": "c11d1c888fa53ac8a52df0860080fe2cb8484b23",
+      "worktree": "~/Developer/voza",
+      "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23",
+      "reviewed_by": "pstack-audit-2026-10-15",
+      "handoff": "sessions/2026-10-15-V07-pstack.md",
       "blocker": null,
       "acceptance": {
         "V07-AC01": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V07/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V07-AC02": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V07/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V07-AC03": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V07/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V07-AC04": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V07/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         },
         "V07-AC05": {
-          "status": "NOT_RUN",
-          "evidence": [],
-          "verified_at": null,
-          "verified_by": null,
-          "code_revision": null
+          "status": "PASS",
+          "evidence": [
+            "evidence/V07/review-c11d1c8.md"
+          ],
+          "verified_at": "2026-10-15T09:55:00Z",
+          "verified_by": "jero-pstack",
+          "code_revision": "c11d1c888fa53ac8a52df0860080fe2cb8484b23"
         }
-      }
+      },
+      "reviewed_at": "2026-10-15T09:55:00Z"
     },
     "V08": {
       "status": "todo",

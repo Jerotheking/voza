@@ -58,11 +58,15 @@ struct AudioAsset: Equatable, Sendable {
 
     /// Parses and validates a 44-byte canonical IEEE Float32 WAV file on disk (V05-AC01).
     static func inspectWAV(at url: URL, ownsFile: Bool = true) throws -> AudioAsset {
-        guard let data = try? Data(contentsOf: url) else {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let fileSize = attrs[.size] as? UInt64,
+              let handle = try? FileHandle(forReadingFrom: url) else {
             throw AudioAssetError.fileMissing
         }
-        guard data.count >= 44 else {
-            throw AudioAssetError.headerTooShort(data.count)
+        defer { try? handle.close() }
+        let data = (try? handle.read(upToCount: 44)) ?? Data()
+        guard fileSize >= 44, data.count == 44 else {
+            throw AudioAssetError.headerTooShort(Int(fileSize))
         }
 
         func readU16(_ offset: Int) -> UInt16 {
@@ -98,7 +102,7 @@ struct AudioAsset: Equatable, Sendable {
         }
 
         let dataBytesHeader = readU32(40)
-        let actualPayload = UInt64(data.count - 44)
+        let actualPayload = fileSize - 44
         guard UInt64(dataBytesHeader) == actualPayload else {
             throw AudioAssetError.payloadSizeMismatch(headerBytes: dataBytesHeader, actualBytes: actualPayload)
         }

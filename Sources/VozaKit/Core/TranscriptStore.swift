@@ -146,7 +146,8 @@ final class TranscriptStore {
         queue.async { [weak self] in
             var files: [URL] = []
             for offset in [0, -1] {
-                let date = Calendar.current.date(byAdding: .month, value: offset, to: Date()) ?? Date()
+                let now = self?.clock.now ?? Date()
+                let date = Calendar.current.date(byAdding: .month, value: offset, to: now) ?? now
                 let url = self?.paths.history.appendingPathComponent("\(Self.monthFormatter.string(from: date)).md")
                 if let url, FileManager.default.fileExists(atPath: url.path) { files.append(url) }
             }

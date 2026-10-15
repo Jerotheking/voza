@@ -26,6 +26,10 @@ final class AppState: ObservableObject {
     @Published var downloadProgress: Double?
     @Published var downloadingModelId: String?
     @Published var downloadETA: String?
+    @Published var downloadError: String?
+    private(set) var activeSessionID: UUID?
+    private(set) var activeSessionSnapshot: SessionSettingsSnapshot?
+    private var activePipelineTask: Task<Void, Never>?
     @Published var perfSuggestion: PerformanceMonitor.Suggestion?
     @Published var showOnboarding = false
     @Published var statusMessage: String?
@@ -33,7 +37,8 @@ final class AppState: ObservableObject {
 
     let license = LicenseManager.shared
 
-    private let recorder = AudioRecorder.shared
+    let dependencies = AppDependencies.shared
+    private var recorder: AudioRecorder { dependencies.recorder }
     private var tickTimer: Timer?
     private var recordedSeconds: Double = 0
     private var downloadStartAt: Date?
@@ -58,8 +63,7 @@ final class AppState: ObservableObject {
     // MARK: - Push to talk
 
     func startDictation() {
-        // Allow (re)starting from both .idle and .failed — a failed attempt
-        // must never require quitting to retry. Busy phases block new starts.
+        // V07-AC03: Busy phases block new starts; never spawn a second recorder/process.
         guard !phase.isBusy else { return }
         guard !AudioRecorder.shared.isRecording else { return }
         guard Permissions.microphoneGranted else {
@@ -67,28 +71,37 @@ final class AppState: ObservableObject {
             showOnboarding = true
             return
         }
+        let sessionID = UUID()
+        let snapshot = SessionSettingsSnapshot(from: config)
         do {
             try recorder.start()
+            activeSessionID = sessionID
+            activeSessionSnapshot = snapshot
             elapsedSeconds = 0
             tickTimer?.invalidate()
             tickTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
                 Task { @MainActor [weak self] in
-                    guard let self, case .recording = self.phase else { return }
+                    // V07-AC05: ignore timer ticks from any superseded session ID.
+                    guard let self, self.activeSessionID == sessionID, case .recording = self.phase else { return }
                     self.elapsedSeconds = self.recorder.elapsedSeconds
                 }
             }
             phase = .recording
         } catch {
+            activeSessionID = nil
+            activeSessionSnapshot = nil
             phase = .failed(error.localizedDescription)
         }
     }
 
     func stopDictation() {
-        guard case .recording = phase else { return }
+        guard case .recording = phase, let sessionID = activeSessionID else { return }
         tickTimer?.invalidate()
         tickTimer = nil
         recordedSeconds = elapsedSeconds
         guard let wav = recorder.stop() else {
+            activeSessionID = nil
+            activeSessionSnapshot = nil
             phase = .idle
             return
         }
@@ -96,48 +109,74 @@ final class AppState: ObservableObject {
         if elapsedSeconds < 0.25 {
             recorder.cancel()
             try? FileManager.default.removeItem(at: wav)
+            activeSessionID = nil
+            activeSessionSnapshot = nil
             phase = .idle
             return
         }
+        let snapshot = activeSessionSnapshot ?? SessionSettingsSnapshot(from: config)
         phase = .transcribing
-        Task { await self.runPipeline(wavURL: wav) }
+        activePipelineTask = Task { [weak self] in
+            await self?.runPipeline(wavURL: wav, sessionID: sessionID, snapshot: snapshot)
+        }
     }
 
-    /// D042: the flow itself lives in DictationPipeline (deep module with
+    /// V07-AC02: Cancels the active session immediately; invalidates `activeSessionID`
+    /// first so any late async STT/cleanup completion is ignored.
+    func cancelDictation() {
+        activeSessionID = nil
+        activeSessionSnapshot = nil
+        tickTimer?.invalidate()
+        tickTimer = nil
+        activePipelineTask?.cancel()
+        activePipelineTask = nil
+        recorder.cancel()
+        if phase.isBusy {
+            phase = .idle
+        }
+    }
+
+    /// D042 + V07: the flow itself lives in DictationPipeline (deep module with
     /// injected seams). AppState only maps its outcome onto published UI
-    /// state — zero orchestration logic lives here anymore.
-    private func runPipeline(wavURL: URL) async {
+    /// state if `sessionID` still matches `activeSessionID` (V07-AC02, V07-AC05).
+    private func runPipeline(wavURL: URL, sessionID: UUID, snapshot: SessionSettingsSnapshot) async {
         var pipeline = DictationPipeline(
             wavURL: wavURL,
             recordedSeconds: recordedSeconds,
-            language: config.resolvedLanguage,
-            preferredModelId: config.resolvedModelId,
-            learnEnabled: config.autoLearn
+            language: snapshot.language,
+            preferredModelId: snapshot.preferredModelId,
+            learnEnabled: snapshot.autoLearn
         )
-        pipeline.onNotice = { [weak self] message in
-            self?.statusMessage = message
+        pipeline.isCancelled = { [weak self] in
+            Task.isCancelled || self?.activeSessionID != sessionID
         }
-        // P1-b (agy re-review 2026-09-22): a cloud-cleanup failure must be
-        // ANNOUNCED, never silent — the raw paste alone reads as a broken
-        // Pulido mode. Same surface as the fallback-model notice.
+        pipeline.onNotice = { [weak self] message in
+            guard let self, self.activeSessionID == sessionID else { return }
+            self.statusMessage = message
+        }
         pipeline.onCleanupUnavailable = { [weak self] in
-            self?.statusMessage = L.t("Cloud cleanup unavailable — pasted raw",
-                                      es: "Limpieza IA no disponible — pegado directo")
+            guard let self, self.activeSessionID == sessionID else { return }
+            self.statusMessage = L.t("Cloud cleanup unavailable — pasted raw",
+                                     es: "Limpieza IA no disponible — pegado directo")
         }
         let outcome = await pipeline.run()
+        guard self.activeSessionID == sessionID else { return }
+        self.activeSessionID = nil
+        self.activeSessionSnapshot = nil
+        self.activePipelineTask = nil
+
         switch outcome {
         case .pasted:
-            if config.playSound {
+            if snapshot.playSound {
                 NSSound(named: "Tink")?.play()
             }
-            // First-dictation teaching moment: exactly once, right after the
-            // first successful paste — the gesture and the learn-by-typing
-            // habit are taught while they're happening, not in a setup screen.
             if FirstRunExperience.firstDictationPending {
                 FirstRunExperience.markFirstDictationShown()
                 FirstDictationPanelController.shared.show()
             }
             refresh()
+            phase = .idle
+        case .cancelled:
             phase = .idle
         case .failed(let reason):
             refresh()
@@ -154,8 +193,10 @@ final class AppState: ObservableObject {
         let free = ReadinessChecker.freeDiskMB()
         let requiredMB = ReadinessChecker.requiredFreeMB(for: model)
         guard free >= requiredMB else {
-            phase = .failed(L.t("Only \(free) MB free — \(id) needs about \(requiredMB) MB. Free up space and retry.",
-                                es: "Solo \(free) MB libres — \(id) necesita unos \(requiredMB) MB. Libera espacio e intenta de nuevo."))
+            let msg = L.t("Only \(free) MB free — \(id) needs about \(requiredMB) MB. Free up space and retry.",
+                          es: "Solo \(free) MB libres — \(id) necesita unos \(requiredMB) MB. Libera espacio e intenta de nuevo.")
+            downloadError = msg
+            if !phase.isBusy { phase = .failed(msg) }
             return
         }
         downloadingModelId = id
@@ -183,7 +224,12 @@ final class AppState: ObservableObject {
                     statusMessage = L.t("Model \(id) ready", es: "Modelo \(id) listo")
                 }
             } catch {
-                phase = .failed(error.localizedDescription)
+                downloadError = error.localizedDescription
+                if !phase.isBusy {
+                    phase = .failed(error.localizedDescription)
+                } else {
+                    statusMessage = error.localizedDescription
+                }
             }
             downloadingModelId = nil
             downloadProgress = nil

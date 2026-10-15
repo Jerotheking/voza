@@ -161,6 +161,7 @@ final class DictationPipelineTests: XCTestCase {
         // recordedSeconds 4 → rtf 0.5.
         let (p, w) = World.make(dir: try! makeDir(), recordedSeconds: 4)
         let outcome = await p.run()
+        XCTAssertEqual(outcome, .pasted)
         XCTAssertEqual(w.rtfRecorded.first?.rtf ?? -1, 0.5, accuracy: 0.0001)
 
         // Floor: recordedSeconds 0 must divide by 0.5, never 0.
@@ -322,6 +323,26 @@ final class DictationPipelineTests: XCTestCase {
         }
         XCTAssertEqual(w.events.list, [], "must not resolve, transcribe, clean, paste, or log on a password field")
         XCTAssertFalse(FileManager.default.fileExists(atPath: w.wav.path), "temp WAV must still be deleted")
+    }
+
+    // V07-AC02: Late STT completion after session cancellation deletes audio and never pastes, logs, or learns.
+    func testCancelledSessionAfterTranscriptionNeverPastesOrLogs() async {
+        let (mutP, w) = World.make(dir: try! makeDir())
+        var p = mutP
+        var cancelledAfterSTT = false
+        p.transcribe = { url, _, _, _ in
+            w.events.add("transcribe")
+            cancelledAfterSTT = true
+            return "texto obsoleto"
+        }
+        p.isCancelled = { cancelledAfterSTT }
+
+        let outcome = await p.run()
+        XCTAssertEqual(outcome, .cancelled)
+        XCTAssertTrue(w.pasted.isEmpty, "Cancelled session must never paste")
+        XCTAssertTrue(w.logged.isEmpty, "Cancelled session must never log")
+        XCTAssertTrue(w.learned.isEmpty, "Cancelled session must never start watcher")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: w.wav.path), "Temp WAV must be deleted on cancel")
     }
 }
 

@@ -27,12 +27,14 @@ struct DictationPipeline {
 
     enum Outcome: Equatable {
         case pasted
+        case cancelled
         /// User-presentable, already-localized failure reason.
         case failed(String)
     }
 
     // MARK: Inputs (plain values — no Config singleton reach-in)
 
+    let sessionID: UUID = UUID()
     let wavURL: URL
     let recordedSeconds: Double
     let language: String
@@ -48,8 +50,9 @@ struct DictationPipeline {
         }
     var transcribe: (URL, _ modelPath: String, _ language: String, _ initialPrompt: String?) async throws -> String =
         { wav, modelPath, language, prompt in
-            try await Task.detached(priority: .userInitiated) {
-                try Transcriber().transcribe(wavURL: wav, modelPath: modelPath, language: language, initialPrompt: prompt)
+            let engine = WhisperSpeechEngine()
+            return try await Task.detached(priority: .userInitiated) {
+                try engine.transcribe(wavURL: wav, modelPath: modelPath, language: language, initialPrompt: prompt)
             }.value
         }
     var initialPrompt: () -> String? = { CorrectionStore.shared.initialPrompt() }
@@ -85,10 +88,16 @@ struct DictationPipeline {
     var startLearning: (Paster.Session) -> Void = { CorrectionWatcher.shared.start(for: $0) }
     var accessibilityGranted: () -> Bool = { Permissions.accessibilityGranted }
     var isSecureDestination: () -> Bool = { Paster.isFocusedElementSecure() }
+    var isCancelled: () -> Bool = { Task.isCancelled }
 
     // MARK: Flow
 
     func run() async -> Outcome {
+        if isCancelled() {
+            removeAudio()
+            return .cancelled
+        }
+
         // 0. D049 (F-03): refuse to dictate into password / secure fields
         // before transcribing, logging to ~/Dictation, or sending to Cloud AI.
         if isSecureDestination() {
@@ -126,6 +135,12 @@ struct DictationPipeline {
         // success path too. From here on the recording no longer exists.
         removeAudio()
 
+        // V07-AC02: if the session was cancelled while whisper was running, abort
+        // before cloud cleanup, paste, sound, or history logging.
+        if isCancelled() {
+            return .cancelled
+        }
+
         // Re-check secure destination right before cloud/paste/log in case focus moved.
         if isSecureDestination() {
             return .failed(L.t("Voza doesn't dictate into password fields",
@@ -147,6 +162,10 @@ struct DictationPipeline {
             } else {
                 onCleanupUnavailable()
             }
+        }
+
+        if isCancelled() {
+            return .cancelled
         }
 
         // 5. Paste + log. D032: the hook point lives here (4b); ✨ history
