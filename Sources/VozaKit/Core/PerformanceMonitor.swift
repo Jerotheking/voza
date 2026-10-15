@@ -73,8 +73,20 @@ final class PerformanceMonitor {
     func suggestion(currentModel: String, ramGB: Int, language: String) -> Suggestion? {
         let catalog = language == "en" ? WhisperCatalog.all
             : WhisperCatalog.all.filter { !$0.isEnglishOnly }
-        guard let median = medianRTF(model: currentModel),
-              let index = catalog.firstIndex(where: { $0.id == currentModel }) else { return nil }
+        guard let median = medianRTF(model: currentModel) else { return nil }
+        guard let index = catalog.firstIndex(where: { $0.id == currentModel }) else {
+            // D062 (P2-4): if the user is on an English-only model while dictating in ES/auto
+            // and experiencing slow RTF (>0.5), suggest the lightest multilingual model.
+            if median > 0.5, let lightestMultilingual = catalog.first {
+                let candidate = Suggestion(direction: .lighter, targetModelId: lightestMultilingual.id)
+                let dismissed = defaults.object(forKey: "voza.perfDismissed." + candidate.suppressionKey) as? Date
+                if let dismissed, clock.now.timeIntervalSince(dismissed) < Self.dismissalDays * 86_400 {
+                    return nil
+                }
+                return candidate
+            }
+            return nil
+        }
 
         let direction: Suggestion.Direction
         if median > 0.5 && index > 0 {

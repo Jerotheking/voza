@@ -117,6 +117,10 @@ final class CorrectionStore {
 
     // MARK: - Consumer 1: exact replacement
 
+    /// Maximum active replacement rules compiled into the regex alternation (D063 P2-4).
+    static let maxReplacementRules = 100
+    static let maxAlternationCharacters = 4_000
+
     /// Applies learned corrections to a transcript in ONE pass: a combined
     /// regex alternation (longest phrases first, so "tiago rey" wins over
     /// "tiago" at the same position) means inserted replacements are never
@@ -129,17 +133,32 @@ final class CorrectionStore {
         guard !corrections.isEmpty else { return text }
         var saidByHeard: [String: String] = [:]
         var phrases: [String] = []
-        for c in corrections {
+        let ordered = corrections.sorted { $0.createdAt > $1.createdAt }
+        for c in ordered {
             let key = c.heard.lowercased()
-            if saidByHeard[key] == nil { phrases.append(c.heard) }
+            if saidByHeard[key] == nil {
+                saidByHeard[key] = c.said
+                phrases.append(c.heard)
+                if phrases.count >= maxReplacementRules { break }
+            }
         }
         guard !phrases.isEmpty else { return text }
-        let alternation = phrases
-            .sorted { $0.count > $1.count }
-            .map { NSRegularExpression.escapedPattern(for: $0) }
-            .joined(separator: "|")
-        guard let regex = try? NSRegularExpression(pattern: "\\b(?:\(alternation))\\b", options: [.caseInsensitive]) else { return text }
-        for c in corrections { saidByHeard[c.heard.lowercased()] = c.said }
+        var escapedParts: [String] = []
+        var usedChars = 0
+        for phrase in phrases.sorted(by: { $0.count > $1.count }) {
+            let escaped = NSRegularExpression.escapedPattern(for: phrase)
+            if !escapedParts.isEmpty && usedChars + escaped.count + 1 > maxAlternationCharacters {
+                break
+            }
+            escapedParts.append(escaped)
+            usedChars += escaped.count + 1
+        }
+        let alternation = escapedParts.joined(separator: "|")
+        // D063 (P3-2): Unicode-aware word boundaries so diacritics/ñ at word edges match reliably.
+        let unicodePattern = "(?<![\\p{L}\\p{N}_])(?:\(alternation))(?![\\p{L}\\p{N}_])"
+        let regex = (try? NSRegularExpression(pattern: unicodePattern, options: [.caseInsensitive]))
+            ?? (try? NSRegularExpression(pattern: "\\b(?:\(alternation))\\b", options: [.caseInsensitive]))
+        guard let regex else { return text }
         let ns = text as NSString
         let full = NSRange(location: 0, length: ns.length)
         let matches = regex.matches(in: text, range: full)

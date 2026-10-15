@@ -49,9 +49,14 @@ xcrun stapler staple "$APP"
 xcrun stapler validate "$APP"
 
 echo "==> Creating DMG"
-rm -f "$DMG"
+STAGE="build/dmg-stage"
+rm -rf "$STAGE" "$DMG" "$DMG.sha256"
+mkdir -p "$STAGE"
+cp -R "$APP" "$STAGE/"
+ln -s /Applications "$STAGE/Applications"
+cp packaging/INSTALL.txt "$STAGE/"
 hdiutil create -volname "Voza $VERSION" \
-  -srcfolder "$APP" \
+  -srcfolder "$STAGE" \
   -ov -format UDZO \
   "$DMG"
 
@@ -62,6 +67,8 @@ xcrun notarytool submit build/Voza-dmg.zip \
   --wait
 xcrun stapler staple "$DMG"
 
+shasum -a 256 "$DMG" | awk '{print $1}' > "$DMG.sha256"
 echo ""
 echo "Release ready: $DMG"
-echo "Next: attach the DMG to the Gumroad product + GitHub release."
+echo "SHA-256:       $(cat "$DMG.sha256")"
+echo "Next: attach the DMG + .sha256 to the Gumroad product + GitHub release."

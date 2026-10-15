@@ -191,6 +191,7 @@ struct TranscriptRow: View {
     let onCopy: () -> Void
     var onEdit: ((String) -> Void)? = nil
     @State private var copied = false
+    @State private var copyResetTask: Task<Void, Never>?
     @State private var isEditing = false
     @State private var draft = ""
 
@@ -247,8 +248,13 @@ struct TranscriptRow: View {
                 }
                 Button {
                     onCopy()
+                    copyResetTask?.cancel()
                     copied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) { copied = false }
+                    copyResetTask = Task { @MainActor in
+                        try? await Task.sleep(nanoseconds: 1_200_000_000)
+                        guard !Task.isCancelled else { return }
+                        copied = false
+                    }
                 } label: {
                     Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .foregroundStyle(copied ? Color.green : Color.secondary)
@@ -259,6 +265,11 @@ struct TranscriptRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .contentShape(Rectangle())
+        .onDisappear {
+            copyResetTask?.cancel()
+            copyResetTask = nil
+            copied = false
+        }
     }
 
     /// Records the learned correction and pastes the fixed text immediately,

@@ -100,6 +100,8 @@ final class LicenseManager: ObservableObject {
                 state = .invalid(message: response.message
                     ?? L.t("That key was not accepted", es: "Esa llave no fue aceptada"))
             }
+        } catch is DecodingError {
+            state = .invalid(message: L.t("That key was not accepted", es: "Esa llave no fue aceptada"))
         } catch {
             state = .invalid(message: L.t("Could not reach Gumroad (offline?)", es: "No se pudo conectar a Gumroad (¿sin internet?)"))
         }
@@ -108,15 +110,42 @@ final class LicenseManager: ObservableObject {
     // MARK: - Trial
 
     private func computeTrialState() {
-        let key = "voza.trialStart"
+        let startKey = "voza.trialStart"
+        let maxWallKey = "voza.trialMaxWall"
+        let uptimeKey = "voza.trialStartUptime"
+
+        let now = clock.now
+        let uptime = clock.uptimeSeconds
+
         let start: Date
-        if let saved = defaults.object(forKey: key) as? Date {
+        if let saved = defaults.object(forKey: startKey) as? Date {
             start = saved
         } else {
-            start = clock.now
-            defaults.set(start, forKey: key)
+            start = now
+            defaults.set(start, forKey: startKey)
+            defaults.set(now, forKey: maxWallKey)
+            defaults.set(uptime, forKey: uptimeKey)
         }
-        let daysLeft = Self.trialDays - Int(clock.now.timeIntervalSince(start) / 86_400)
+
+        // D063 (P1-2): prevent backward wall-clock rollback from extending trial days,
+        // and cross-check against monotonic uptime when uptime has not reset across reboot.
+        let previousMaxWall = (defaults.object(forKey: maxWallKey) as? Date) ?? start
+        let effectiveNow = max(now, previousMaxWall)
+        if effectiveNow > previousMaxWall {
+            defaults.set(effectiveNow, forKey: maxWallKey)
+        }
+
+        let wallElapsed = max(0, effectiveNow.timeIntervalSince(start))
+        var monotonicElapsed: TimeInterval = 0
+        if let savedUptime = defaults.object(forKey: uptimeKey) as? TimeInterval,
+           uptime >= savedUptime {
+            monotonicElapsed = uptime - savedUptime
+        } else {
+            defaults.set(uptime, forKey: uptimeKey)
+        }
+
+        let elapsed = max(wallElapsed, monotonicElapsed)
+        let daysLeft = Self.trialDays - Int(elapsed / 86_400)
         state = daysLeft > 0 ? .trial(daysLeft: daysLeft) : .trialOver
     }
 
@@ -146,6 +175,14 @@ final class LicenseManager: ObservableObject {
         // 404 = unknown key → decode success:false. 5xx/other → throw for grace handling.
         if http.statusCode >= 500 {
             throw URLError(.badServerResponse)
+        }
+        if let decoded = try? JSONDecoder().decode(VerifyResponse.self, from: data) {
+            return decoded
+        }
+        // D063 (P2-3): 4xx with non-JSON/HTML body means the key/request was rejected,
+        // not that the user is offline.
+        if (400..<500).contains(http.statusCode) {
+            return VerifyResponse(success: false, message: nil, purchase: nil)
         }
         return try JSONDecoder().decode(VerifyResponse.self, from: data)
     }

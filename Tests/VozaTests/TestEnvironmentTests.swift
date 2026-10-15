@@ -77,8 +77,19 @@ final class TestEnvironmentTests: XCTestCase {
         env.clock.advance(seconds: 15 * 86_400)
         license.refreshIfNeeded()
         XCTAssertEqual(license.state, .trialOver)
+        // D063 (P1-2): rolling wall clock backward by 30 days must NOT revive the trial.
+        env.clock.advance(seconds: 1, wallSeconds: -30 * 86_400)
+        license.refreshIfNeeded()
+        XCTAssertEqual(license.state, .trialOver)
         // Trial start persisted in the ISOLATED defaults only.
         XCTAssertNotNil(env.defaults.object(forKey: "voza.trialStart"))
+    }
+
+    func testD063UnicodeWordBoundariesAndDedupeInCorrectionStore() {
+        let older = Correction(id: UUID(), heard: "piña", said: "PiñaVieja", createdAt: Date(timeIntervalSince1970: 100))
+        let newer = Correction(id: UUID(), heard: "piña", said: "PiñaColada", createdAt: Date(timeIntervalSince1970: 200))
+        let out = CorrectionStore.apply("Quiero una piña fría", corrections: [older, newer])
+        XCTAssertEqual(out, "Quiero una PiñaColada fría")
     }
 
     func testFixedClockWallAndElapsedAreIndependent() {

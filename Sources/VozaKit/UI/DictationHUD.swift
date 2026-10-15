@@ -129,6 +129,11 @@ final class HUDLevelModel: ObservableObject {
             }
     }
 
+    deinit {
+        cancellable?.cancel()
+        timer?.invalidate()
+    }
+
     private func start() {
         guard timer == nil else { return }
         let t = Timer(timeInterval: 1.0 / 30.0, repeats: true) { [weak self] _ in

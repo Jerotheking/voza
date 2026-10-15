@@ -30,6 +30,7 @@ final class AppState: ObservableObject {
     private(set) var activeSessionID: UUID?
     private(set) var activeSessionSnapshot: SessionSettingsSnapshot?
     private var activePipelineTask: Task<Void, Never>?
+    private var downloadTask: Task<Void, Never>?
     @Published var perfSuggestion: PerformanceMonitor.Suggestion?
     @Published var showOnboarding = false
     @Published var statusMessage: String?
@@ -98,7 +99,11 @@ final class AppState: ObservableObject {
         guard case .recording = phase, let sessionID = activeSessionID else { return }
         tickTimer?.invalidate()
         tickTimer = nil
-        recordedSeconds = elapsedSeconds
+        // D062 (P2-5): read exact wall-clock duration from recorder before stopping
+        // instead of the 0.25s-quantized UI timer property.
+        let exactElapsed = max(recorder.elapsedSeconds, elapsedSeconds)
+        elapsedSeconds = exactElapsed
+        recordedSeconds = exactElapsed
         guard let wav = recorder.stop() else {
             activeSessionID = nil
             activeSessionSnapshot = nil
@@ -202,8 +207,10 @@ final class AppState: ObservableObject {
         downloadingModelId = id
         downloadProgress = 0
         downloadETA = nil
+        downloadError = nil
         downloadStartAt = Date()
-        Task {
+        downloadTask = Task { [weak self] in
+            guard let self else { return }
             do {
                 try await ModelManager.shared.download(model) { [weak self] p in
                     Task { @MainActor in
@@ -224,18 +231,36 @@ final class AppState: ObservableObject {
                     statusMessage = L.t("Model \(id) ready", es: "Modelo \(id) listo")
                 }
             } catch {
-                downloadError = error.localizedDescription
-                if !phase.isBusy {
-                    phase = .failed(error.localizedDescription)
-                } else {
-                    statusMessage = error.localizedDescription
+                let isCancelled = Task.isCancelled
+                    || error is CancellationError
+                    || (error as? URLError)?.code == .cancelled
+                if !isCancelled {
+                    downloadError = error.localizedDescription
+                    if !phase.isBusy {
+                        phase = .failed(error.localizedDescription)
+                    } else {
+                        statusMessage = error.localizedDescription
+                    }
                 }
             }
-            downloadingModelId = nil
-            downloadProgress = nil
-            downloadETA = nil
-            downloadStartAt = nil
+            if !Task.isCancelled {
+                downloadingModelId = nil
+                downloadProgress = nil
+                downloadETA = nil
+                downloadStartAt = nil
+                downloadTask = nil
+            }
         }
+    }
+
+    func cancelDownload() {
+        downloadTask?.cancel()
+        downloadTask = nil
+        downloadingModelId = nil
+        downloadProgress = nil
+        downloadETA = nil
+        downloadError = nil
+        downloadStartAt = nil
     }
 
     /// One-tap model change from a performance suggestion.

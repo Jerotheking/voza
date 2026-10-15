@@ -47,12 +47,17 @@ enum Cleaner {
         guard config.resolvedCleanupMode == "cloud",
               !trimmed.isEmpty else { return CleaningOutcome(text: text, applied: false, provider: nil) }
 
+        let deadline = Date().addingTimeInterval(30)
         for provider in providerChain(for: config.resolvedCleanupMode) {
+            guard !Task.isCancelled, Date() < deadline else { break }
             let result: String?
             switch provider {
             case "openai":    result = await openAIClean(trimmed, config: config, transport: transport)
             case "anthropic": result = await anthropicClean(trimmed, config: config, transport: transport)
             default:          result = nil
+            }
+            if Task.isCancelled {
+                return CleaningOutcome(text: text, applied: false, provider: nil)
             }
             if let cleanedText = result {
                 return CleaningOutcome(text: cleanedText, applied: true, provider: provider)
@@ -163,7 +168,7 @@ enum Cleaner {
         guard let request = openAIRequest(text: text, apiKey: key,
                                           baseURL: config.env["OPENAI_BASE_URL"],
                                           model: config.env["CLEANUP_MODEL"]) else { return nil }
-        var req = URLRequest(url: request.url, timeoutInterval: 60)
+        var req = URLRequest(url: request.url, timeoutInterval: 20)
         req.httpMethod = "POST"
         for (field, value) in request.headers { req.setValue(value, forHTTPHeaderField: field) }
         guard let payload = try? JSONSerialization.data(withJSONObject: request.body) else { return nil }
@@ -180,7 +185,7 @@ enum Cleaner {
         guard let key = config.env["ANTHROPIC_API_KEY"], !key.isEmpty else { return nil }
         guard let request = anthropicRequest(text: text, apiKey: key,
                                              model: config.env["CLEANUP_MODEL"]) else { return nil }
-        var req = URLRequest(url: request.url, timeoutInterval: 60)
+        var req = URLRequest(url: request.url, timeoutInterval: 20)
         req.httpMethod = "POST"
         for (field, value) in request.headers { req.setValue(value, forHTTPHeaderField: field) }
         guard let payload = try? JSONSerialization.data(withJSONObject: request.body) else { return nil }

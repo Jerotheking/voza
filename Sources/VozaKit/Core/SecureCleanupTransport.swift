@@ -35,10 +35,14 @@ struct SecureCleanupTransport {
     let session: URLSession
 
     /// Default production transport: ephemeral session (no cookie jar shared
-    /// with the user's browser session) + the no-redirect delegate.
+    /// with the user's browser session) + bounded resource timeout + the no-redirect delegate.
     init() {
         let delegate = NoRedirectDelegate()
-        session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
+        let cfg = URLSessionConfiguration.ephemeral
+        cfg.timeoutIntervalForRequest = 20
+        cfg.timeoutIntervalForResource = 30
+        session = URLSession(configuration: cfg, delegate: delegate, delegateQueue: nil)
+        transportDelegate = delegate
     }
 
     /// Test seam: inject a session whose protocol/delegate the test owns.

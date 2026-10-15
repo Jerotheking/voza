@@ -157,10 +157,8 @@ final class ModelManager: Sendable {
             request.setValue("bytes=\(resumeFrom)-", forHTTPHeaderField: "Range")
         }
 
-        let (bytes, response) = try await session.bytes(for: request)
-        guard let http = response as? HTTPURLResponse else {
-            throw TranscriptionError.transcriptionFailed("bad response")
-        }
+        let (http, chunks, task) = try await startChunkedRequest(request)
+        defer { task.cancel() }
         switch http.statusCode {
         case 200:
             resumeFrom = 0
@@ -173,6 +171,7 @@ final class ModelManager: Sendable {
             // the .part past its expected size). Complete partial → skip the
             // stream and go straight to verification; wrong-size partial →
             // corrupt: fail honestly, the next attempt starts from zero.
+            task.cancel()
             if fileSize(at: partial) == model.bytes {
                 skipStream = true
             } else {
@@ -182,6 +181,7 @@ final class ModelManager: Sendable {
                         es: "Descarga parcial corrupta — inténtalo de nuevo"))
             }
         default:
+            task.cancel()
             throw TranscriptionError.transcriptionFailed("HTTP \(http.statusCode)")
         }
         if !fm.fileExists(atPath: partial.path) {
@@ -201,25 +201,31 @@ final class ModelManager: Sendable {
             try handle.seekToEnd()
 
             do {
-                for try await byte in bytes {
-                    buffer.append(byte)
-                    if buffer.count >= 1 << 18 {
+                try await withTaskCancellationHandler {
+                    for try await chunk in chunks {
+                        try Task.checkCancellation()
+                        buffer.append(chunk)
+                        if buffer.count >= 1 << 18 {
+                            try handle.write(contentsOf: buffer)
+                            received += Int64(buffer.count)
+                            buffer.removeAll(keepingCapacity: true)
+                            progress(min(Double(received) / Double(total), 1.0))
+                        }
+                    }
+                    if !buffer.isEmpty {
                         try handle.write(contentsOf: buffer)
                         received += Int64(buffer.count)
                         buffer.removeAll(keepingCapacity: true)
-                        progress(min(Double(received) / Double(total), 1.0))
                     }
-                }
-                if !buffer.isEmpty {
-                    try handle.write(contentsOf: buffer)
-                    received += Int64(buffer.count)
-                    buffer.removeAll(keepingCapacity: true)
+                } onCancel: {
+                    task.cancel()
                 }
             } catch {
-            // FIX (audit v2 §3.10): a network drop must NOT destroy download progress.
-            // Keep the .part file on recoverable network errors so the next attempt
-            // resumes; delete only for non-recoverable errors (disk write failure).
-                if !(error is URLError) {
+                // FIX (audit v2 §3.10 + D063 P1-1): a network drop or user cancellation
+                // must NOT destroy download progress. Keep the .part file on recoverable
+                // network/cancellation errors so the next attempt resumes; delete only
+                // for non-recoverable errors (disk write failure).
+                if !(error is URLError) && !(error is CancellationError) {
                     try? fm.removeItem(at: partial)
                 }
                 throw error
@@ -251,5 +257,89 @@ final class ModelManager: Sendable {
             hasher.update(data: chunk)
         }
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Chunked Streaming (D063 P1-1)
+
+    /// Streams raw `Data` buffers from CFNetwork instead of iterating byte-by-byte
+    /// (`for try await byte in bytes`, which incurred ~488M suspension/append calls
+    /// for a 487 MB model).
+    private func startChunkedRequest(
+        _ request: URLRequest
+    ) async throws -> (HTTPURLResponse, AsyncThrowingStream<Data, Error>, URLSessionDataTask) {
+        let task = session.dataTask(with: request)
+        var streamCont: AsyncThrowingStream<Data, Error>.Continuation?
+        let stream = AsyncThrowingStream<Data, Error> { cont in
+            cont.onTermination = { @Sendable _ in task.cancel() }
+            streamCont = cont
+        }
+        guard let continuation = streamCont else {
+            throw TranscriptionError.transcriptionFailed("stream init failed")
+        }
+        let http: HTTPURLResponse = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (respCont: CheckedContinuation<HTTPURLResponse, Error>) in
+                let delegate = ChunkStreamDelegate(
+                    responseContinuation: respCont,
+                    streamContinuation: continuation
+                )
+                task.delegate = delegate
+                task.resume()
+            }
+        } onCancel: {
+            task.cancel()
+        }
+        return (http, stream, task)
+    }
+
+    private final class ChunkStreamDelegate: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+        private let lock = NSLock()
+        private var responseContinuation: CheckedContinuation<HTTPURLResponse, Error>?
+        private let streamContinuation: AsyncThrowingStream<Data, Error>.Continuation
+
+        init(
+            responseContinuation: CheckedContinuation<HTTPURLResponse, Error>,
+            streamContinuation: AsyncThrowingStream<Data, Error>.Continuation
+        ) {
+            self.responseContinuation = responseContinuation
+            self.streamContinuation = streamContinuation
+        }
+
+        func urlSession(
+            _ session: URLSession,
+            dataTask: URLSessionDataTask,
+            didReceive response: URLResponse,
+            completionHandler: @escaping (URLSession.ResponseDisposition) -> Void
+        ) {
+            lock.lock()
+            let cont = responseContinuation
+            responseContinuation = nil
+            lock.unlock()
+            if let http = response as? HTTPURLResponse {
+                cont?.resume(returning: http)
+                completionHandler(.allow)
+            } else {
+                cont?.resume(throwing: TranscriptionError.transcriptionFailed("bad response"))
+                completionHandler(.cancel)
+            }
+        }
+
+        func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+            streamContinuation.yield(data)
+        }
+
+        func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+            lock.lock()
+            let cont = responseContinuation
+            responseContinuation = nil
+            lock.unlock()
+            if let cont {
+                cont.resume(throwing: error ?? URLError(.badServerResponse))
+            }
+            if let error {
+                streamContinuation.finish(throwing: error)
+            } else {
+                streamContinuation.finish()
+            }
+        }
     }
 }

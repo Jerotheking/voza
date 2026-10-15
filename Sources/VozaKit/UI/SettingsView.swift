@@ -563,34 +563,53 @@ struct AdvancedSettings: View {
     @EnvironmentObject var appState: AppState
     // Reflect the OS's actual registration instead of a guessed default.
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var whisperBinaryDraft = ""
+    @State private var modelsDirDraft = ""
+
+    private func commitDrafts() {
+        let trimmedBin = whisperBinaryDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newBin: String? = trimmedBin.isEmpty ? nil : trimmedBin
+        if newBin != appState.config.whisperBinary {
+            appState.config.setWhisperBinary(newBin)
+        }
+        let trimmedDir = modelsDirDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let newDir: String? = trimmedDir.isEmpty ? nil : trimmedDir
+        if newDir != appState.config.modelsDirectory {
+            appState.config.setModelsDirectory(newDir)
+        }
+    }
 
     var body: some View {
         Form {
             HStack {
                 TextField(L.t("whisper.cpp binary (empty = auto)", es: "Binario whisper.cpp (vacío = auto)"),
-                          text: Binding(
-                            get: { appState.config.whisperBinary ?? "" },
-                            set: { appState.config.setWhisperBinary($0.isEmpty ? nil : $0) }
-                          ))
+                          text: $whisperBinaryDraft)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit { commitDrafts() }
                 Image(systemName: Transcriber.locateBinary() != nil ? "checkmark.circle.fill" : "xmark.circle")
                     .foregroundStyle(Transcriber.locateBinary() != nil ? Color.green : Color.orange)
             }
             HStack {
                 TextField(L.t("Models directory", es: "Carpeta de modelos"),
-                          text: Binding(
-                            get: { appState.config.modelsDirectory ?? "" },
-                            set: { appState.config.setModelsDirectory($0.isEmpty ? nil : $0) }
-                          ))
+                          text: $modelsDirDraft)
                     .textFieldStyle(.roundedBorder)
+                    .onSubmit { commitDrafts() }
                 Button(L.t("Reveal", es: "Mostrar")) {
+                    commitDrafts()
                     NSWorkspace.shared.open(ModelManager.shared.modelsDirectory)
                 }
             }
             Toggle(L.t("Launch Voza at login", es: "Abrir Voza al iniciar sesión"), isOn: $launchAtLogin)
                 .onChange(of: launchAtLogin) { _, newValue in
-                    try? SMAppService.mainApp.register()
-                    if !newValue { try? SMAppService.mainApp.unregister() }
+                    do {
+                        if newValue {
+                            try SMAppService.mainApp.register()
+                        } else {
+                            try SMAppService.mainApp.unregister()
+                        }
+                    } catch {
+                        launchAtLogin = (SMAppService.mainApp.status == .enabled)
+                    }
                 }
             Toggle(L.t("Play a sound when transcription finishes", es: "Sonido al terminar la transcripción"), isOn: Binding(
                 get: { appState.config.playSound },
@@ -606,6 +625,14 @@ struct AdvancedSettings: View {
                 .padding(.bottom, 4)
         }
         .padding(20)
+        .onAppear {
+            whisperBinaryDraft = appState.config.whisperBinary ?? ""
+            modelsDirDraft = appState.config.modelsDirectory ?? ""
+            launchAtLogin = (SMAppService.mainApp.status == .enabled)
+        }
+        .onDisappear {
+            commitDrafts()
+        }
     }
 }
 
