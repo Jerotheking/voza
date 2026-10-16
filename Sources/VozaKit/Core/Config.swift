@@ -29,6 +29,7 @@ final class Config {
     var modelsDirectory: String?
     var logDirectory: String?
     var cleanupMode: String      // cloud | plain (D032: local modes removed)
+    var cleanupModel: String?    // V18 / D065: optional preset model override in config.toml
     var language: String         // auto | en | es
     var playSound: Bool
     /// Wispr-style auto-learn (owner decision 2026-09-08): after each paste,
@@ -36,6 +37,9 @@ final class Config {
     /// On by default — zero-effort learning is the product decision; the
     /// Settings toggle turns it off for users who prefer manual-only.
     var autoLearn: Bool
+    /// V10 / D007 / D066: whether transcripts are appended to ~/Dictation/YYYY-MM.md on disk.
+    /// Even when false, the in-memory `recent` ring stays active for session recovery.
+    var saveHistory: Bool
     var gumroadPermalink: String
 
     private(set) var env: [String: String] = [:]
@@ -66,9 +70,11 @@ final class Config {
         // D032: default is "plain" — raw dictation needs zero decisions and
         // never touches the network. "cloud" is an explicit opt-in.
         cleanupMode = "plain"
+        cleanupModel = nil
         language = "auto"
         playSound = false
         autoLearn = true
+        saveHistory = true
         gumroadPermalink = "voza"
         load()
     }
@@ -96,6 +102,7 @@ final class Config {
         whisperBinary  = raw["whisper_binary"]
         modelsDirectory = raw["models_dir"]
         logDirectory   = raw["log_dir"]
+        cleanupModel   = raw["cleanup_model"]
         // P2-2 (audit 2026-09-21): persisted but never loaded — the value only
         // survived until the next relaunch.
         gumroadPermalink = raw["gumroad_permalink"] ?? gumroadPermalink
@@ -109,6 +116,7 @@ final class Config {
         language       = raw["language"] ?? "auto"
         playSound      = (raw["play_sound"] ?? "false") == "true"
         autoLearn      = (raw["auto_learn"] ?? "true") == "true"
+        saveHistory    = (raw["save_history"] ?? "true") == "true"
         env = [:]
         envFileValues = [:]
         // V12 credential precedence, most-trusted first:
@@ -135,6 +143,11 @@ final class Config {
                 envFileValues[key] = value
                 if env[key] == nil { env[key] = value }
             }
+        }
+        // If cleanup_model was persisted via V18 1-click preset in config.toml,
+        // apply it when .env has not explicitly overridden CLEANUP_MODEL.
+        if env["CLEANUP_MODEL"] == nil, let cm = cleanupModel, !cm.isEmpty {
+            env["CLEANUP_MODEL"] = cm
         }
         // Also read real process env as fallback.
         for key in Self.credentialKeys + ["CLEANUP_MODEL"] {
@@ -175,6 +188,25 @@ final class Config {
         guard keychain.set(key, value: value) else { return false }
         reload()
         return true
+    }
+
+    /// V18 / D065: 1-click Cloud Provider Preset configuration (Groq, OpenAI,
+    /// Anthropic, OpenRouter). Configures `OPENAI_BASE_URL` in the Keychain and
+    /// `cleanup_model` in `config.toml` automatically.
+    func applyCloudPreset(_ preset: Cleaner.CloudProviderPreset, keychain: KeychainStore) {
+        if let baseURL = preset.baseURL {
+            _ = keychain.set("OPENAI_BASE_URL", value: baseURL)
+        } else {
+            _ = keychain.delete("OPENAI_BASE_URL")
+            removeEnvFileLines(forKey: "OPENAI_BASE_URL")
+        }
+        switch preset {
+        case .groq, .openrouter:
+            setCleanupModel(preset.defaultModel)
+        case .openai, .anthropic:
+            setCleanupModel(nil)
+        }
+        reload()
     }
 
     /// V12 migration, one key at a time: strip the plaintext .env line ONLY
@@ -242,6 +274,7 @@ final class Config {
     func setModel(_ v: String?)            { modelId = v;        if let v { raw["model"] = v } else { raw.removeValue(forKey: "model") }; persist() }
     func setWhisperBinary(_ v: String?)    { whisperBinary = v;  if let v { raw["whisper_binary"] = v } else { raw.removeValue(forKey: "whisper_binary") }; persist() }
     func setModelsDirectory(_ v: String?)  { modelsDirectory = v; if let v { raw["models_dir"] = v } else { raw.removeValue(forKey: "models_dir") }; persist() }
+    func setCleanupModel(_ v: String?)     { cleanupModel = v;   if let v { raw["cleanup_model"] = v } else { raw.removeValue(forKey: "cleanup_model") }; persist(); reload() }
     /// D032: only two modes exist. "plain" (default) never touches the
     /// network; "cloud" is the explicit opt-in. Anything else is clamped to
     /// plain — the privacy invariant (no net without explicit consent) is
@@ -255,6 +288,7 @@ final class Config {
     func setLanguage(_ v: String)          { language = v;       raw["language"] = v; persist() }
     func setPlaySound(_ v: Bool)           { playSound = v;      raw["play_sound"] = v ? "true" : "false"; persist() }
     func setAutoLearn(_ v: Bool)           { autoLearn = v;      raw["auto_learn"] = v ? "true" : "false"; persist() }
+    func setSaveHistory(_ v: Bool)         { saveHistory = v;    raw["save_history"] = v ? "true" : "false"; persist() }
 
     private func persist() {
         var lines = ["# Voza configuration — edited from the app or by hand."]
@@ -262,10 +296,12 @@ final class Config {
         if let v = whisperBinary {    lines.append("whisper_binary = \"\(v)\"") }
         if let v = modelsDirectory {  lines.append("models_dir = \"\(v)\"") }
         if let v = logDirectory {     lines.append("log_dir = \"\(v)\"") }
+        if let v = cleanupModel {     lines.append("cleanup_model = \"\(v)\"") }
         lines.append("cleanup = \"\(cleanupMode)\"")
         lines.append("language = \"\(language)\"")
         lines.append("play_sound = \(playSound ? "true" : "false")")
         lines.append("auto_learn = \(autoLearn ? "true" : "false")")
+        lines.append("save_history = \(saveHistory ? "true" : "false")")
         lines.append("gumroad_permalink = \"\(gumroadPermalink)\"")
         let text = lines.joined(separator: "\n") + "\n"
         // Write path: prepare the tree right before persisting (reads never create).

@@ -108,3 +108,18 @@ Si una tarea se divide, mantener el ticket anterior con alcance histórico y dec
 - deferred: no pertenece al compromiso; solo decisión explícita habilita iniciar.
 
 El validador comprueba estructura y disponibilidad de archivos; **no autentica la evidencia ni decide si un resultado humano fue verdadero**. El integrador contrasta source/diff/log/artefacto y publica estado honesto.
+
+## 8. Diferenciadores competitivos integrados al Roadmap (D064–D065)
+
+Tras el análisis competitivo de octubre 2026 frente a Wispr Flow (`$144/año`), Superwhisper (`$249.99` lifetime), Aqua Voice (`$8–$24/mes`), MacWhisper (`€64`), VoiceInk, TypeWhisper y Spokenly (ver [BUSINESS.md](BUSINESS.md)), se integran al plan de ejecución estos cuatro diferenciadores directos:
+
+1. **Activación Híbrida en `Option` + Popover Amplio (`D064` — IMPLEMENTADO Y PROBADO EN VIVO):**
+   - Toque rápido (`< 0.28s`) engancha grabación **Manos libres** (`isLatchedHandsFree = true`, segundo toque transcribe, `Esc` cancela); mantener presionado (`>= 0.28s`) opera como **Push-to-Talk** clásico; cualquier atajo `⌥+tecla` cancela la sesión embrionaria vía `.keyDown` `.listenOnly`.
+   - Popover del Menu Bar ampliado a `420 pt` de ancho y `280–460 pt` de alto con hasta `20` transcripciones recientes, tipografía `12.5 pt`, hasta `8` líneas visibles por fila y expansión completa en 1 clic.
+2. **Presets Cloud 1-Clic (Groq ~180 ms / OpenAI / Anthropic / OpenRouter) en `V18` (`D065`):**
+   - Selector rápido en `SettingsView.swift` que preconfigura endpoint y modelo recomendado (destacando Groq `llama-3.3-70b-versatile` para latencia sub-200 ms) sin obligar al usuario a copiar URLs base ni IDs de modelo.
+3. **Visibilidad del Diccionario Auto-Aprendido (`CorrectionStore`) en `V18` (`D065`):**
+   - Mostrar en el Popover y en Ajustes el contador de palabras aprendidas automáticamente (`CorrectionStore.shared.count`) con acceso directo a la pestaña Vocabulario, destacando la ventaja principal de Voza frente a los diccionarios manuales de la competencia.
+4. **Tono Contextual Automático por App Activa (`bundleIdentifier`) + Controles de Historial (`V09`/`V10`/`V18`, `D065`):**
+   - Cuando el Pulido Cloud está activo, inyectar automáticamente una pista breve según la app frontal detectada (`Cursor`/`VS Code`/`Terminal` → preservar identificadores técnicos; `WhatsApp`/`Slack`/`Messages` → conciso natural; `Mail`/`Notion` → párrafos limpios) sin requerir configurar modos manuales, además de completar `Paster` asíncrono sin `usleep` (`V09`) y el toggle/borrado de historial en disco (`V10`).
+

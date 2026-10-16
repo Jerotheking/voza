@@ -3,7 +3,7 @@ import Carbon.HIToolbox
 import CoreGraphics
 
 /// Places text on the clipboard, pastes via synthetic Cmd+V, then restores the
-/// user's previous clipboard content.
+/// user's previous clipboard content asynchronously without blocking `@MainActor` (V09 / D066).
 ///
 /// Since the Wispr-style auto-learn decision (owner, 2026-09-08), every paste
 /// also records a `Session`: the AX element and range where the text landed.
@@ -29,6 +29,9 @@ enum Paster {
         .string, .rtf, .html, .png, .tiff, .fileURL,
     ]
 
+    /// Delay before restoring the pre-paste clipboard so the target app finishes reading ⌘V.
+    static let restoreDelaySeconds: TimeInterval = 0.25
+
     // The session is written from the paste call site (MainActor) and read by
     // the watcher's timer; a lock keeps it honest across threads.
     private static let sessionLock = NSLock()
@@ -36,6 +39,29 @@ enum Paster {
     static var lastSession: Session? {
         get { sessionLock.lock(); defer { sessionLock.unlock() }; return storedSession }
         set { sessionLock.lock(); defer { sessionLock.unlock() }; storedSession = newValue }
+    }
+
+    /// V09 / D066 (`make-illegal-states-unrepresentable`): tracks an in-flight
+    /// clipboard restoration so that two rapid pastes within `restoreDelaySeconds`
+    /// never mistake Voza's first transient dictation for the user's original clipboard.
+    private struct PendingClipboardRestore {
+        let originalItems: [(NSPasteboard.PasteboardType, Data)]
+        var vozaWriteChangeCount: Int
+        var workItem: DispatchWorkItem
+    }
+
+    private static let restoreLock = NSLock()
+    private static var pendingRestore: PendingClipboardRestore?
+
+    /// Pure decision helper (testable without `NSPasteboard`): determines whether
+    /// a new paste should capture the current pasteboard or reuse the in-flight
+    /// `originalItems` from an overlapping Voza paste.
+    static func shouldReusePendingOriginalClipboard(
+        pendingChangeCount: Int?,
+        currentChangeCount: Int
+    ) -> Bool {
+        guard let pendingChangeCount else { return false }
+        return pendingChangeCount == currentChangeCount
     }
 
     @discardableResult
@@ -47,18 +73,34 @@ enum Paster {
     }
 
     /// The paste itself, without session capture (used when the caller decides
-    /// the paste must not start a learning session).
+    /// the paste must not start a learning session). Non-blocking (V09 / D066):
+    /// zero `usleep` on `@MainActor`; clipboard restoration runs asynchronously
+    /// after `restoreDelaySeconds` while preserving the original clipboard across
+    /// overlapping pastes.
     static func pasteOnly(_ text: String) {
         let pb = NSPasteboard.general
 
-        // Save first item's data so we can restore it afterwards.
-        var saved: [(NSPasteboard.PasteboardType, Data)] = []
-        if let first = pb.pasteboardItems?.first {
-            for type in first.types where restoreTypes.contains(type) {
-                if let data = first.data(forType: type) {
-                    saved.append((type, data))
+        restoreLock.lock()
+        let currentCount = pb.changeCount
+        let saved: [(NSPasteboard.PasteboardType, Data)]
+        if let existing = pendingRestore,
+           shouldReusePendingOriginalClipboard(
+               pendingChangeCount: existing.vozaWriteChangeCount,
+               currentChangeCount: currentCount
+           ) {
+            existing.workItem.cancel()
+            saved = existing.originalItems
+        } else {
+            pendingRestore?.workItem.cancel()
+            var captured: [(NSPasteboard.PasteboardType, Data)] = []
+            if let first = pb.pasteboardItems?.first {
+                for type in first.types where restoreTypes.contains(type) {
+                    if let data = first.data(forType: type) {
+                        captured.append((type, data))
+                    }
                 }
             }
+            saved = captured
         }
 
         pb.clearContents()
@@ -70,25 +112,33 @@ enum Paster {
         // D058 (opencode muse-spark P1): capture changeCount AFTER writing our string
         // and transient markers so setData() increments never block clipboard restore.
         let countAfterOurWrite = pb.changeCount
-        usleep(80_000) // let the target app see the new pasteboard
 
-        sendCmdV()
-        usleep(250_000) // give the app time to read the pasteboard
-
-        // Restore previous clipboard only if nothing else touched it meanwhile.
-        if pb.changeCount == countAfterOurWrite {
-            pb.clearContents()
-            for (type, data) in saved {
-                pb.setData(data, forType: type)
+        let work = DispatchWorkItem {
+            restoreLock.lock()
+            defer { restoreLock.unlock() }
+            guard let active = pendingRestore,
+                  active.vozaWriteChangeCount == countAfterOurWrite else { return }
+            pendingRestore = nil
+            let board = NSPasteboard.general
+            guard board.changeCount == countAfterOurWrite else { return }
+            board.clearContents()
+            for (type, data) in active.originalItems {
+                board.setData(data, forType: type)
             }
         }
+        pendingRestore = PendingClipboardRestore(
+            originalItems: saved,
+            vozaWriteChangeCount: countAfterOurWrite,
+            workItem: work
+        )
+        restoreLock.unlock()
+
+        sendCmdV()
+        DispatchQueue.main.asyncAfter(deadline: .now() + restoreDelaySeconds, execute: work)
     }
 
     // MARK: - AX context capture
 
-    /// Captures the focused element + selected range at paste time. Returns
-    /// nil (no session → auto-learn gracefully skipped for this paste) when
-    /// Accessibility is off or the app does not expose text semantics.
     /// Captures the focused element + selected range at paste time. When
     /// Accessibility is off or the app does not expose text semantics
     /// (Electron/Chromium until forced), returns a session with `element == nil`
@@ -232,7 +282,6 @@ enum Paster {
         down?.flags = .maskCommand
         up?.flags = .maskCommand
         down?.post(tap: .cghidEventTap)
-        usleep(20_000)
         up?.post(tap: .cghidEventTap)
     }
 }

@@ -36,6 +36,7 @@ final class AppState: ObservableObject {
     @Published var statusMessage: String?
     @Published var elapsedSeconds: Double = 0
     @Published var isHandsFree: Bool = false
+    @Published var learnedCount: Int = 0
 
     let license = LicenseManager.shared
 
@@ -51,6 +52,7 @@ final class AppState: ObservableObject {
 
     func refresh() {
         recent = TranscriptStore.shared.recent
+        learnedCount = CorrectionStore.shared.count
         config.reload()
         showOnboarding = !Permissions.allGranted
         if !phase.isBusy {
@@ -316,6 +318,7 @@ final class AppState: ObservableObject {
     func learnCorrection(entry: TranscriptEntry, corrected: String) {
         if let pair = CorrectionStore.diffCorrection(original: entry.text, corrected: corrected) {
             if CorrectionStore.shared.record(heard: pair.heard, said: pair.said) != nil {
+                learnedCount = CorrectionStore.shared.count
                 statusMessage = L.t("Learned — I'll write it right next time", es: "Aprendido — la próxima vez lo escribiré bien")
             } else {
                 statusMessage = L.t("Too long to learn — fix it word by word", es: "Demasiado largo para aprenderlo — corrígelo palabra por palabra")
@@ -338,5 +341,11 @@ final class AppState: ObservableObject {
 
     func openLogFolder() {
         NSWorkspace.shared.open(TranscriptStore.logDirectory)
+    }
+
+    func clearHistory() {
+        TranscriptStore.shared.clearAll()
+        recent = []
+        statusMessage = L.t("History cleared", es: "Historial borrado")
     }
 }

@@ -70,7 +70,9 @@ final class TranscriptStore {
     static var logDirectory: URL { AppPaths.default.history }
     var logDirectory: URL { paths.history }
 
-    func add(text: String, cleaned: Bool) {
+    /// V10 / D066: Adds a transcript to the in-memory session recovery ring (`recent`)
+    /// and appends to `~/Dictation/YYYY-MM.md` only when `persistToDisk == true`.
+    func add(text: String, cleaned: Bool, persistToDisk: Bool = true) {
         let entry = TranscriptEntry(id: UUID(), date: clock.now, text: text, cleaned: cleaned)
         // P1-1 (audit 2026-09-21): the in-memory insert used to live in a
         // main.async NESTED after the disk write — a caller refreshing right
@@ -83,8 +85,29 @@ final class TranscriptStore {
         } else {
             DispatchQueue.main.async { self.insertRecent(entry) }
         }
+        guard persistToDisk else { return }
         queue.async { [weak self] in
             self?.appendToFile(entry)
+        }
+    }
+
+    /// V10 / D007 / D066: Clears the in-memory session ring and deletes all
+    /// markdown log files in the store's `paths.history` directory.
+    func clearAll() {
+        if Thread.isMainThread {
+            recent.removeAll()
+        } else {
+            DispatchQueue.main.async { self.recent.removeAll() }
+        }
+        queue.async { [weak self] in
+            guard let self else { return }
+            let fm = FileManager.default
+            guard let items = try? fm.contentsOfDirectory(at: self.paths.history, includingPropertiesForKeys: nil) else {
+                return
+            }
+            for item in items where item.pathExtension.lowercased() == "md" {
+                try? fm.removeItem(at: item)
+            }
         }
     }
 
@@ -163,7 +186,7 @@ final class TranscriptStore {
         }
     }
 
-    // Cached formatters for the serial I/O queue ( DateFormatter allocation
+    // Cached formatters for the serial I/O queue (DateFormatter allocation
     // per append was pure churn). parseEntries keeps a local formatter so it
     // stays safe when called concurrently from arbitrary threads.
     private static let monthFormatter: DateFormatter = makeFormatter("yyyy-MM")
@@ -174,5 +197,4 @@ final class TranscriptStore {
         applyPOSIXLocale(f)
         return f
     }
-
 }

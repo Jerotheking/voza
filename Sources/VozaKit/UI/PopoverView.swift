@@ -197,6 +197,22 @@ struct PopoverView: View {
             .buttonStyle(.borderless)
             .help(L.t("Settings", es: "Ajustes"))
 
+            SettingsOpenButton {
+                HStack(spacing: 4) {
+                    Image(systemName: "character.book.closed")
+                        .font(.system(size: 10))
+                        .foregroundStyle(Theme.accent)
+                    Text(L.t("\(appState.learnedCount) learned", es: "\(appState.learnedCount) aprendidas"))
+                        .font(.caption2.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(.quinary, in: Capsule())
+            }
+            .buttonStyle(.plain)
+            .help(L.t("Learned corrections dictionary", es: "Diccionario de palabras aprendidas"))
+
             Spacer()
 
             Button {

@@ -179,6 +179,7 @@ struct StatusView: View {
             chip(L.t("Hotkey", es: "Hotkey"), ok: readiness.inputMonitoringGranted && readiness.hotkeyTapActive)
             chip(L.t("Engine", es: "Motor"), ok: readiness.engineFound)
             chip(L.t("Model", es: "Modelo"), ok: readiness.modelAvailable)
+            chip(L.t("\(appState.learnedCount) learned", es: "\(appState.learnedCount) aprendidas"), ok: true)
             Spacer()
             Text("\(HardwareProfile.machineLabel) · \(HardwareProfile.totalRAMGB) GB")
                 .font(.caption2)
@@ -357,8 +358,8 @@ struct DictationSettings: View {
                 Text(L.t("Languages", es: "Idiomas"))
             }
             Section {
-                Text(L.t("One button: hold **either Option key** to dictate, release to paste. If you fix the text by typing, Voza learns your corrections automatically (can be turned off in Advanced).",
-                         es: "Un solo botón: mantén **cualquiera de las teclas Option** para dictar, suelta para pegar. Si corriges el texto tecleando, Voza aprende tus correcciones automáticamente (se puede apagar en Avanzado)."))
+                Text(L.t("One button (**either Option key**): **tap** to toggle hands-free recording (tap again to finish, Esc to cancel) or **hold** for push-to-talk. When you fix a word by typing, Voza learns it automatically. With Cloud AI enabled, formatting adapts to your active app (IDE/Terminal, chat, or email).",
+                         es: "Un solo botón (**cualquier tecla Option**): **toca** para grabar manos libres (toca de nuevo para terminar, Esc cancela) o **mantén presionado** para push-to-talk. Si corriges una palabra tecleando, Voza la aprende sola. Con IA en la nube activa, el formato se adapta a la app que estés usando (IDE/Terminal, chat o correo)."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -565,6 +566,7 @@ struct AdvancedSettings: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @State private var whisperBinaryDraft = ""
     @State private var modelsDirDraft = ""
+    @State private var showClearHistoryConfirm = false
 
     private func commitDrafts() {
         let trimmedBin = whisperBinaryDraft.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -623,6 +625,31 @@ struct AdvancedSettings: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.bottom, 4)
+            Toggle(L.t("Save transcript history to disk (~/Dictation)", es: "Guardar historial de dictados en disco (~/Dictation)"), isOn: Binding(
+                get: { appState.config.saveHistory },
+                set: { appState.config.setSaveHistory($0) }
+            ))
+            HStack {
+                Text(L.t("Recent dictations stay in memory while Voza is open even if disk history is off.",
+                         es: "Los dictados recientes se mantienen en memoria mientras Voza está abierta aunque apagues el guardado en disco."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(L.t("Clear History…", es: "Borrar historial…"), role: .destructive) {
+                    showClearHistoryConfirm = true
+                }
+                .controlSize(.small)
+                .confirmationDialog(
+                    L.t("Delete all saved transcript logs in ~/Dictation and clear recent history?",
+                        es: "¿Eliminar todos los archivos de historial en ~/Dictation y vaciar la lista reciente?"),
+                    isPresented: $showClearHistoryConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button(L.t("Delete History", es: "Eliminar historial"), role: .destructive) {
+                        appState.clearHistory()
+                    }
+                }
+            }
         }
         .padding(20)
         .onAppear {
@@ -742,24 +769,45 @@ func gumroadURL(permalink: String) -> URL {
 /// displayed back — only its presence (a status line + the picker gate).
 struct CloudKeySection: View {
     @EnvironmentObject var appState: AppState
+    @State private var selectedPreset: Cleaner.CloudProviderPreset = .groq
     @State private var draftKey = ""
     @State private var feedback: String?
     @State private var showRemoveConfirm = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
+            Picker(L.t("Cloud provider preset", es: "Proveedor en la nube (1 clic)"), selection: $selectedPreset) {
+                ForEach(Cleaner.CloudProviderPreset.allCases) { preset in
+                    Text(preset.displayName).tag(preset)
+                }
+            }
+            .onChange(of: selectedPreset) { _, newPreset in
+                let keychain = Config.productionKeychain(for: AppPaths.default)
+                appState.config.applyCloudPreset(newPreset, keychain: keychain)
+                feedback = L.t("Preset set to \(newPreset.displayName)",
+                               es: "Preset configurado: \(newPreset.displayName)")
+            }
+
             HStack {
-                SecureField(L.t("Your API key (OpenAI-compatible or Anthropic)",
-                                es: "Tu llave API (compatible OpenAI o Anthropic)"),
+                SecureField(L.t("Paste API key (\(selectedPreset.keyPlaceholder))",
+                                es: "Pega tu llave API (\(selectedPreset.keyPlaceholder))"),
                             text: $draftKey)
                     .textFieldStyle(.roundedBorder)
+                    .onChange(of: draftKey) { _, newValue in
+                        if let detected = Cleaner.CloudProviderPreset.detect(fromKey: newValue),
+                           detected != selectedPreset {
+                            selectedPreset = detected
+                        }
+                    }
                 Button(L.t("Save to Keychain", es: "Guardar en Llavero")) { save() }
                     .disabled(draftKey.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             if appState.config.hasCleanupProvider {
+                let activeModel = appState.config.env["CLEANUP_MODEL"] ?? selectedPreset.defaultModel
                 HStack {
                     Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).font(.caption)
-                    Text(L.t("Key stored in your Mac's Keychain", es: "Llave guardada en el Llavero de tu Mac"))
+                    Text(L.t("Key stored in Keychain · model: \(activeModel)",
+                             es: "Llave en Llavero · modelo: \(activeModel)"))
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button(L.t("Remove", es: "Quitar"), role: .destructive) { showRemoveConfirm = true }
@@ -776,17 +824,23 @@ struct CloudKeySection: View {
                 Text(feedback).font(.caption).foregroundStyle(.secondary)
             }
         }
+        .onAppear {
+            selectedPreset = Cleaner.CloudProviderPreset.current(in: appState.config.env)
+        }
     }
 
     private func save() {
-        let value = draftKey.trimmingCharacters(in: .whitespaces)
+        let value = draftKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !value.isEmpty else { return }
-        // Auto-detect the slot: Anthropic keys announce themselves; every
-        // other key rides the OpenAI-compatible slot (incl. OpenRouter/Groq).
-        let keyName = value.hasPrefix("sk-ant-") ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY"
+        if let detected = Cleaner.CloudProviderPreset.detect(fromKey: value) {
+            selectedPreset = detected
+        }
+        let keyName = selectedPreset.keySlot
         let keychain = Config.productionKeychain(for: AppPaths.default)
+        appState.config.applyCloudPreset(selectedPreset, keychain: keychain)
         if appState.config.saveCleanupKey(keyName, value: value, keychain: keychain) {
-            feedback = L.t("Saved to the Keychain.", es: "Guardada en el Llavero.")
+            feedback = L.t("Saved \(selectedPreset.displayName) key to the Keychain.",
+                           es: "Llave de \(selectedPreset.displayName) guardada en el Llavero.")
             if appState.config.cleanupMode != "cloud" {
                 appState.config.setCleanupMode("cloud")
             }
@@ -802,6 +856,7 @@ struct CloudKeySection: View {
         for key in Config.credentialKeys {
             appState.config.deleteCleanupKey(key, keychain: keychain)
         }
+        appState.config.setCleanupModel(nil)
         if appState.config.cleanupMode == "cloud" {
             appState.config.setCleanupMode("plain")
         }

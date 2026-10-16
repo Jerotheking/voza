@@ -92,6 +92,33 @@ final class TestEnvironmentTests: XCTestCase {
         XCTAssertEqual(out, "Quiero una PiñaColada fría")
     }
 
+    func testV09AndV10ClipboardOverlapAndHistoryPrivacy() throws {
+        let env = try TestEnvironment()
+        defer { env.tearDown() }
+
+        // V09: overlapping paste reuses original clipboard only when changeCount still matches Voza write
+        XCTAssertTrue(Paster.shouldReusePendingOriginalClipboard(pendingChangeCount: 42, currentChangeCount: 42))
+        XCTAssertFalse(Paster.shouldReusePendingOriginalClipboard(pendingChangeCount: 42, currentChangeCount: 43))
+        XCTAssertFalse(Paster.shouldReusePendingOriginalClipboard(pendingChangeCount: nil, currentChangeCount: 42))
+
+        // V10: persistToDisk == false keeps entry in RAM (`recent`) without writing ~/Dictation on disk
+        let store = TranscriptStore(paths: env.paths, clock: env.clock)
+        store.add(text: "solo en memoria", cleaned: false, persistToDisk: false)
+        store.drainPendingWritesForTests()
+        XCTAssertEqual(store.recent.first?.text, "solo en memoria")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: env.paths.history.path),
+                       "persistToDisk=false must never create or write history files on disk")
+
+        // Writing with persistToDisk == true and then calling clearAll() removes both RAM and .md files
+        store.add(text: "en disco", cleaned: false, persistToDisk: true)
+        store.drainPendingWritesForTests()
+        store.clearAll()
+        store.drainPendingWritesForTests()
+        XCTAssertTrue(store.recent.isEmpty)
+        let remaining = (try? FileManager.default.contentsOfDirectory(at: env.paths.history, includingPropertiesForKeys: nil)) ?? []
+        XCTAssertTrue(remaining.filter { $0.pathExtension == "md" }.isEmpty)
+    }
+
     func testFixedClockWallAndElapsedAreIndependent() {
         let clock = FixedClock(wall: Date(timeIntervalSince1970: 1_700_000_000))
         XCTAssertEqual(clock.uptimeSeconds, 0)

@@ -1,3 +1,5 @@
+import AppKit
+import AppKit
 import Foundation
 
 /// D042 — the dictation flow as ONE deep module (architecture audit
@@ -65,9 +67,12 @@ struct DictationPipeline {
     /// in their shell — surfacing a bogus "cleanup unavailable" notice.
     /// This static is the single derivation point, so tests can pin the
     /// no-provider AND the plain-mode case against any Config.
-    static func defaultClean(for config: Config) -> ((String) async -> Cleaner.CleaningOutcome)? {
-        (config.resolvedCleanupMode == "cloud" && config.hasCleanupProvider)
-            ? { await Cleaner.clean($0, config: config) } : nil
+    static func defaultClean(for config: Config, bundleIdentifier: String? = nil) -> ((String) async -> Cleaner.CleaningOutcome)? {
+        guard config.resolvedCleanupMode == "cloud" && config.hasCleanupProvider else { return nil }
+        return { text in
+            let bundleId = bundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+            return await Cleaner.clean(text, config: config, bundleIdentifier: bundleId)
+        }
     }
 
     /// Cloud Pulido, connected at last — but ONLY meaningful with a
@@ -84,7 +89,7 @@ struct DictationPipeline {
     var paste: (String) -> Paster.Session? = { text in
         Paster.paste(text)
     }
-    var logTranscript: (String, _ cleaned: Bool) -> Void = { TranscriptStore.shared.add(text: $0, cleaned: $1) }
+    var logTranscript: (String, _ cleaned: Bool) -> Void = { TranscriptStore.shared.add(text: $0, cleaned: $1, persistToDisk: Config.shared.saveHistory) }
     var startLearning: (Paster.Session) -> Void = { CorrectionWatcher.shared.start(for: $0) }
     var accessibilityGranted: () -> Bool = { Permissions.accessibilityGranted }
     var isSecureDestination: () -> Bool = { Paster.isFocusedElementSecure() }
