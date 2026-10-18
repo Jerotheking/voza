@@ -123,3 +123,18 @@ Tras el análisis competitivo de octubre 2026 frente a Wispr Flow (`$144/año`),
 4. **Tono Contextual Automático por App Activa (`bundleIdentifier`) + Controles de Historial (`V09`/`V10`/`V18`, `D065`):**
    - Cuando el Pulido Cloud está activo, inyectar automáticamente una pista breve según la app frontal detectada (`Cursor`/`VS Code`/`Terminal` → preservar identificadores técnicos; `WhatsApp`/`Slack`/`Messages` → conciso natural; `Mail`/`Notion` → párrafos limpios) sin requerir configurar modos manuales, además de completar `Paster` asíncrono sin `usleep` (`V09`) y el toggle/borrado de historial en disco (`V10`).
 
+### 8.1 Los 5 Diferenciadores «Simplicity First / Estilo Apple» (D070)
+
+Sin agregar botones ni menús complejos, todo se activa con la misma tecla `Option`:
+
+1. **#1 Modo Susurro Automático (Auto-Gain DSP en `AudioRecorder.swift` — `D070` COMPLETADO):**
+   - Normaliza en sitio grabaciones de voz baja/susurro (`0.005 <= peak < 0.35` → pico objetivo `0.55`, máx `12×`) respetando el piso de silencio (`< 0.005`) para evitar alucinaciones de Whisper.
+2. **#2 Continuación Inteligente a Mitad de Frase (`fieldBefore` en `Paster.swift` + `Cleaner.swift` — SIGUIENTE):**
+   - Usa los últimos ~120 caracteres antes del cursor (`Session.fieldBefore`) para continuar en minúscula después de una coma o palabra a mitad de oración y conservar los nombres propios del hilo actual.
+3. **#3 «Selecciona y Habla» (Edición por Voz con `Option` sobre `selectedRange.length > 0`):**
+   - Si el usuario tiene texto seleccionado al presionar `Option` y dicta una instrucción (*«hazlo más corto»*, *«tradúcelo al inglés»*, *«ponlo en lista»*), transforma la selección directamente sin requerir otro atajo ni cambiar de modo.
+4. **#4 Formateador Local de Listas y Párrafos Offline (`TextProcessor.swift`):**
+   - Convierte *«nuevo párrafo»*, *«nueva línea»* y enumeraciones claras en listas limpias en `0 ms` incluso cuando el Pulido IA está apagado o no hay internet.
+5. **#5 Expansión de Frases Rápidas (`+`) en la pestaña Correcciones (`SettingsView.swift`):**
+   - Permite añadir manualmente pares `oído → escrito` (ej. *«mi correo»* → email, *«mi calendario»* → link) en el mismo `CorrectionStore` sin crear otra pestaña de snippets.
+

@@ -30,6 +30,7 @@ final class AudioRecorder {
     private var converter: AVAudioConverter?
     private var fileHandle: FileHandle?
     private var pcmBytes: UInt64 = 0
+    private var peakAbsSample: Float = 0
     private var writeErrorOccurred = false
     private(set) var outputURL: URL?
     private(set) var lastAsset: AudioAsset?
@@ -66,6 +67,29 @@ final class AudioRecorder {
         let clamped = min(max(rms, 1e-7), 1.0)
         let db = 20 * log10(clamped)
         return max(0, min(1, (db + 60) / 54))
+    }
+
+    // MARK: - Whisper Mode Auto-Gain DSP (D070)
+
+    /// Minimum peak amplitude (`~ -46 dBFS`) required before auto-gain activates;
+    /// below this threshold the recording is room silence/noise floor and must NEVER
+    /// be amplified into Whisper hallucinations.
+    static let whisperNoiseFloorPeak: Float = 0.005
+    /// Recordings whose peak already reaches `0.35` (`~ -9.1 dBFS`) need no boost.
+    static let normalSpeechMinPeak: Float = 0.35
+    /// Target peak (`~ -5.2 dBFS`) and maximum multiplier (`+21.5 dB`) for whispered speech.
+    static let whisperTargetPeak: Float = 0.55
+    static let maxWhisperGain: Float = 12.0
+
+    /// Pure gain policy (`D070` / `pstack` `/correct`):
+    /// - Silence (`peak < 0.005`) -> `1.0` (never amplify background hum).
+    /// - Whisper / quiet speech (`0.005 <= peak < 0.35`) -> `min(0.55 / peak, 12.0)`.
+    /// - Normal / loud speech (`peak >= 0.35`) -> `1.0`.
+    static func whisperGainMultiplier(forPeak peak: Float) -> Float {
+        guard peak.isFinite, peak >= whisperNoiseFloorPeak, peak < normalSpeechMinPeak else {
+            return 1.0
+        }
+        return min(whisperTargetPeak / peak, maxWhisperGain)
     }
 
     var elapsedSeconds: Double {
@@ -124,6 +148,7 @@ final class AudioRecorder {
         ioQueue.sync {
             self.fileHandle = handle
             self.pcmBytes = 0
+            self.peakAbsSample = 0
             self.writeErrorOccurred = false
         }
 
@@ -161,6 +186,7 @@ final class AudioRecorder {
                 try? self.fileHandle?.close()
                 self.fileHandle = nil
                 self.pcmBytes = 0
+                self.peakAbsSample = 0
                 self.writeErrorOccurred = false
             }
             try? FileManager.default.removeItem(at: url)
@@ -192,6 +218,7 @@ final class AudioRecorder {
             ioQueue.sync {
                 self.fileHandle = handle
                 self.pcmBytes = 0
+                self.peakAbsSample = 0
                 self.writeErrorOccurred = false
             }
             self.outputURL = url
@@ -232,11 +259,18 @@ final class AudioRecorder {
         var finalBytes: UInt64 = 0
         var hadWriteError = false
         ioQueue.sync {
+            if !self.writeErrorOccurred, self.pcmBytes > 0, let handle = self.fileHandle {
+                let gain = Self.whisperGainMultiplier(forPeak: self.peakAbsSample)
+                if gain > 1.01 {
+                    Self.applyGainInPlace(handle: handle, pcmBytes: self.pcmBytes, gain: gain)
+                }
+            }
             finalBytes = self.pcmBytes
             hadWriteError = self.writeErrorOccurred
             try? self.fileHandle?.close()
             self.fileHandle = nil
             self.pcmBytes = 0
+            self.peakAbsSample = 0
             self.writeErrorOccurred = false
         }
 
@@ -274,6 +308,7 @@ final class AudioRecorder {
             try? self.fileHandle?.close()
             self.fileHandle = nil
             self.pcmBytes = 0
+            self.peakAbsSample = 0
             self.writeErrorOccurred = false
         }
 
@@ -328,12 +363,46 @@ final class AudioRecorder {
             writeErrorOccurred = true
             throw AudioRecorderError.byteLimitExceeded
         }
+        var chunkPeak: Float = peakAbsSample
+        data.withUnsafeBytes { rawBuf in
+            let floats = rawBuf.bindMemory(to: Float.self)
+            for s in floats {
+                let a = abs(s)
+                if a > chunkPeak { chunkPeak = a }
+            }
+        }
         do {
             try handle.write(contentsOf: data)
             pcmBytes += UInt64(data.count)
+            peakAbsSample = chunkPeak
         } catch {
             writeErrorOccurred = true
             throw AudioRecorderError.writeFailed
+        }
+    }
+
+    private static func applyGainInPlace(handle: FileHandle, pcmBytes: UInt64, gain: Float) {
+        let headerOffset: UInt64 = 44
+        let chunkSize = 1 << 18 // 256 KB chunks
+        var offset: UInt64 = 0
+        while offset < pcmBytes {
+            let toRead = Int(min(UInt64(chunkSize), pcmBytes - offset))
+            do {
+                try handle.seek(toOffset: headerOffset + offset)
+                guard var chunk = try handle.read(upToCount: toRead), !chunk.isEmpty else { break }
+                chunk.withUnsafeMutableBytes { rawBuf in
+                    let floats = rawBuf.bindMemory(to: Float.self)
+                    for i in 0..<floats.count {
+                        let scaled = floats[i] * gain
+                        floats[i] = min(max(scaled, -0.98), 0.98)
+                    }
+                }
+                try handle.seek(toOffset: headerOffset + offset)
+                try handle.write(contentsOf: chunk)
+                offset += UInt64(chunk.count)
+            } catch {
+                break
+            }
         }
     }
 

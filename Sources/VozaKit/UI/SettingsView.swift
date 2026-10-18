@@ -295,54 +295,25 @@ struct DictationSettings: View {
     var body: some View {
         Form {
             Section {
-                Picker(L.t("AI cleanup", es: "Limpieza IA"), selection: Binding(
-                    // A persisted "cloud" with a since-removed key displays
-                    // (and behaves) as plain — never a dangling selection.
+                Picker(L.t("Smart Polish", es: "Pulido inteligente"), selection: Binding(
                     get: { (appState.config.cleanupMode == "cloud" && !appState.config.hasCleanupProvider) ? "plain" : appState.config.cleanupMode },
                     set: { appState.config.setCleanupMode($0) }
                 )) {
-                    Text(L.t("Off — paste exactly what you said (default)", es: "Apagada — pega exactamente lo que dijiste (por defecto)")).tag("plain")
-                    // P0-1 (audit 2026-09-21): the cloud option exists ONLY
-                    // when a provider key is configured — the UI must never
-                    // offer what the pipeline cannot do.
+                    Text(L.t("Off — type exactly what I say", es: "Apagado — escribe tal cual lo que digo")).tag("plain")
                     if appState.config.hasCleanupProvider {
-                        Text(L.t("Cloud AI — uses your own API key", es: "IA en la nube — usa tu propia llave API")).tag("cloud")
+                        Text(L.t("On — fix punctuation & remove fillers", es: "Activado — corrige puntuación y muletillas")).tag("cloud")
                     }
                 }
-                if appState.config.cleanupMode == "cloud" && appState.config.hasCleanupProvider {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L.t("Runs on OpenAI-compatible APIs (OpenAI, Groq, OpenRouter…), with Anthropic as backup. Your key is stored securely in the macOS Keychain:",
-                                 es: "Corre en APIs compatibles con OpenAI (OpenAI, Groq, OpenRouter…), con Anthropic de respaldo. Tu llave se guarda segura en el Llavero de macOS:"))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("OPENAI_API_KEY=sk-…    # or ANTHROPIC_API_KEY=sk-ant-…")
-                            .font(.system(.caption2, design: .monospaced))
-                            .textSelection(.enabled)
-                        Text(L.t("Only the already-transcribed text is sent — never audio, and never without this switch.",
-                                 es: "Solo se envía el texto ya transcrito — nunca el audio, y nunca sin este switch."))
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                // P2-d (agy re-review 2026-09-22) discoverability, V12-era:
-                // the key now has a GUI field (a buyer never edits .env) and
-                // lives in the macOS Keychain — not a plaintext file.
                 CloudKeySection()
-                if !appState.config.hasCleanupProvider {
-                    Text(L.t("Optional: AI cleanup with your own API key — paste it below and the cloud option appears here. Advanced: you can also put OPENAI_API_KEY (or ANTHROPIC_API_KEY) in ~/.config/voza/.env.",
-                             es: "Opcional: limpieza IA con tu propia llave — pégala abajo y la opción cloud aparecerá aquí. Avanzado: también puedes poner OPENAI_API_KEY (o ANTHROPIC_API_KEY) en ~/.config/voza/.env."))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
             } header: {
-                Text(L.t("What happens after you speak", es: "Qué pasa después de hablar"))
+                Text(L.t("Writing style", es: "Estilo de escritura"))
             }
             Section {
-                Picker(L.t("Transcription language", es: "Idioma de transcripción"), selection: Binding(
+                Picker(L.t("Spoken language", es: "Idioma al hablar"), selection: Binding(
                     get: { appState.config.language },
                     set: { appState.config.setLanguage($0) }
                 )) {
-                    Text(L.t("Auto-detect", es: "Autodetectar")).tag("auto")
+                    Text(L.t("Automatic", es: "Automático")).tag("auto")
                     Text("English").tag("en")
                     Text("Español").tag("es")
                 }
@@ -358,8 +329,8 @@ struct DictationSettings: View {
                 Text(L.t("Languages", es: "Idiomas"))
             }
             Section {
-                Text(L.t("One button (**either Option key**): **tap** to toggle hands-free recording (tap again to finish, Esc to cancel) or **hold** for push-to-talk. When you fix a word by typing, Voza learns it automatically. With Cloud AI enabled, formatting adapts to your active app (IDE/Terminal, chat, or email).",
-                         es: "Un solo botón (**cualquier tecla Option**): **toca** para grabar manos libres (toca de nuevo para terminar, Esc cancela) o **mantén presionado** para push-to-talk. Si corriges una palabra tecleando, Voza la aprende sola. Con IA en la nube activa, el formato se adapta a la app que estés usando (IDE/Terminal, chat o correo)."))
+                Text(L.t("**Tap Option** for hands-free dictation (tap again to finish), or **hold Option** while speaking. Fix any word by typing and Voza learns it automatically.",
+                         es: "**Toca Option** para dictar en manos libres (toca de nuevo para terminar), o **mantén Option** mientras hablas. Si corriges una palabra tecleando, Voza la aprende sola."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -769,89 +740,267 @@ func gumroadURL(permalink: String) -> URL {
 /// displayed back — only its presence (a status line + the picker gate).
 struct CloudKeySection: View {
     @EnvironmentObject var appState: AppState
-    @State private var selectedPreset: Cleaner.CloudProviderPreset = .groq
     @State private var draftKey = ""
+    @State private var clipboardCandidate: (preset: Cleaner.CloudProviderPreset, key: String)?
+    @State private var isGuidingSetup = false
+    @State private var guideBaselineChangeCount: Int = 0
+    @State private var guideWatchTask: Task<Void, Never>?
+    @State private var showManualField = false
     @State private var feedback: String?
     @State private var showRemoveConfirm = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Picker(L.t("Cloud provider preset", es: "Proveedor en la nube (1 clic)"), selection: $selectedPreset) {
-                ForEach(Cleaner.CloudProviderPreset.allCases) { preset in
-                    Text(preset.displayName).tag(preset)
-                }
-            }
-            .onChange(of: selectedPreset) { _, newPreset in
-                let keychain = Config.productionKeychain(for: AppPaths.default)
-                appState.config.applyCloudPreset(newPreset, keychain: keychain)
-                feedback = L.t("Preset set to \(newPreset.displayName)",
-                               es: "Preset configurado: \(newPreset.displayName)")
-            }
-
-            HStack {
-                SecureField(L.t("Paste API key (\(selectedPreset.keyPlaceholder))",
-                                es: "Pega tu llave API (\(selectedPreset.keyPlaceholder))"),
-                            text: $draftKey)
-                    .textFieldStyle(.roundedBorder)
-                    .onChange(of: draftKey) { _, newValue in
-                        if let detected = Cleaner.CloudProviderPreset.detect(fromKey: newValue),
-                           detected != selectedPreset {
-                            selectedPreset = detected
-                        }
-                    }
-                Button(L.t("Save to Keychain", es: "Guardar en Llavero")) { save() }
-                    .disabled(draftKey.trimmingCharacters(in: .whitespaces).isEmpty)
-            }
+        VStack(alignment: .leading, spacing: 10) {
             if appState.config.hasCleanupProvider {
-                let activeModel = appState.config.env["CLEANUP_MODEL"] ?? selectedPreset.defaultModel
-                HStack {
-                    Image(systemName: "checkmark.seal.fill").foregroundStyle(.green).font(.caption)
-                    Text(L.t("Key stored in Keychain · model: \(activeModel)",
-                             es: "Llave en Llavero · modelo: \(activeModel)"))
-                        .font(.caption).foregroundStyle(.secondary)
+                let activePreset = Cleaner.CloudProviderPreset.current(in: appState.config.env)
+                HStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                    Text(L.t("Connected with \(activePreset.providerShortName) · audio stays on your Mac",
+                             es: "Conectado con \(activePreset.providerShortName) · tu audio nunca sale de la Mac"))
+                        .font(.caption.weight(.medium))
                     Spacer()
-                    Button(L.t("Remove", es: "Quitar"), role: .destructive) { showRemoveConfirm = true }
-                        .font(.caption)
+                    Button(L.t("Disconnect", es: "Desconectar"), role: .destructive) {
+                        showRemoveConfirm = true
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.caption)
                 }
-                .confirmationDialog(L.t("Remove the stored key? Cloud cleanup stops working.",
-                                         es: "¿Quitar la llave guardada? La limpieza IA deja de funcionar."),
-                                     isPresented: $showRemoveConfirm,
-                                     titleVisibility: .visible) {
-                    Button(L.t("Remove key", es: "Quitar llave"), role: .destructive) { remove() }
+                .confirmationDialog(
+                    L.t("Disconnect Smart Polish?", es: "¿Desconectar el Pulido inteligente?"),
+                    isPresented: $showRemoveConfirm,
+                    titleVisibility: .visible
+                ) {
+                    Button(L.t("Disconnect", es: "Desconectar"), role: .destructive) { remove() }
+                }
+            } else if isGuidingSetup {
+                guidedSetupCard
+            } else {
+                Text(L.t("Smart Polish uses a free Groq key (or OpenAI / Anthropic) to fix punctuation and remove fillers in ~180 ms.",
+                         es: "El Pulido inteligente usa una llave gratuita de Groq (u OpenAI / Anthropic) para corregir puntuación y muletillas en ~180 ms."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                if let candidate = clipboardCandidate {
+                    Button {
+                        connectKey(candidate.key, autoDetected: true)
+                    } label: {
+                        Label(
+                            L.t("Connect copied \(candidate.preset.providerShortName) key in 1 click",
+                                es: "Conectar llave de \(candidate.preset.providerShortName) copiada (1 clic)"),
+                            systemImage: "sparkles"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                }
+
+                HStack(spacing: 10) {
+                    Button {
+                        startGuidedSetup(url: URL(string: "https://console.groq.com/keys")!)
+                    } label: {
+                        Label(
+                            L.t("Guide me to get a free key (30 s)",
+                                es: "Guíame para sacar mi llave gratis (30 s)"),
+                            systemImage: "wand.and.stars"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+
+                    Button {
+                        if let clip = NSPasteboard.general.string(forType: .string),
+                           Cleaner.CloudProviderPreset.validKeyCandidate(from: clip) != nil {
+                            connectKey(clip, autoDetected: true)
+                        } else {
+                            showManualField.toggle()
+                        }
+                    } label: {
+                        Text(L.t("I already have a key", es: "Ya tengo una llave"))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+
+                if showManualField {
+                    HStack(spacing: 8) {
+                        SecureField(
+                            L.t("Paste key here — connects automatically",
+                                es: "Pega tu llave aquí — se conecta sola"),
+                            text: $draftKey
+                        )
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: draftKey) { _, newValue in
+                            if let valid = Cleaner.CloudProviderPreset.validKeyCandidate(from: newValue) {
+                                connectKey(valid.key, autoDetected: false)
+                            }
+                        }
+                        .onSubmit {
+                            connectKey(draftKey, autoDetected: false)
+                        }
+
+                        Button {
+                            if let clip = NSPasteboard.general.string(forType: .string) {
+                                connectKey(clip, autoDetected: false)
+                            }
+                        } label: {
+                            Label(L.t("Paste", es: "Pegar"), systemImage: "doc.on.clipboard")
+                        }
+                        .controlSize(.small)
+                    }
                 }
             }
             if let feedback {
-                Text(feedback).font(.caption).foregroundStyle(.secondary)
+                Text(feedback)
+                    .font(.caption)
+                    .foregroundStyle(Theme.accent)
             }
         }
-        .onAppear {
-            selectedPreset = Cleaner.CloudProviderPreset.current(in: appState.config.env)
+        .onAppear { refreshClipboardCandidate() }
+        .onDisappear { stopGuidedSetup() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshClipboardCandidate()
         }
     }
 
-    private func save() {
-        let value = draftKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty else { return }
-        if let detected = Cleaner.CloudProviderPreset.detect(fromKey: value) {
-            selectedPreset = detected
+    private var guidedSetupCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text(L.t("Waiting for you to copy your key…",
+                         es: "Esperando a que copies tu llave…"))
+                    .font(.system(size: 12, weight: .semibold))
+                Spacer()
+                Button(L.t("Cancel", es: "Cancelar")) {
+                    stopGuidedSetup()
+                }
+                .buttonStyle(.borderless)
+                .font(.caption)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
+                guideStep(
+                    number: "1",
+                    text: L.t("Sign in with Google or GitHub on the page that just opened.",
+                              es: "Inicia sesión con Google o GitHub en la página que se acaba de abrir.")
+                )
+                guideStep(
+                    number: "2",
+                    text: L.t("Click **Create API Key** and give it any name (e.g. “Voza”).",
+                              es: "Haz clic en **Create API Key** y ponle cualquier nombre (ej. “Voza”).")
+                )
+                guideStep(
+                    number: "3",
+                    text: L.t("Click **Copy** — Voza detects it from your clipboard and connects automatically!",
+                              es: "Haz clic en **Copy** — ¡Voza la detecta sola del portapapeles y se conecta automáticamente!")
+                )
+            }
+            .padding(.vertical, 2)
+
+            HStack(spacing: 12) {
+                Button(L.t("Reopen Groq ↗", es: "Reabrir Groq ↗")) {
+                    NSWorkspace.shared.open(URL(string: "https://console.groq.com/keys")!)
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+
+                Button(L.t("Use OpenAI instead ↗", es: "Usar OpenAI ↗")) {
+                    NSWorkspace.shared.open(URL(string: "https://platform.openai.com/api-keys")!)
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+
+                Button(L.t("Use Anthropic instead ↗", es: "Usar Anthropic ↗")) {
+                    NSWorkspace.shared.open(URL(string: "https://console.anthropic.com/settings/keys")!)
+                }
+                .buttonStyle(.link)
+                .font(.caption2)
+            }
         }
-        let keyName = selectedPreset.keySlot
+        .padding(10)
+        .background(.quinary, in: RoundedRectangle(cornerRadius: Theme.cardCorner))
+    }
+
+    private func guideStep(number: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Text(number)
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: 16, height: 16)
+                .background(Circle().fill(Theme.accent))
+            Text(.init(text))
+                .font(.caption)
+                .foregroundStyle(.primary)
+        }
+    }
+
+    private func startGuidedSetup(url: URL) {
+        feedback = nil
+        guideBaselineChangeCount = NSPasteboard.general.changeCount
+        isGuidingSetup = true
+        NSWorkspace.shared.open(url)
+        guideWatchTask?.cancel()
+        guideWatchTask = Task { @MainActor in
+            // Poll clipboard every 0.5s for up to 3 minutes while the user creates & copies their key.
+            for _ in 0..<360 {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                guard !Task.isCancelled, isGuidingSetup else { return }
+                let pb = NSPasteboard.general
+                guard pb.changeCount != guideBaselineChangeCount else { continue }
+                guideBaselineChangeCount = pb.changeCount
+                if let clip = pb.string(forType: .string),
+                   let valid = Cleaner.CloudProviderPreset.validKeyCandidate(from: clip) {
+                    connectKey(valid.key, autoDetected: true)
+                    return
+                }
+            }
+            if isGuidingSetup {
+                isGuidingSetup = false
+            }
+        }
+    }
+
+    private func stopGuidedSetup() {
+        guideWatchTask?.cancel()
+        guideWatchTask = nil
+        isGuidingSetup = false
+    }
+
+    private func refreshClipboardCandidate() {
+        guard !appState.config.hasCleanupProvider else {
+            clipboardCandidate = nil
+            return
+        }
+        let clip = NSPasteboard.general.string(forType: .string)
+        clipboardCandidate = Cleaner.CloudProviderPreset.validKeyCandidate(from: clip)
+    }
+
+    private func connectKey(_ raw: String, autoDetected: Bool) {
+        let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty else { return }
+        let preset = Cleaner.CloudProviderPreset.detect(fromKey: value) ?? .openai
         let keychain = Config.productionKeychain(for: AppPaths.default)
-        appState.config.applyCloudPreset(selectedPreset, keychain: keychain)
-        if appState.config.saveCleanupKey(keyName, value: value, keychain: keychain) {
-            feedback = L.t("Saved \(selectedPreset.displayName) key to the Keychain.",
-                           es: "Llave de \(selectedPreset.displayName) guardada en el Llavero.")
-            if appState.config.cleanupMode != "cloud" {
-                appState.config.setCleanupMode("cloud")
+        appState.config.applyCloudPreset(preset, keychain: keychain)
+        if appState.config.saveCleanupKey(preset.keySlot, value: value, keychain: keychain) {
+            appState.config.setCleanupMode("cloud")
+            stopGuidedSetup()
+            showManualField = false
+            clipboardCandidate = nil
+            feedback = L.t("✓ Connected automatically with \(preset.providerShortName)!",
+                           es: "✓ ¡Conectado automáticamente con \(preset.providerShortName)!")
+            if autoDetected {
+                NSSound(named: "Glass")?.play()
+                NSApp.bringSettingsToFront()
             }
         } else {
-            feedback = L.t("The Keychain refused the save — nothing was changed.",
-                           es: "El Llavero rechazó el guardado — no se cambió nada.")
+            feedback = L.t("Could not save the key to Keychain.",
+                           es: "No se pudo guardar la llave en el Llavero.")
         }
         draftKey = ""
     }
 
     private func remove() {
+        stopGuidedSetup()
         let keychain = Config.productionKeychain(for: AppPaths.default)
         for key in Config.credentialKeys {
             appState.config.deleteCleanupKey(key, keychain: keychain)
@@ -860,6 +1009,7 @@ struct CloudKeySection: View {
         if appState.config.cleanupMode == "cloud" {
             appState.config.setCleanupMode("plain")
         }
-        feedback = L.t("Key removed.", es: "Llave eliminada.")
+        feedback = nil
+        refreshClipboardCandidate()
     }
 }

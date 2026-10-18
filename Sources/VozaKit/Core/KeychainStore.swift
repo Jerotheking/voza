@@ -12,8 +12,8 @@ import Security
 ///   service namespace they cannot collide with (a fake store makes the
 ///   secrecy itself hermetic).
 /// - `get`/`set`/`delete` are the whole surface. Set overwrites atomically
-///   (SecItem update, or add when missing). Failures are returned, never
-///   logged with values (V12-AC05).
+///   (SecItem update, or delete+add when missing/re-signed). Failures are returned,
+///   never logged with values (V12-AC05).
 /// - The production SecItem implementation never records or prints key
 ///   material; errors surface as `KeychainStoreError.status(OSStatus)`.
 protocol KeychainStore: Sendable {
@@ -69,18 +69,16 @@ struct SecItemKeychainStore: KeychainStore {
             kSecAttrService as String: service,
             kSecAttrAccount as String: key,
         ]
-        // Update path first: overwriting an existing key must never create a
-        // duplicate item (SecItemAdd would fail with errSecDuplicateItem).
         let update: [String: Any] = [kSecValueData as String: data]
         let updateStatus = SecItemUpdate(base as CFDictionary, update as CFDictionary)
         if updateStatus == errSecSuccess { return true }
-        if updateStatus == errSecItemNotFound {
-            var add = base
-            add[kSecValueData as String] = data
-            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
-        }
-        return false
+        // D069: if the item does not exist or its ACL belonged to a previous local build
+        // signature, delete any stale entry and add a fresh one.
+        SecItemDelete(base as CFDictionary)
+        var add = base
+        add[kSecValueData as String] = data
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
         #else
         return false
         #endif

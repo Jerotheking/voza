@@ -158,6 +158,7 @@ final class AppState: ObservableObject {
     /// injected seams). AppState only maps its outcome onto published UI
     /// state if `sessionID` still matches `activeSessionID` (V07-AC02, V07-AC05).
     private func runPipeline(wavURL: URL, sessionID: UUID, snapshot: SessionSettingsSnapshot) async {
+        config.reload()
         var pipeline = DictationPipeline(
             wavURL: wavURL,
             recordedSeconds: recordedSeconds,

@@ -79,4 +79,23 @@ final class AudioRecorderTests: XCTestCase {
         let remaining = try FileManager.default.contentsOfDirectory(atPath: dir.path)
         XCTAssertEqual(remaining, [firstURL.lastPathComponent])
     }
+
+    // D070: Whisper Auto-Gain boosts quiet speech (0.02 -> ~0.24), leaves silence (< 0.005) untouched,
+    // and leaves normal speech (>= 0.35) untouched.
+    func testWhisperModeAutoGainNormalizesQuietSpeechAndSparesSilence() throws {
+        XCTAssertEqual(AudioRecorder.whisperGainMultiplier(forPeak: 0.001), 1.0, "Silence must never be amplified")
+        XCTAssertEqual(AudioRecorder.whisperGainMultiplier(forPeak: 0.50), 1.0, "Normal speech must not be amplified")
+        let quietGain = AudioRecorder.whisperGainMultiplier(forPeak: 0.05)
+        XCTAssertEqual(quietGain, 11.0, accuracy: 0.01)
+
+        let dir = try makeTempDir()
+        let rec = AudioRecorder()
+        try rec.appendSamplesForTesting([Float](repeating: 0.05, count: 1600), directory: dir)
+        let url = try XCTUnwrap(rec.stop())
+        let raw = try Data(contentsOf: url)
+        let payload = raw.dropFirst(44)
+        let firstSample = payload.withUnsafeBytes { $0.load(as: Float.self) }
+        XCTAssertEqual(firstSample, 0.55, accuracy: 0.01, "Whispered sample (0.05) should be normalized to target peak (0.55)")
+        try? FileManager.default.removeItem(at: url)
+    }
 }
